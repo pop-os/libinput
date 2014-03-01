@@ -1,5 +1,5 @@
-libinput (0.1.0-1) UNRELEASED; urgency=medium
+libinput (0.1.0-1) experimental; urgency=medium
 
   * Initial release. Closes: #740223.
 
- -- Emilio Pozuelo Monfort <pochu@debian.org>  Sat, 01 Mar 2014 17:32:11 +0100
+ -- Emilio Pozuelo Monfort <pochu@debian.org>  Sat, 01 Mar 2014 19:03:37 +0100
