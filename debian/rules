@@ -1,0 +1,10 @@
+#!/usr/bin/make -f
+
+override_dh_makeshlibs:
+	dh_makeshlibs -plibinput0 -V -- -c4
+
+override_dh_strip:
+	dh_strip -plibinput0 --dbg-package=libinput0-dbg
+
+%:
+	dh $@ --with autoreconf
