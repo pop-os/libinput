@@ -3,6 +3,8 @@ libinput (0.2.0-1) UNRELEASED; urgency=medium
   * New upstream release.
   * debian/copyright:
     + Updated copyright years.
+  * debian/libinput0.symbols:
+    + Updated for the new symbols.
 
  -- Emilio Pozuelo Monfort <pochu@debian.org>  Thu, 22 May 2014 18:28:03 +0200
 

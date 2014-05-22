@@ -14,6 +14,7 @@ libinput.so.0 libinput0 #MINVER#
  libinput_device_unref@Base 0.1.0
  libinput_dispatch@Base 0.1.0
  libinput_event_destroy@Base 0.1.0
+ libinput_event_device_notify_get_base_event@Base 0.2.0
  libinput_event_get_context@Base 0.1.0
  libinput_event_get_device@Base 0.1.0
  libinput_event_get_device_notify_event@Base 0.1.0
@@ -21,8 +22,10 @@ libinput.so.0 libinput0 #MINVER#
  libinput_event_get_pointer_event@Base 0.1.0
  libinput_event_get_touch_event@Base 0.1.0
  libinput_event_get_type@Base 0.1.0
+ libinput_event_keyboard_get_base_event@Base 0.2.0
  libinput_event_keyboard_get_key@Base 0.1.0
  libinput_event_keyboard_get_key_state@Base 0.1.0
+ libinput_event_keyboard_get_seat_key_count@Base 0.2.0
  libinput_event_keyboard_get_time@Base 0.1.0
  libinput_event_pointer_get_absolute_x@Base 0.1.0
  libinput_event_pointer_get_absolute_x_transformed@Base 0.1.0
@@ -30,11 +33,14 @@ libinput.so.0 libinput0 #MINVER#
  libinput_event_pointer_get_absolute_y_transformed@Base 0.1.0
  libinput_event_pointer_get_axis@Base 0.1.0
  libinput_event_pointer_get_axis_value@Base 0.1.0
+ libinput_event_pointer_get_base_event@Base 0.2.0
  libinput_event_pointer_get_button@Base 0.1.0
  libinput_event_pointer_get_button_state@Base 0.1.0
  libinput_event_pointer_get_dx@Base 0.1.0
  libinput_event_pointer_get_dy@Base 0.1.0
+ libinput_event_pointer_get_seat_button_count@Base 0.2.0
  libinput_event_pointer_get_time@Base 0.1.0
+ libinput_event_touch_get_base_event@Base 0.2.0
  libinput_event_touch_get_seat_slot@Base 0.1.0
  libinput_event_touch_get_slot@Base 0.1.0
  libinput_event_touch_get_time@Base 0.1.0
