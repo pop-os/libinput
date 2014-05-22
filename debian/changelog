@@ -1,6 +1,10 @@
 libinput (0.2.0-1) UNRELEASED; urgency=medium
 
   * New upstream release.
+    + There is no API/ABI stability promise yet, but the API and ABI have
+      been mostly stable so far. Since this is only in experimental at this
+      point and there are no rdepends, I won't change the library name. That
+      will change once there are rdepends or once the library is in unstable.
   * debian/copyright:
     + Updated copyright years.
   * debian/libinput0.symbols:
