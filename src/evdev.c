@@ -39,6 +39,10 @@
 
 #define DEFAULT_AXIS_STEP_DISTANCE li_fixed_from_int(10)
 
+#ifndef KEY_LIGHTS_TOGGLE
+#define KEY_LIGHTS_TOGGLE 0x160
+#endif
+
 void
 evdev_device_led_update(struct evdev_device *device, enum libinput_led leds)
 {
@@ -132,6 +136,12 @@ evdev_flush_pending_event(struct evdev_device *device, uint32_t time)
 		if (!(device->seat_caps & EVDEV_DEVICE_TOUCH))
 			break;
 
+		if (device->mt.slots[slot].seat_slot != -1) {
+			log_bug("%s: Driver sent multiple touch down for the "
+				"same slot", device->devnode);
+			break;
+		}
+
 		seat_slot = ffs(~seat->slot_map) - 1;
 		device->mt.slots[slot].seat_slot = seat_slot;
 
@@ -162,6 +172,7 @@ evdev_flush_pending_event(struct evdev_device *device, uint32_t time)
 			break;
 
 		seat_slot = device->mt.slots[slot].seat_slot;
+		device->mt.slots[slot].seat_slot = -1;
 
 		if (seat_slot == -1)
 			break;
@@ -173,6 +184,12 @@ evdev_flush_pending_event(struct evdev_device *device, uint32_t time)
 	case EVDEV_ABSOLUTE_TOUCH_DOWN:
 		if (!(device->seat_caps & EVDEV_DEVICE_TOUCH))
 			break;
+
+		if (device->abs.seat_slot != -1) {
+			log_bug("%s: Driver sent multiple touch down for the "
+				"same slot", device->devnode);
+			break;
+		}
 
 		seat_slot = ffs(~seat->slot_map) - 1;
 		device->abs.seat_slot = seat_slot;
@@ -209,6 +226,7 @@ evdev_flush_pending_event(struct evdev_device *device, uint32_t time)
 			break;
 
 		seat_slot = device->abs.seat_slot;
+		device->abs.seat_slot = -1;
 
 		if (seat_slot == -1)
 			break;
@@ -244,6 +262,9 @@ evdev_process_key(struct evdev_device *device, struct input_event *e, int time)
 	if (e->value == 2)
 		return;
 
+	if (e->code > KEY_MAX)
+		return;
+
 	if (e->code == BTN_TOUCH) {
 		if (!device->is_mt)
 			evdev_process_touch_button(device, time, e->value);
@@ -270,6 +291,11 @@ evdev_process_key(struct evdev_device *device, struct input_event *e, int time)
 		break;
 
 	default:
+		/* Only let KEY_* codes pass through. */
+		if (!(e->code <= KEY_MICMUTE ||
+		      (e->code >= KEY_OK && e->code <= KEY_LIGHTS_TOGGLE)))
+			break;
+
 		keyboard_notify_key(
 			&device->base,
 			time,
@@ -543,9 +569,14 @@ evdev_device_dispatch(void *data)
 static int
 evdev_configure_device(struct evdev_device *device)
 {
+	struct libevdev *evdev = device->evdev;
 	const struct input_absinfo *absinfo;
 	int has_abs, has_rel, has_mt;
 	int has_button, has_keyboard, has_touch;
+	struct mt_slot *slots;
+	int num_slots;
+	int active_slot;
+	int slot;
 	unsigned int i;
 
 	has_rel = 0;
@@ -555,14 +586,14 @@ evdev_configure_device(struct evdev_device *device)
 	has_keyboard = 0;
 	has_touch = 0;
 
-	if (libevdev_has_event_type(device->evdev, EV_ABS)) {
+	if (libevdev_has_event_type(evdev, EV_ABS)) {
 
-		if ((absinfo = libevdev_get_abs_info(device->evdev, ABS_X))) {
+		if ((absinfo = libevdev_get_abs_info(evdev, ABS_X))) {
 			device->abs.min_x = absinfo->minimum;
 			device->abs.max_x = absinfo->maximum;
 			has_abs = 1;
 		}
-		if ((absinfo = libevdev_get_abs_info(device->evdev, ABS_Y))) {
+		if ((absinfo = libevdev_get_abs_info(evdev, ABS_Y))) {
 			device->abs.min_y = absinfo->minimum;
 			device->abs.max_y = absinfo->maximum;
 			has_abs = 1;
@@ -570,64 +601,98 @@ evdev_configure_device(struct evdev_device *device)
                 /* We only handle the slotted Protocol B in weston.
                    Devices with ABS_MT_POSITION_* but not ABS_MT_SLOT
                    require mtdev for conversion. */
-		if (libevdev_has_event_code(device->evdev, EV_ABS, ABS_MT_POSITION_X) &&
-		    libevdev_has_event_code(device->evdev, EV_ABS, ABS_MT_POSITION_Y)) {
-			absinfo = libevdev_get_abs_info(device->evdev, ABS_MT_POSITION_X);
+		if (libevdev_has_event_code(evdev, EV_ABS, ABS_MT_POSITION_X) &&
+		    libevdev_has_event_code(evdev, EV_ABS, ABS_MT_POSITION_Y)) {
+			absinfo = libevdev_get_abs_info(evdev, ABS_MT_POSITION_X);
 			device->abs.min_x = absinfo->minimum;
 			device->abs.max_x = absinfo->maximum;
-			absinfo = libevdev_get_abs_info(device->evdev, ABS_MT_POSITION_Y);
+			absinfo = libevdev_get_abs_info(evdev, ABS_MT_POSITION_Y);
 			device->abs.min_y = absinfo->minimum;
 			device->abs.max_y = absinfo->maximum;
 			device->is_mt = 1;
 			has_touch = 1;
 			has_mt = 1;
 
-			if (!libevdev_has_event_code(device->evdev, EV_ABS, ABS_MT_SLOT)) {
+			if (!libevdev_has_event_code(evdev,
+						     EV_ABS, ABS_MT_SLOT)) {
 				device->mtdev = mtdev_new_open(device->fd);
 				if (!device->mtdev)
 					return -1;
-				device->mt.slot = device->mtdev->caps.slot.value;
+
+				num_slots = device->mtdev->caps.slot.maximum;
+				if (device->mtdev->caps.slot.minimum < 0 ||
+				    num_slots <= 0)
+					return -1;
+				active_slot = device->mtdev->caps.slot.value;
 			} else {
-				device->mt.slot = libevdev_get_current_slot(device->evdev);
+				num_slots = libevdev_get_num_slots(device->evdev);
+				active_slot = libevdev_get_current_slot(evdev);
 			}
+
+			slots = calloc(num_slots, sizeof(struct mt_slot));
+			if (!slots)
+				return -1;
+
+			for (slot = 0; slot < num_slots; ++slot) {
+				slots[slot].seat_slot = -1;
+				slots[slot].x = 0;
+				slots[slot].y = 0;
+			}
+			device->mt.slots = slots;
+			device->mt.slots_len = num_slots;
+			device->mt.slot = active_slot;
 		}
 	}
-	if (libevdev_has_event_code(device->evdev, EV_REL, REL_X) ||
-	    libevdev_has_event_code(device->evdev, EV_REL, REL_Y))
-			has_rel = 1;
+	if (libevdev_has_event_code(evdev, EV_REL, REL_X) ||
+	    libevdev_has_event_code(evdev, EV_REL, REL_Y))
+		has_rel = 1;
 
-	if (libevdev_has_event_type(device->evdev, EV_KEY)) {
-		if (libevdev_has_event_code(device->evdev, EV_KEY, BTN_TOOL_FINGER) &&
-		    !libevdev_has_event_code(device->evdev, EV_KEY, BTN_TOOL_PEN) &&
+	if (libevdev_has_event_type(evdev, EV_KEY)) {
+		if (libevdev_has_event_code(evdev, EV_KEY, BTN_TOOL_FINGER) &&
+		    !libevdev_has_event_code(evdev, EV_KEY, BTN_TOOL_PEN) &&
 		    (has_abs || has_mt)) {
-			device->dispatch = evdev_touchpad_create(device);
+			device->dispatch = evdev_mt_touchpad_create(device);
+			log_info("input device '%s', %s is a touchpad\n",
+				 device->devname, device->devnode);
 		}
 		for (i = KEY_ESC; i < KEY_MAX; i++) {
 			if (i >= BTN_MISC && i < KEY_OK)
 				continue;
-			if (libevdev_has_event_code(device->evdev, EV_KEY, i)) {
+			if (libevdev_has_event_code(evdev, EV_KEY, i)) {
 				has_keyboard = 1;
 				break;
 			}
 		}
-		if (libevdev_has_event_code(device->evdev, EV_KEY, BTN_TOUCH))
+		if (libevdev_has_event_code(evdev, EV_KEY, BTN_TOUCH))
 			has_touch = 1;
 		for (i = BTN_MISC; i < BTN_JOYSTICK; i++) {
-			if (libevdev_has_event_code(device->evdev, EV_KEY, i)) {
+			if (libevdev_has_event_code(evdev, EV_KEY, i)) {
 				has_button = 1;
 				break;
 			}
 		}
 	}
-	if (libevdev_has_event_type(device->evdev, EV_LED))
+	if (libevdev_has_event_type(evdev, EV_LED))
 		has_keyboard = 1;
 
-	if ((has_abs || has_rel) && has_button)
+	if ((has_abs || has_rel) && has_button) {
 		device->seat_caps |= EVDEV_DEVICE_POINTER;
-	if (has_keyboard)
+		log_info("input device '%s', %s is a pointer caps =%s%s%s\n",
+			 device->devname, device->devnode,
+			 has_abs ? " absolute-motion" : "",
+			 has_rel ? " relative-motion": "",
+			 has_button ? " button" : "");
+	}
+	if (has_keyboard) {
 		device->seat_caps |= EVDEV_DEVICE_KEYBOARD;
-	if (has_touch && !has_button)
+		log_info("input device '%s', %s is a keyboard\n",
+			 device->devname, device->devnode);
+	}
+	if (has_touch && !has_button) {
 		device->seat_caps |= EVDEV_DEVICE_TOUCH;
+		log_info("input device '%s', %s is a touch device\n",
+			 device->devname, device->devnode);
+	}
 
 	return 0;
 }
@@ -670,9 +735,9 @@ evdev_device_create(struct libinput_seat *seat,
 	device->mtdev = NULL;
 	device->devnode = strdup(devnode);
 	device->sysname = strdup(sysname);
-	device->mt.slot = -1;
 	device->rel.dx = 0;
 	device->rel.dy = 0;
+	device->abs.seat_slot = -1;
 	device->dispatch = NULL;
 	device->fd = fd;
 	device->pending_event = EVDEV_NONE;
@@ -715,8 +780,12 @@ err:
 int
 evdev_device_get_keys(struct evdev_device *device, char *keys, size_t size)
 {
+	int len;
+
 	memset(keys, 0, size);
-	return ioctl(device->fd, EVIOCGKEY(size), keys);
+	len = ioctl(device->fd, EVIOCGKEY(size), keys);
+
+	return (len == -1) ? -errno : len;
 }
 
 const char *
@@ -782,6 +851,7 @@ evdev_device_destroy(struct evdev_device *device)
 
 	libinput_seat_unref(device->base.seat);
 	libevdev_free(device->evdev);
+	free(device->mt.slots);
 	free(device->devnode);
 	free(device->sysname);
 	free(device);

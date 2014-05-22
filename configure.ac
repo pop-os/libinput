@@ -1,7 +1,7 @@
 AC_PREREQ([2.64])
 
 m4_define([libinput_major_version], [0])
-m4_define([libinput_minor_version], [1])
+m4_define([libinput_minor_version], [2])
 m4_define([libinput_micro_version], [0])
 m4_define([libinput_version],
           [libinput_major_version.libinput_minor_version.libinput_micro_version])
@@ -22,10 +22,22 @@ AC_CONFIG_MACRO_DIR([m4])
 
 AM_INIT_AUTOMAKE([1.11 foreign no-dist-gzip dist-xz])
 
+# Before making a release, the LIBINPUT_LT_VERSION string should be
+# modified.
+# The string is of the form C:R:A.
+# - If interfaces have been changed or added, but binary compatibility has
+#   been preserved, change to C+1:0:A+1
+# - If binary compatibility has been broken (eg removed or changed interfaces)
+#   change to C+1:0:0
+# - If the interface is the same as the previous version, change to C:R+1:A
+LIBINPUT_LT_VERSION=1:0:1
+AC_SUBST(LIBINPUT_LT_VERSION)
+
 AM_SILENT_RULES([yes])
 
 # Check for programs
 AC_PROG_CC_C99
+AC_PROG_CXX # Only used by build C++ test
 
 # Initialize libtool
 LT_PREREQ([2.2])
@@ -72,10 +84,15 @@ if test "x$build_tests" = "xauto"; then
 		build_tests="yes"
 	fi
 fi
-if test "x$build_tests" = "xyes" -a "x$HAVE_CHECK" = "xno"; then
-       AC_MSG_ERROR([Cannot build tests, check is missing])
+if test "x$build_tests" = "xyes"; then
+	if test "x$HAVE_CHECK" = "xno"; then
+		AC_MSG_ERROR([Cannot build tests, check is missing])
+	fi
+
+	AC_PATH_PROG(VALGRIND, [valgrind])
 fi
 
+AM_CONDITIONAL(HAVE_VALGRIND, [test "x$VALGRIND" != "x"])
 AM_CONDITIONAL(BUILD_TESTS, [test "x$build_tests" = "xyes"])
 
 AC_CONFIG_FILES([Makefile

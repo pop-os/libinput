@@ -23,6 +23,10 @@
 #ifndef LIBINPUT_H
 #define LIBINPUT_H
 
+#ifdef __cplusplus
+extern "C" {
+#endif
+
 #include <stdlib.h>
 #include <stdint.h>
 #include <libudev.h>
@@ -55,7 +59,7 @@ enum libinput_log_priority {
  *
  * Capabilities on a device. A device may have one or more capabilities
  * at a time, and capabilities may appear or disappear during the
- * lifteime of the device.
+ * lifetime of the device.
  */
 enum libinput_device_capability {
 	LIBINPUT_DEVICE_CAP_KEYBOARD = 0,
@@ -271,6 +275,8 @@ libinput_event_get_device(struct libinput_event *event);
  * Return the pointer event that is this input event. If the event type does
  * not match the pointer event types, this function returns NULL.
  *
+ * The inverse of this function is libinput_event_pointer_get_base_event().
+ *
  * @return A pointer event, or NULL for other events
  */
 struct libinput_event_pointer *
@@ -281,6 +287,8 @@ libinput_event_get_pointer_event(struct libinput_event *event);
  *
  * Return the keyboard event that is this input event. If the event type does
  * not match the keyboard event types, this function returns NULL.
+ *
+ * The inverse of this function is libinput_event_keyboard_get_base_event().
  *
  * @return A keyboard event, or NULL for other events
  */
@@ -293,6 +301,8 @@ libinput_event_get_keyboard_event(struct libinput_event *event);
  * Return the touch event that is this input event. If the event type does
  * not match the touch event types, this function returns NULL.
  *
+ * The inverse of this function is libinput_event_touch_get_base_event().
+ *
  * @return A touch event, or NULL for other events
  */
 struct libinput_event_touch *
@@ -304,10 +314,21 @@ libinput_event_get_touch_event(struct libinput_event *event);
  * Return the device event that is this input event. If the event type does
  * not match the device event types, this function returns NULL.
  *
+ * The inverse of this function is
+ * libinput_event_device_notify_get_base_event().
+ *
  * @return A device event, or NULL for other events
  */
 struct libinput_event_device_notify *
 libinput_event_get_device_notify_event(struct libinput_event *event);
+
+/**
+ * @ingroup event
+ *
+ * @return The generic libinput_event of this event
+ */
+struct libinput_event *
+libinput_event_device_notify_get_base_event(struct libinput_event_device_notify *event);
 
 /**
  * @defgroup event_keyboard Keyboard events
@@ -339,6 +360,31 @@ libinput_event_keyboard_get_key(struct libinput_event_keyboard *event);
  */
 enum libinput_keyboard_key_state
 libinput_event_keyboard_get_key_state(struct libinput_event_keyboard *event);
+
+
+/**
+ * @ingroup event_keyboard
+ *
+ * @return The generic libinput_event of this event
+ */
+struct libinput_event *
+libinput_event_keyboard_get_base_event(struct libinput_event_keyboard *event);
+
+/**
+ * @ingroup event_keyboard
+ *
+ * For the key of a LIBINPUT_EVENT_KEYBOARD_KEY event, return the total number
+ * of keys pressed on all devices on the associated seat after the event was
+ * triggered.
+ *
+ " @note It is an application bug to call this function for events other than
+ * LIBINPUT_EVENT_KEYBOARD_KEY. For other events, this function returns 0.
+ *
+ * @return the seat wide pressed key count for the key of this event
+ */
+uint32_t
+libinput_event_keyboard_get_seat_key_count(
+	struct libinput_event_keyboard *event);
 
 /**
  * @defgroup event_pointer Pointer events
@@ -502,6 +548,22 @@ libinput_event_pointer_get_button_state(struct libinput_event_pointer *event);
 /**
  * @ingroup event_pointer
  *
+ * For the button of a LIBINPUT_EVENT_POINTER_BUTTON event, return the total
+ * number of buttons pressed on all devices on the associated seat after the
+ * the event was triggered.
+ *
+ " @note It is an application bug to call this function for events other than
+ * LIBINPUT_EVENT_POINTER_BUTTON. For other events, this function returns 0.
+ *
+ * @return the seat wide pressed button count for the key of this event
+ */
+uint32_t
+libinput_event_pointer_get_seat_button_count(
+	struct libinput_event_pointer *event);
+
+/**
+ * @ingroup event_pointer
+ *
  * Return the axis that triggered this event.
  * For pointer events that are not of type LIBINPUT_EVENT_POINTER_AXIS,
  * this function returns 0.
@@ -536,6 +598,15 @@ libinput_event_pointer_get_axis(struct libinput_event_pointer *event);
  */
 li_fixed_t
 libinput_event_pointer_get_axis_value(struct libinput_event_pointer *event);
+
+/**
+ * @ingroup event_pointer
+ *
+ * @return The generic libinput_event of this event
+ */
+struct libinput_event *
+libinput_event_pointer_get_base_event(struct libinput_event_pointer *event);
+
 
 /**
  * @defgroup event_touch Touch events
@@ -658,6 +729,14 @@ libinput_event_touch_get_y_transformed(struct libinput_event_touch *event,
 				       uint32_t height);
 
 /**
+ * @ingroup event_touch
+ *
+ * @return The generic libinput_event of this event
+ */
+struct libinput_event *
+libinput_event_touch_get_base_event(struct libinput_event_touch *event);
+
+/**
  * @defgroup base Initialization and manipulation of libinput contexts
  */
 
@@ -690,6 +769,13 @@ struct libinput_interface {
  * Create a new libinput context from udev, for input devices matching
  * the given seat ID. New devices or devices removed will appear as events
  * during libinput_dispatch.
+ *
+ * libinput_udev_create_for_seat() succeeds even if no input device is
+ * available in this seat, or if devices are available but fail to open in
+ * @ref libinput_interface::open_restricted. Devices that do not have the
+ * minimum capabilities to be recognized as pointer, keyboard or touch
+ * device are ignored. Such devices and those that failed to open
+ * ignored until the next call to libinput_resume().
  *
  * @param interface The callback interface
  * @param user_data Caller-specific data passed to the various callback
@@ -730,13 +816,13 @@ libinput_path_create_context(const struct libinput_interface *interface,
  * @ingroup base
  *
  * Add a device to a libinput context initialized with
- * libinput_path_create_from_device(). If successful, the device will be
+ * libinput_path_create_context(). If successful, the device will be
  * added to the internal list and re-opened on libinput_resume(). The device
  * can be removed with libinput_path_remove_device().
  *
  * If the device was successfully initialized, it is returned in the device
  * argument. The lifetime of the returned device pointer is limited until
- * the next linput_dispatch(), use libinput_device_ref() to keep a permanent
+ * the next libinput_dispatch(), use libinput_device_ref() to keep a permanent
  * reference.
  *
  * @param libinput A previously initialized libinput context
@@ -744,7 +830,7 @@ libinput_path_create_context(const struct libinput_interface *interface,
  * @return The newly initiated device on success, or NULL on failure.
  *
  * @note It is an application bug to call this function on a libinput
- * context initialize with libinput_udev_create_for_seat().
+ * context initialized with libinput_udev_create_for_seat().
  */
 struct libinput_device *
 libinput_path_add_device(struct libinput *libinput,
@@ -754,7 +840,7 @@ libinput_path_add_device(struct libinput *libinput,
  * @ingroup base
  *
  * Remove a device from a libinput context initialized with
- * libinput_path_create_from_device() or added to such a context with
+ * libinput_path_create_context() or added to such a context with
  * libinput_path_add_device().
  *
  * Events already processed from this input device are kept in the queue,
@@ -766,7 +852,7 @@ libinput_path_add_device(struct libinput *libinput,
  * @param device A libinput device
  *
  * @note It is an application bug to call this function on a libinput
- * context initialize with libinput_udev_create_for_seat().
+ * context initialized with libinput_udev_create_for_seat().
  */
 void
 libinput_path_remove_device(struct libinput_device *device);
@@ -1169,6 +1255,8 @@ libinput_device_led_update(struct libinput_device *device,
  * @param device A current input device
  * @param keys An array filled with the bitmask for the keys
  * @param size Size of the keys array
+ *
+ * @return The number of valid bytes in keys, or a negative errno on failure
  */
 int
 libinput_device_get_keys(struct libinput_device *device,
@@ -1201,5 +1289,9 @@ libinput_device_calibrate(struct libinput_device *device,
 int
 libinput_device_has_capability(struct libinput_device *device,
 			       enum libinput_device_capability capability);
+
+#ifdef __cplusplus
+}
+#endif
 
 #endif /* LIBINPUT_H */
