@@ -36,12 +36,12 @@
 enum litest_device_type {
 	LITEST_NO_DEVICE = -1,
 	LITEST_SYNAPTICS_CLICKPAD,
+	LITEST_SYNAPTICS_TOUCHPAD,
 	LITEST_BCM5974,
 	LITEST_KEYBOARD,
 	LITEST_TRACKPOINT,
 	LITEST_MOUSE,
 	LITEST_WACOM_TOUCH,
-	LITEST_GENERIC_HIGHRES_TOUCH,
 };
 
 enum litest_device_feature {
@@ -54,15 +54,19 @@ enum litest_device_feature {
 	LITEST_POINTER = 1 << 4,
 	LITEST_WHEEL = 1 << 5,
 	LITEST_TOUCH = 1 << 6,
+	LITEST_SINGLE_TOUCH = 1 << 7,
 };
 
 struct litest_device {
 	struct libevdev *evdev;
 	struct libevdev_uinput *uinput;
 	struct libinput *libinput;
+	bool owns_context;
 	struct libinput_device *libinput_device;
 	struct litest_device_interface *interface;
 };
+
+struct libinput *litest_create_context(void);
 
 void litest_add(const char *name, void *func,
 		enum litest_device_feature required_feature,
@@ -71,6 +75,25 @@ void litest_add_no_device(const char *name, void *func);
 
 int litest_run(int argc, char **argv);
 struct litest_device * litest_create_device(enum litest_device_type which);
+struct libevdev_uinput *
+litest_create_uinput_device_from_description(const char *name,
+					     const struct input_id *id,
+					     const struct input_absinfo *abs,
+					     const int *events);
+struct litest_device *
+litest_create_device_with_overrides(enum litest_device_type which,
+				    const char *name_override,
+				    struct input_id *id_override,
+				    const struct input_absinfo *abs_override,
+				    const int *events_override);
+struct litest_device *
+litest_add_device_with_overrides(struct libinput *libinput,
+				 enum litest_device_type which,
+				 const char *name_override,
+				 struct input_id *id_override,
+				 const struct input_absinfo *abs_override,
+				 const int *events_override);
+
 struct litest_device *litest_current_device(void);
 void litest_delete_device(struct litest_device *d);
 int litest_handle_events(struct litest_device *d);
@@ -96,6 +119,21 @@ void litest_touch_move_to(struct litest_device *d,
 void litest_button_click(struct litest_device *d,
 			 unsigned int button,
 			 bool is_press);
+void litest_keyboard_key(struct litest_device *d,
+			 unsigned int key,
+			 bool is_press);
 void litest_drain_events(struct libinput *li);
+
+struct libevdev_uinput * litest_create_uinput_device(const char *name,
+						     struct input_id *id,
+						     ...);
+struct libevdev_uinput * litest_create_uinput_abs_device(const char *name,
+							 struct input_id *id,
+							 const struct input_absinfo *abs,
+							 ...);
+
+#ifndef ck_assert_notnull
+#define ck_assert_notnull(ptr) ck_assert_ptr_ne(ptr, NULL)
+#endif
 
 #endif /* LITEST_H */

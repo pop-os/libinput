@@ -46,11 +46,13 @@ static struct udev *udev;
 uint32_t start_time;
 static const uint32_t screen_width = 100;
 static const uint32_t screen_height = 100;
+static int verbose = 0;
 
 static void
 usage(void)
 {
-	printf("Usage: %s [--udev [<seat>]|--device /dev/input/event0]\n"
+	printf("Usage: %s [--verbose] [--udev [<seat>]|--device /dev/input/event0]\n"
+	       "--verbose ....... Print debugging output.\n"
 	       "--udev <seat>.... Use udev device discovery (default).\n"
 	       "		  Specifying a seat ID is optional.\n"
 	       "--device /path/to/device .... open the given device only\n",
@@ -67,6 +69,7 @@ parse_args(int argc, char **argv)
 			{ "device", 1, 0, 'd' },
 			{ "udev", 0, 0, 'u' },
 			{ "help", 0, 0, 'h' },
+			{ "verbose", 0, 0, 'v'},
 			{ 0, 0, 0, 0}
 		};
 
@@ -91,6 +94,9 @@ parse_args(int argc, char **argv)
 				if (optarg)
 					seat = optarg;
 				break;
+			case 'v': /* --verbose */
+				verbose = 1;
+				break;
 			default:
 				usage();
 				return 1;
@@ -110,12 +116,6 @@ static int
 open_restricted(const char *path, int flags, void *user_data)
 {
 	int fd = open(path, flags);
-	int clockid = CLOCK_MONOTONIC;
-
-	if (fd >= 0 && ioctl(fd, EVIOCSCLOCKID, &clockid) < 0)
-		fprintf(stderr, "Changing clock on %s failed, timestamps "
-				"will be off\n", path);
-
 	return fd < 0 ? -errno : fd;
 }
 
@@ -287,9 +287,10 @@ print_button_event(struct libinput_event *ev)
 	print_event_time(libinput_event_pointer_get_time(p));
 
 	state = libinput_event_pointer_get_button_state(p);
-	printf("%3d %s\n",
+	printf("%3d %s, seat count: %u\n",
 	       libinput_event_pointer_get_button(p),
-	       state == LIBINPUT_POINTER_BUTTON_STATE_PRESSED ? "pressed" : "released");
+	       state == LIBINPUT_POINTER_BUTTON_STATE_PRESSED ? "pressed" : "released",
+	       libinput_event_pointer_get_seat_button_count(p));
 }
 
 static void
@@ -436,6 +437,15 @@ mainloop(struct libinput *li)
 	close(fds[1].fd);
 }
 
+static void
+log_handler(enum libinput_log_priority priority,
+	    void *user_data,
+	    const char *format,
+	    va_list args)
+{
+	vprintf(format, args);
+}
+
 int
 main(int argc, char **argv)
 {
@@ -444,6 +454,11 @@ main(int argc, char **argv)
 
 	if (parse_args(argc, argv))
 		return 1;
+
+	if (verbose) {
+		libinput_log_set_handler(log_handler, NULL);
+		libinput_log_set_priority(LIBINPUT_LOG_PRIORITY_DEBUG);
+	}
 
 	if (mode == MODE_UDEV) {
 		if (open_udev(&li))

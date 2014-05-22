@@ -454,7 +454,7 @@ fsm_timeout_handler(void *data)
 		/* This will only happen if the application made the fd
 		 * non-blocking, but this function should only be called
 		 * upon the timeout, so lets continue anyway. */
-		fprintf(stderr, "timerfd read error: %m\n");
+		log_error("timerfd read error: %m\n");
 
 	if (touchpad->fsm.events_count == 0) {
 		clock_gettime(CLOCK_MONOTONIC, &ts);
@@ -714,6 +714,7 @@ touchpad_destroy(struct evdev_dispatch *dispatch)
 	struct libinput *libinput = touchpad->device->base.seat->libinput;
 
 	touchpad->filter->interface->destroy(touchpad->filter);
+	close(touchpad->fsm.timer.fd);
 	libinput_remove_source(libinput, touchpad->fsm.timer.source);
 	free(touchpad->fsm.events);
 	free(dispatch);

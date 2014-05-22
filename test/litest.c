@@ -77,20 +77,20 @@ void litest_generic_device_teardown(void)
 
 extern struct litest_test_device litest_keyboard_device;
 extern struct litest_test_device litest_synaptics_clickpad_device;
+extern struct litest_test_device litest_synaptics_touchpad_device;
 extern struct litest_test_device litest_trackpoint_device;
 extern struct litest_test_device litest_bcm5974_device;
 extern struct litest_test_device litest_mouse_device;
 extern struct litest_test_device litest_wacom_touch_device;
-extern struct litest_test_device litest_generic_highres_touch_device;
 
 struct litest_test_device* devices[] = {
 	&litest_synaptics_clickpad_device,
+	&litest_synaptics_touchpad_device,
 	&litest_keyboard_device,
 	&litest_trackpoint_device,
 	&litest_bcm5974_device,
 	&litest_mouse_device,
 	&litest_wacom_touch_device,
-	&litest_generic_highres_touch_device,
 	NULL,
 };
 
@@ -117,7 +117,8 @@ litest_add_tcase_for_device(struct suite *suite,
 	t->name = strdup(test_name);
 	t->tc = tcase_create(test_name);
 	list_insert(&suite->tests, &t->node);
-	tcase_add_checked_fixture(t->tc, dev->setup, dev->teardown);
+	tcase_add_checked_fixture(t->tc, dev->setup,
+				  dev->teardown ? dev->teardown : litest_generic_device_teardown);
 	tcase_add_test(t->tc, func);
 	suite_add_tcase(suite->suite, t->tc);
 }
@@ -325,30 +326,158 @@ const struct libinput_interface interface = {
 	.close_restricted = close_restricted,
 };
 
-struct litest_device *
-litest_create_device(enum litest_device_type which)
-{
-	struct litest_device *d = zalloc(sizeof(*d));
-	int fd;
-	int rc;
-	const char *path;
-	struct litest_test_device **dev;
 
-	ck_assert(d != NULL);
+static struct input_absinfo *
+merge_absinfo(const struct input_absinfo *orig,
+	      const struct input_absinfo *override)
+{
+	struct input_absinfo *abs;
+	int nelem, i;
+	size_t sz = ABS_MAX + 1;
+
+	if (!orig)
+		return NULL;
+
+	abs = calloc(sz, sizeof(*abs));
+	ck_assert(abs != NULL);
+
+	nelem = 0;
+	while (orig[nelem].value != -1) {
+		abs[nelem] = orig[nelem];
+		nelem++;
+		ck_assert_int_lt(nelem, sz);
+	}
+
+	/* just append, if the same axis is present twice, libevdev will
+	   only use the last value anyway */
+	i = 0;
+	while (override && override[i].value != -1) {
+		abs[nelem++] = override[i++];
+		ck_assert_int_lt(nelem, sz);
+	}
+
+	ck_assert_int_lt(nelem, sz);
+	abs[nelem].value = -1;
+
+	return abs;
+}
+
+static int*
+merge_events(const int *orig, const int *override)
+{
+	int *events;
+	int nelem, i;
+	size_t sz = KEY_MAX * 3;
+
+	if (!orig)
+		return NULL;
+
+	events = calloc(sz, sizeof(int));
+	ck_assert(events != NULL);
+
+	nelem = 0;
+	while (orig[nelem] != -1) {
+		events[nelem] = orig[nelem];
+		nelem++;
+		ck_assert_int_lt(nelem, sz);
+	}
+
+	/* just append, if the same axis is present twice, libevdev will
+	 * ignore the double definition anyway */
+	i = 0;
+	while (override && override[i] != -1) {
+		events[nelem++] = override[i++];
+		ck_assert_int_le(nelem, sz);
+	}
+
+	ck_assert_int_lt(nelem, sz);
+	events[nelem] = -1;
+
+	return events;
+}
+
+
+static struct litest_device *
+litest_create(enum litest_device_type which,
+	      const char *name_override,
+	      struct input_id *id_override,
+	      const struct input_absinfo *abs_override,
+	      const int *events_override)
+{
+	struct litest_device *d = NULL;
+	struct litest_test_device **dev;
+	const char *name;
+	const struct input_id *id;
+	struct input_absinfo *abs;
+	int *events;
 
 	dev = devices;
 	while (*dev) {
-		if ((*dev)->type == which) {
-			(*dev)->create(d);
+		if ((*dev)->type == which)
 			break;
-		}
 		dev++;
 	}
 
-	if (!dev) {
+	if (!*dev)
 		ck_abort_msg("Invalid device type %d\n", which);
-		return NULL;
+
+	d = zalloc(sizeof(*d));
+	ck_assert(d != NULL);
+
+	/* device has custom create method */
+	if ((*dev)->create) {
+		(*dev)->create(d);
+		if (abs_override || events_override)
+			ck_abort_msg("Custom create cannot"
+				     "be overridden");
+
+		return d;
 	}
+
+	abs = merge_absinfo((*dev)->absinfo, abs_override);
+	events = merge_events((*dev)->events, events_override);
+	name = name_override ? name_override : (*dev)->name;
+	id = id_override ? id_override : (*dev)->id;
+
+	d->uinput = litest_create_uinput_device_from_description(name,
+								 id,
+								 abs,
+								 events);
+	d->interface = (*dev)->interface;
+	free(abs);
+	free(events);
+
+	return d;
+
+}
+
+struct libinput *
+litest_create_context(void)
+{
+	struct libinput *libinput =
+		libinput_path_create_context(&interface, NULL);
+	ck_assert_notnull(libinput);
+	return libinput;
+}
+
+struct litest_device *
+litest_add_device_with_overrides(struct libinput *libinput,
+				 enum litest_device_type which,
+				 const char *name_override,
+				 struct input_id *id_override,
+				 const struct input_absinfo *abs_override,
+				 const int *events_override)
+{
+	struct litest_device *d;
+	int fd;
+	int rc;
+	const char *path;
+
+	d = litest_create(which,
+			  name_override,
+			  id_override,
+			  abs_override,
+			  events_override);
 
 	path = libevdev_uinput_get_devnode(d->uinput);
 	ck_assert(path != NULL);
@@ -358,18 +487,42 @@ litest_create_device(enum litest_device_type which)
 	rc = libevdev_new_from_fd(fd, &d->evdev);
 	ck_assert_int_eq(rc, 0);
 
-	d->libinput = libinput_path_create_context(&interface, NULL);
-	ck_assert(d->libinput != NULL);
-
+	d->libinput = libinput;
 	d->libinput_device = libinput_path_add_device(d->libinput, path);
 	ck_assert(d->libinput_device != NULL);
 	libinput_device_ref(d->libinput_device);
 
-	d->interface->min[ABS_X] = libevdev_get_abs_minimum(d->evdev, ABS_X);
-	d->interface->max[ABS_X] = libevdev_get_abs_maximum(d->evdev, ABS_X);
-	d->interface->min[ABS_Y] = libevdev_get_abs_minimum(d->evdev, ABS_Y);
-	d->interface->max[ABS_Y] = libevdev_get_abs_maximum(d->evdev, ABS_Y);
+	if (d->interface) {
+		d->interface->min[ABS_X] = libevdev_get_abs_minimum(d->evdev, ABS_X);
+		d->interface->max[ABS_X] = libevdev_get_abs_maximum(d->evdev, ABS_X);
+		d->interface->min[ABS_Y] = libevdev_get_abs_minimum(d->evdev, ABS_Y);
+		d->interface->max[ABS_Y] = libevdev_get_abs_maximum(d->evdev, ABS_Y);
+	}
 	return d;
+}
+
+struct litest_device *
+litest_create_device_with_overrides(enum litest_device_type which,
+				    const char *name_override,
+				    struct input_id *id_override,
+				    const struct input_absinfo *abs_override,
+				    const int *events_override)
+{
+	struct litest_device *dev =
+		litest_add_device_with_overrides(litest_create_context(),
+						 which,
+						 name_override,
+						 id_override,
+						 abs_override,
+						 events_override);
+	dev->owns_context = true;
+	return dev;
+}
+
+struct litest_device *
+litest_create_device(enum litest_device_type which)
+{
+	return litest_create_device_with_overrides(which, NULL, NULL, NULL, NULL);
 }
 
 int
@@ -393,7 +546,8 @@ litest_delete_device(struct litest_device *d)
 		return;
 
 	libinput_device_unref(d->libinput_device);
-	libinput_destroy(d->libinput);
+	if (d->owns_context)
+		libinput_destroy(d->libinput);
 	libevdev_free(d->evdev);
 	libevdev_uinput_destroy(d->uinput);
 	memset(d,0, sizeof(*d));
@@ -407,10 +561,54 @@ litest_event(struct litest_device *d, unsigned int type,
 	libevdev_uinput_write_event(d->uinput, type, code, value);
 }
 
+static int
+auto_assign_value(struct litest_device *d,
+		  const struct input_event *ev,
+		  int slot, int x, int y)
+{
+	static int tracking_id;
+	int value = ev->value;
+
+	if (value != LITEST_AUTO_ASSIGN || ev->type != EV_ABS)
+		return value;
+
+	switch (ev->code) {
+	case ABS_X:
+	case ABS_MT_POSITION_X:
+		value = litest_scale(d, ABS_X, x);
+		break;
+	case ABS_Y:
+	case ABS_MT_POSITION_Y:
+		value = litest_scale(d, ABS_Y, y);
+		break;
+	case ABS_MT_TRACKING_ID:
+		value = ++tracking_id;
+		break;
+	case ABS_MT_SLOT:
+		value = slot;
+		break;
+	}
+
+	return value;
+}
+
+
 void
 litest_touch_down(struct litest_device *d, unsigned int slot, int x, int y)
 {
-	d->interface->touch_down(d, slot, x, y);
+	struct input_event *ev;
+
+	if (d->interface->touch_down) {
+		d->interface->touch_down(d, slot, x, y);
+		return;
+	}
+
+	ev = d->interface->touch_down_events;
+	while (ev && (int16_t)ev->type != -1 && (int16_t)ev->code != -1) {
+		int value = auto_assign_value(d, ev, slot, x, y);
+		litest_event(d, ev->type, ev->code, value);
+		ev++;
+	}
 }
 
 void
@@ -418,19 +616,43 @@ litest_touch_up(struct litest_device *d, unsigned int slot)
 {
 	struct input_event *ev;
 	struct input_event up[] = {
-		{ .type = EV_ABS, .code = ABS_MT_SLOT, .value = slot },
+		{ .type = EV_ABS, .code = ABS_MT_SLOT, .value = LITEST_AUTO_ASSIGN },
 		{ .type = EV_ABS, .code = ABS_MT_TRACKING_ID, .value = -1 },
 		{ .type = EV_SYN, .code = SYN_REPORT, .value = 0 },
+		{ .type = -1, .code = -1 }
 	};
 
-	ARRAY_FOR_EACH(up, ev)
-		litest_event(d, ev->type, ev->code, ev->value);
+	if (d->interface->touch_up) {
+		d->interface->touch_up(d, slot);
+		return;
+	} else if (d->interface->touch_up_events) {
+		ev = d->interface->touch_up_events;
+	} else
+		ev = up;
+
+	while (ev && (int16_t)ev->type != -1 && (int16_t)ev->code != -1) {
+		int value = auto_assign_value(d, ev, slot, 0, 0);
+		litest_event(d, ev->type, ev->code, value);
+		ev++;
+	}
 }
 
 void
 litest_touch_move(struct litest_device *d, unsigned int slot, int x, int y)
 {
-	d->interface->touch_move(d, slot, x, y);
+	struct input_event *ev;
+
+	if (d->interface->touch_move) {
+		d->interface->touch_move(d, slot, x, y);
+		return;
+	}
+
+	ev = d->interface->touch_move_events;
+	while (ev && (int16_t)ev->type != -1 && (int16_t)ev->code != -1) {
+		int value = auto_assign_value(d, ev, slot, x, y);
+		litest_event(d, ev->type, ev->code, value);
+		ev++;
+	}
 }
 
 void
@@ -448,7 +670,7 @@ litest_touch_move_to(struct litest_device *d,
 }
 
 void
-litest_click(struct litest_device *d, unsigned int button, bool is_press)
+litest_button_click(struct litest_device *d, unsigned int button, bool is_press)
 {
 
 	struct input_event *ev;
@@ -459,6 +681,12 @@ litest_click(struct litest_device *d, unsigned int button, bool is_press)
 
 	ARRAY_FOR_EACH(click, ev)
 		litest_event(d, ev->type, ev->code, ev->value);
+}
+
+void
+litest_keyboard_key(struct litest_device *d, unsigned int key, bool is_press)
+{
+	litest_button_click(d, key, is_press);
 }
 
 int litest_scale(const struct litest_device *d, unsigned int axis, int val)
@@ -483,4 +711,117 @@ litest_drain_events(struct libinput *li)
 		libinput_event_destroy(event);
 		libinput_dispatch(li);
 	}
+}
+
+struct libevdev_uinput *
+litest_create_uinput_device_from_description(const char *name,
+					     const struct input_id *id,
+					     const struct input_absinfo *abs,
+					     const int *events)
+{
+	struct libevdev_uinput *uinput;
+	struct libevdev *dev;
+	int type, code;
+	int rc;
+	const struct input_absinfo default_abs = {
+		.value = 0,
+		.minimum = 0,
+		.maximum = 0xffff,
+		.fuzz = 0,
+		.flat = 0,
+		.resolution = 100
+	};
+
+	dev = libevdev_new();
+	ck_assert(dev != NULL);
+
+	libevdev_set_name(dev, name);
+	if (id) {
+		libevdev_set_id_bustype(dev, id->bustype);
+		libevdev_set_id_vendor(dev, id->vendor);
+		libevdev_set_id_product(dev, id->product);
+	}
+
+	while (abs && abs->value != -1) {
+		rc = libevdev_enable_event_code(dev, EV_ABS,
+						abs->value, abs);
+		ck_assert_int_eq(rc, 0);
+		abs++;
+	}
+
+	while (events &&
+	       (type = *events++) != -1 &&
+	       (code = *events++) != -1) {
+		if (type == INPUT_PROP_MAX) {
+			rc = libevdev_enable_property(dev, code);
+		} else {
+			if (type != EV_SYN)
+				ck_assert(!libevdev_has_event_code(dev, type, code));
+			rc = libevdev_enable_event_code(dev, type, code,
+							type == EV_ABS ? &default_abs : NULL);
+		}
+		ck_assert_int_eq(rc, 0);
+	}
+
+	rc = libevdev_uinput_create_from_device(dev,
+					        LIBEVDEV_UINPUT_OPEN_MANAGED,
+						&uinput);
+	ck_assert_int_eq(rc, 0);
+
+	libevdev_free(dev);
+
+	return uinput;
+}
+
+static struct libevdev_uinput *
+litest_create_uinput_abs_device_v(const char *name,
+				  struct input_id *id,
+				  const struct input_absinfo *abs,
+				  va_list args)
+{
+	int events[KEY_MAX * 2 + 2]; /* increase this if not sufficient */
+	int *event = events;
+	int type, code;
+
+	while ((type = va_arg(args, int)) != -1 &&
+	       (code = va_arg(args, int)) != -1) {
+		*event++ = type;
+		*event++ = code;
+		ck_assert(event < &events[ARRAY_LENGTH(events) - 2]);
+	}
+
+	*event++ = -1;
+	*event++ = -1;
+
+	return litest_create_uinput_device_from_description(name, id,
+							    abs, events);
+}
+
+struct libevdev_uinput *
+litest_create_uinput_abs_device(const char *name,
+				struct input_id *id,
+				const struct input_absinfo *abs,
+				...)
+{
+	struct libevdev_uinput *uinput;
+	va_list args;
+
+	va_start(args, abs);
+	uinput = litest_create_uinput_abs_device_v(name, id, abs, args);
+	va_end(args);
+
+	return uinput;
+}
+
+struct libevdev_uinput *
+litest_create_uinput_device(const char *name, struct input_id *id, ...)
+{
+	struct libevdev_uinput *uinput;
+	va_list args;
+
+	va_start(args, id);
+	uinput = litest_create_uinput_abs_device_v(name, id, NULL, args);
+	va_end(args);
+
+	return uinput;
 }

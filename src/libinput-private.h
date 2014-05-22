@@ -23,6 +23,8 @@
 #ifndef LIBINPUT_PRIVATE_H
 #define LIBINPUT_PRIVATE_H
 
+#include <linux/input.h>
+
 #include "libinput.h"
 #include "libinput-util.h"
 
@@ -57,10 +59,14 @@ struct libinput_seat {
 	struct list devices_list;
 	void *user_data;
 	int refcount;
-	uint32_t slot_map;
+	libinput_seat_destroy_func destroy;
+
 	char *physical_name;
 	char *logical_name;
-	libinput_seat_destroy_func destroy;
+
+	uint32_t slot_map;
+
+	uint32_t button_count[KEY_CNT];
 };
 
 struct libinput_device {
@@ -78,6 +84,7 @@ struct libinput_source;
 #define log_debug(...) log_msg(LIBINPUT_LOG_PRIORITY_DEBUG, __VA_ARGS__)
 #define log_info(...) log_msg(LIBINPUT_LOG_PRIORITY_INFO, __VA_ARGS__)
 #define log_error(...) log_msg(LIBINPUT_LOG_PRIORITY_ERROR, __VA_ARGS__)
+#define log_bug(...) log_msg(LIBINPUT_LOG_PRIORITY_ERROR, "BUG: "__VA_ARGS__)
 
 void
 log_msg(enum libinput_log_priority priority, const char *format, ...);

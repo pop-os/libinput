@@ -11,6 +11,9 @@ libinput_la_SOURCES =			\
 	libinput-util.h			\
 	evdev.c				\
 	evdev.h				\
+	evdev-mt-touchpad.c		\
+	evdev-mt-touchpad.h		\
+	evdev-mt-touchpad-tap.c		\
 	evdev-touchpad.c		\
 	filter.c			\
 	filter.h			\
@@ -27,6 +30,8 @@ libinput_la_CFLAGS = $(MTDEV_CFLAGS)	\
 		     $(LIBUDEV_CFLAGS)	\
 		     $(LIBEVDEV_CFLAGS)	\
 		     $(GCC_CFLAGS)
+
+libinput_la_LDFLAGS = -version-info $(LIBINPUT_LT_VERSION)
 
 pkgconfigdir = $(libdir)/pkgconfig
 pkgconfig_DATA = libinput.pc
