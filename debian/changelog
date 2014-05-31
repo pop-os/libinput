@@ -1,6 +1,8 @@
 libinput (0.2.0-2) unstable; urgency=medium
 
   * Upload to unstable.
+  * debian/gbp.conf:
+    + Update for unstable.
 
  -- Emilio Pozuelo Monfort <pochu@debian.org>  Sat, 31 May 2014 21:16:54 +0200
 
