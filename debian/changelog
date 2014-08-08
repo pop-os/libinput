@@ -1,4 +1,4 @@
-libinput (0.5.0-1) UNRELEASED; urgency=medium
+libinput (0.5.0-1) experimental; urgency=medium
 
   * New upstream release.
     + The SONAME was bumped, thus rename the shared library package to
@@ -10,7 +10,7 @@ libinput (0.5.0-1) UNRELEASED; urgency=medium
   * debian/gbp.conf:
     + Update for experimental.
 
- -- Emilio Pozuelo Monfort <pochu@debian.org>  Sat, 09 Aug 2014 00:21:41 +0200
+ -- Emilio Pozuelo Monfort <pochu@debian.org>  Sat, 09 Aug 2014 01:32:46 +0200
 
 libinput (0.2.0-2) unstable; urgency=medium
 
