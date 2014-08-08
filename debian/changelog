@@ -1,5 +1,6 @@
-libinput (0.2.0-3) UNRELEASED; urgency=medium
+libinput (0.5.0-1) UNRELEASED; urgency=medium
 
+  * New upstream release.
   * debian/gbp.conf:
     + Update for experimental.
 
