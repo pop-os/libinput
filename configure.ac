@@ -1,7 +1,7 @@
 AC_PREREQ([2.64])
 
 m4_define([libinput_major_version], [0])
-m4_define([libinput_minor_version], [4])
+m4_define([libinput_minor_version], [5])
 m4_define([libinput_micro_version], [0])
 m4_define([libinput_version],
           [libinput_major_version.libinput_minor_version.libinput_micro_version])
@@ -20,7 +20,7 @@ AC_SUBST([LIBINPUT_VERSION], [libinput_version])
 AC_CONFIG_HEADERS([config.h])
 AC_CONFIG_MACRO_DIR([m4])
 
-AM_INIT_AUTOMAKE([1.11 foreign no-dist-gzip dist-xz])
+AM_INIT_AUTOMAKE([1.11 foreign no-dist-gzip dist-xz subdir-objects])
 
 # Before making a release, the LIBINPUT_LT_VERSION string should be
 # modified.
@@ -30,7 +30,7 @@ AM_INIT_AUTOMAKE([1.11 foreign no-dist-gzip dist-xz])
 # - If binary compatibility has been broken (eg removed or changed interfaces)
 #   change to C+1:0:0
 # - If the interface is the same as the previous version, change to C:R+1:A
-LIBINPUT_LT_VERSION=3:0:0
+LIBINPUT_LT_VERSION=4:0:1
 AC_SUBST(LIBINPUT_LT_VERSION)
 
 AM_SILENT_RULES([yes])
@@ -57,6 +57,8 @@ PKG_PROG_PKG_CONFIG()
 PKG_CHECK_MODULES(MTDEV, [mtdev >= 1.1.0])
 PKG_CHECK_MODULES(LIBUDEV, [libudev])
 PKG_CHECK_MODULES(LIBEVDEV, [libevdev >= 0.4])
+AC_CHECK_LIB([m], [atan2])
+AC_CHECK_LIB([rt], [clock_gettime])
 
 if test "x$GCC" = "xyes"; then
 	GCC_CXXFLAGS="-Wall -Wextra -Wno-unused-parameter -g -fvisibility=hidden"
@@ -119,3 +121,12 @@ AC_CONFIG_FILES([Makefile
 		 test/Makefile
 		 tools/Makefile])
 AC_OUTPUT
+
+AC_MSG_RESULT([
+	Prefix			${prefix}
+
+	Build documentation	${have_doxygen}
+	Build tests		${build_tests}
+	Tests use valgrind	${VALGRIND}
+	Build GUI event tool	${build_eventgui}
+	])
