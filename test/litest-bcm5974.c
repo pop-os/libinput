@@ -26,7 +26,6 @@
 
 #include "litest.h"
 #include "litest-int.h"
-#include "libinput-util.h"
 
 static void litest_bcm5974_setup(void)
 {
@@ -98,7 +97,8 @@ static int events[] = {
 
 struct litest_test_device litest_bcm5974_device = {
 	.type = LITEST_BCM5974,
-	.features = LITEST_TOUCHPAD | LITEST_CLICKPAD | LITEST_BUTTON,
+	.features = LITEST_TOUCHPAD | LITEST_CLICKPAD |
+		    LITEST_BUTTON | LITEST_APPLE_CLICKPAD,
 	.shortname = "bcm5974",
 	.setup = litest_bcm5974_setup,
 	.interface = &interface,

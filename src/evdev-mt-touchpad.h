@@ -28,6 +28,7 @@
 
 #include "evdev.h"
 #include "filter.h"
+#include "timer.h"
 
 #define TOUCHPAD_HISTORY_LENGTH 4
 #define TOUCHPAD_MIN_SAMPLES 4
@@ -71,11 +72,6 @@ enum button_state {
 	BUTTON_STATE_IGNORE,
 };
 
-enum scroll_state {
-	SCROLL_STATE_NONE,
-	SCROLL_STATE_SCROLLING
-};
-
 enum tp_tap_state {
 	TAP_STATE_IDLE = 4,
 	TAP_STATE_TOUCH,
@@ -98,6 +94,7 @@ struct tp_motion {
 };
 
 struct tp_touch {
+	struct tp_dispatch *tp;
 	enum touch_state state;
 	bool dirty;
 	bool fake;				/* a fake touch */
@@ -132,7 +129,7 @@ struct tp_touch {
 		enum button_state state;
 		/* We use button_event here so we can use == on events */
 		enum button_event curr;
-		uint64_t timeout;
+		struct libinput_timer timer;
 	} button;
 };
 
@@ -187,15 +184,9 @@ struct tp_dispatch {
 			int32_t rightbutton_left_edge;
 			int32_t leftbutton_right_edge;
 		} top_area;
-
-		unsigned int timeout;		/* current timeout in ms */
-
-		int timer_fd;
-		struct libinput_source *source;
 	} buttons;				/* physical buttons */
 
 	struct {
-		enum scroll_state state;
 		enum libinput_pointer_axis direction;
 	} scroll;
 
@@ -203,9 +194,7 @@ struct tp_dispatch {
 
 	struct {
 		bool enabled;
-		int timer_fd;
-		struct libinput_source *source;
-		unsigned int timeout;
+		struct libinput_timer timer;
 		enum tp_tap_state state;
 	} tap;
 };
@@ -221,9 +210,6 @@ tp_set_pointer(struct tp_dispatch *tp, struct tp_touch *t);
 
 int
 tp_tap_handle_state(struct tp_dispatch *tp, uint64_t time);
-
-unsigned int
-tp_tap_handle_timeout(struct tp_dispatch *tp, uint64_t time);
 
 int
 tp_init_tap(struct tp_dispatch *tp);

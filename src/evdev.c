@@ -23,7 +23,6 @@
 
 #include "config.h"
 
-#include <stdio.h>
 #include <errno.h>
 #include <stdlib.h>
 #include <string.h>
@@ -90,13 +89,19 @@ transform_absolute(struct evdev_device *device, int32_t *x, int32_t *y)
 	}
 }
 
+static inline double
+scale_axis(const struct input_absinfo *absinfo, double val, double to_range)
+{
+	return (val - absinfo->minimum) * to_range /
+		(absinfo->maximum - absinfo->minimum + 1);
+}
+
 double
 evdev_device_transform_x(struct evdev_device *device,
 			 double x,
 			 uint32_t width)
 {
-	return (x - device->abs.min_x) * width /
-		(device->abs.max_x - device->abs.min_x + 1);
+	return scale_axis(device->abs.absinfo_x, x, width);
 }
 
 double
@@ -104,17 +109,16 @@ evdev_device_transform_y(struct evdev_device *device,
 			 double y,
 			 uint32_t height)
 {
-	return (y - device->abs.min_y) * height /
-		(device->abs.max_y - device->abs.min_y + 1);
+	return scale_axis(device->abs.absinfo_y, y, height);
 }
 
 static void
 evdev_flush_pending_event(struct evdev_device *device, uint64_t time)
 {
+	struct libinput *libinput = device->base.seat->libinput;
 	struct motion_params motion;
 	int32_t cx, cy;
 	double x, y;
-	double _x, _y;
 	int slot;
 	int seat_slot;
 	struct libinput_device *base = &device->base;
@@ -128,18 +132,11 @@ evdev_flush_pending_event(struct evdev_device *device, uint64_t time)
 	case EVDEV_RELATIVE_MOTION:
 		motion.dx = device->rel.dx;
 		motion.dy = device->rel.dy;
-		_x = motion.dx;
-	       	_y = motion.dy;
 		device->rel.dx = 0;
 		device->rel.dy = 0;
 
 		/* Apply pointer acceleration. */
 		filter_dispatch(device->pointer.filter, &motion, device, time);
-
-		fprintf(stderr, "filter, time: %lu, in: (%f, %f), out: (%f, %f)\n",
-			time,
-			_x, _y,
-			motion.dx, motion.dy);
 
 		if (motion.dx == 0.0 && motion.dy == 0.0)
 			break;
@@ -151,7 +148,8 @@ evdev_flush_pending_event(struct evdev_device *device, uint64_t time)
 			break;
 
 		if (device->mt.slots[slot].seat_slot != -1) {
-			log_bug_kernel("%s: Driver sent multiple touch down for the "
+			log_bug_kernel(libinput,
+				       "%s: Driver sent multiple touch down for the "
 				       "same slot", device->devnode);
 			break;
 		}
@@ -200,7 +198,8 @@ evdev_flush_pending_event(struct evdev_device *device, uint64_t time)
 			break;
 
 		if (device->abs.seat_slot != -1) {
-			log_bug_kernel("%s: Driver sent multiple touch down for the "
+			log_bug_kernel(libinput,
+				       "%s: Driver sent multiple touch down for the "
 				       "same slot", device->devnode);
 			break;
 		}
@@ -314,8 +313,8 @@ evdev_process_key(struct evdev_device *device,
 			&device->base,
 			time,
 			e->code,
-			e->value ? LIBINPUT_KEYBOARD_KEY_STATE_PRESSED :
-				   LIBINPUT_KEYBOARD_KEY_STATE_RELEASED);
+			e->value ? LIBINPUT_KEY_STATE_PRESSED :
+				   LIBINPUT_KEY_STATE_RELEASED);
 		break;
 	}
 }
@@ -394,7 +393,7 @@ evdev_process_relative(struct evdev_device *device,
 		pointer_notify_axis(
 			base,
 			time,
-			LIBINPUT_POINTER_AXIS_VERTICAL_SCROLL,
+			LIBINPUT_POINTER_AXIS_SCROLL_VERTICAL,
 			-1 * e->value * DEFAULT_AXIS_STEP_DISTANCE);
 		break;
 	case REL_HWHEEL:
@@ -407,7 +406,7 @@ evdev_process_relative(struct evdev_device *device,
 			pointer_notify_axis(
 				base,
 				time,
-				LIBINPUT_POINTER_AXIS_HORIZONTAL_SCROLL,
+				LIBINPUT_POINTER_AXIS_SCROLL_HORIZONTAL,
 				e->value * DEFAULT_AXIS_STEP_DISTANCE);
 			break;
 		default:
@@ -505,7 +504,6 @@ static inline void
 evdev_process_event(struct evdev_device *device, struct input_event *e)
 {
 	struct evdev_dispatch *dispatch = device->dispatch;
-	fprintf(stderr, "tv sec: %lld, usec: %lld\n", (long long) e->time.tv_sec, (long long) e->time.tv_usec);
 	uint64_t time = e->time.tv_sec * 1000ULL + e->time.tv_usec / 1000;
 
 	dispatch->interface->process(dispatch, device, e, time);
@@ -596,8 +594,10 @@ configure_pointer_acceleration(struct evdev_device *device)
 static int
 evdev_configure_device(struct evdev_device *device)
 {
+	struct libinput *libinput = device->base.seat->libinput;
 	struct libevdev *evdev = device->evdev;
 	const struct input_absinfo *absinfo;
+	struct input_absinfo fixed;
 	int has_abs, has_rel, has_mt;
 	int has_button, has_keyboard, has_touch;
 	struct mt_slot *slots;
@@ -616,13 +616,21 @@ evdev_configure_device(struct evdev_device *device)
 	if (libevdev_has_event_type(evdev, EV_ABS)) {
 
 		if ((absinfo = libevdev_get_abs_info(evdev, ABS_X))) {
-			device->abs.min_x = absinfo->minimum;
-			device->abs.max_x = absinfo->maximum;
+			if (absinfo->resolution == 0) {
+				fixed = *absinfo;
+				fixed.resolution = 1;
+				libevdev_set_abs_info(evdev, ABS_X, &fixed);
+			}
+			device->abs.absinfo_x = absinfo;
 			has_abs = 1;
 		}
 		if ((absinfo = libevdev_get_abs_info(evdev, ABS_Y))) {
-			device->abs.min_y = absinfo->minimum;
-			device->abs.max_y = absinfo->maximum;
+			if (absinfo->resolution == 0) {
+				fixed = *absinfo;
+				fixed.resolution = 1;
+				libevdev_set_abs_info(evdev, ABS_Y, &fixed);
+			}
+			device->abs.absinfo_y = absinfo;
 			has_abs = 1;
 		}
                 /* We only handle the slotted Protocol B in weston.
@@ -631,11 +639,23 @@ evdev_configure_device(struct evdev_device *device)
 		if (libevdev_has_event_code(evdev, EV_ABS, ABS_MT_POSITION_X) &&
 		    libevdev_has_event_code(evdev, EV_ABS, ABS_MT_POSITION_Y)) {
 			absinfo = libevdev_get_abs_info(evdev, ABS_MT_POSITION_X);
-			device->abs.min_x = absinfo->minimum;
-			device->abs.max_x = absinfo->maximum;
+			if (absinfo->resolution == 0) {
+				fixed = *absinfo;
+				fixed.resolution = 1;
+				libevdev_set_abs_info(evdev,
+						      ABS_MT_POSITION_X,
+						      &fixed);
+			}
+			device->abs.absinfo_x = absinfo;
 			absinfo = libevdev_get_abs_info(evdev, ABS_MT_POSITION_Y);
-			device->abs.min_y = absinfo->minimum;
-			device->abs.max_y = absinfo->maximum;
+			if (absinfo->resolution == 0) {
+				fixed = *absinfo;
+				fixed.resolution = 1;
+				libevdev_set_abs_info(evdev,
+						      ABS_MT_POSITION_Y,
+						      &fixed);
+			}
+			device->abs.absinfo_y = absinfo;
 			device->is_mt = 1;
 			has_touch = 1;
 			has_mt = 1;
@@ -680,7 +700,8 @@ evdev_configure_device(struct evdev_device *device)
 		    !libevdev_has_event_code(evdev, EV_KEY, BTN_TOOL_PEN) &&
 		    (has_abs || has_mt)) {
 			device->dispatch = evdev_mt_touchpad_create(device);
-			log_info("input device '%s', %s is a touchpad\n",
+			log_info(libinput,
+				 "input device '%s', %s is a touchpad\n",
 				 device->devname, device->devnode);
 		}
 		for (i = KEY_ESC; i < KEY_MAX; i++) {
@@ -709,7 +730,8 @@ evdev_configure_device(struct evdev_device *device)
 
 		device->seat_caps |= EVDEV_DEVICE_POINTER;
 
-		log_info("input device '%s', %s is a pointer caps =%s%s%s\n",
+		log_info(libinput,
+			 "input device '%s', %s is a pointer caps =%s%s%s\n",
 			 device->devname, device->devnode,
 			 has_abs ? " absolute-motion" : "",
 			 has_rel ? " relative-motion": "",
@@ -717,12 +739,14 @@ evdev_configure_device(struct evdev_device *device)
 	}
 	if (has_keyboard) {
 		device->seat_caps |= EVDEV_DEVICE_KEYBOARD;
-		log_info("input device '%s', %s is a keyboard\n",
+		log_info(libinput,
+			 "input device '%s', %s is a keyboard\n",
 			 device->devname, device->devnode);
 	}
 	if (has_touch && !has_button) {
 		device->seat_caps |= EVDEV_DEVICE_TOUCH;
-		log_info("input device '%s', %s is a touch device\n",
+		log_info(libinput,
+			 "input device '%s', %s is a touch device\n",
 			 device->devname, device->devnode);
 	}
 
@@ -745,7 +769,8 @@ evdev_device_create(struct libinput_seat *seat,
 	 * read.  mtdev_get() also expects this. */
 	fd = open_restricted(libinput, devnode, O_RDWR | O_NONBLOCK);
 	if (fd < 0) {
-		log_info("opening input device '%s' failed (%s).\n",
+		log_info(libinput,
+			 "opening input device '%s' failed (%s).\n",
 			 devnode, strerror(-fd));
 		return NULL;
 	}
@@ -853,6 +878,25 @@ evdev_device_has_capability(struct evdev_device *device,
 	default:
 		return 0;
 	}
+}
+
+int
+evdev_device_get_size(struct evdev_device *device,
+		      double *width,
+		      double *height)
+{
+	const struct input_absinfo *x, *y;
+
+	x = libevdev_get_abs_info(device->evdev, ABS_X);
+	y = libevdev_get_abs_info(device->evdev, ABS_Y);
+
+	if (!x || !y || !x->resolution || !y->resolution)
+		return -1;
+
+	*width = evdev_convert_to_mm(x, x->maximum);
+	*height = evdev_convert_to_mm(y, y->maximum);
+
+	return 0;
 }
 
 void

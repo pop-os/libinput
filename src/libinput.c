@@ -33,6 +33,7 @@
 #include "libinput.h"
 #include "libinput-private.h"
 #include "evdev.h"
+#include "timer.h"
 
 struct libinput_source {
 	libinput_source_dispatch_t dispatch;
@@ -55,7 +56,7 @@ struct libinput_event_keyboard {
 	uint32_t time;
 	uint32_t key;
 	uint32_t seat_key_count;
-	enum libinput_keyboard_key_state state;
+	enum libinput_key_state state;
 };
 
 struct libinput_event_pointer {
@@ -80,8 +81,8 @@ struct libinput_event_touch {
 };
 
 static void
-libinput_default_log_func(enum libinput_log_priority priority,
-			  void *data,
+libinput_default_log_func(struct libinput *libinput,
+			  enum libinput_log_priority priority,
 			  const char *format, va_list args)
 {
 	const char *prefix;
@@ -97,48 +98,47 @@ libinput_default_log_func(enum libinput_log_priority priority,
 	vfprintf(stderr, format, args);
 }
 
-struct log_data {
-	enum libinput_log_priority priority;
-	libinput_log_handler handler;
-	void *user_data;
-};
-
-static struct log_data log_data = {
-	.priority = LIBINPUT_LOG_PRIORITY_ERROR,
-	.handler = libinput_default_log_func,
-	.user_data = NULL,
-};
+void
+log_msg_va(struct libinput *libinput,
+	   enum libinput_log_priority priority,
+	   const char *format,
+	   va_list args)
+{
+	if (libinput->log_handler &&
+	    libinput->log_priority <= priority)
+		libinput->log_handler(libinput, priority, format, args);
+}
 
 void
-log_msg(enum libinput_log_priority priority, const char *format, ...)
+log_msg(struct libinput *libinput,
+	enum libinput_log_priority priority,
+	const char *format, ...)
 {
 	va_list args;
 
-	if (log_data.handler && log_data.priority <= priority) {
-		va_start(args, format);
-		log_data.handler(priority, log_data.user_data, format, args);
-		va_end(args);
-	}
+	va_start(args, format);
+	log_msg_va(libinput, priority, format, args);
+	va_end(args);
 }
 
 LIBINPUT_EXPORT void
-libinput_log_set_priority(enum libinput_log_priority priority)
+libinput_log_set_priority(struct libinput *libinput,
+			  enum libinput_log_priority priority)
 {
-	log_data.priority = priority;
+	libinput->log_priority = priority;
 }
 
 LIBINPUT_EXPORT enum libinput_log_priority
-libinput_log_get_priority(void)
+libinput_log_get_priority(const struct libinput *libinput)
 {
-	return log_data.priority;
+	return libinput->log_priority;
 }
 
 LIBINPUT_EXPORT void
-libinput_log_set_handler(libinput_log_handler log_handler,
-			 void *user_data)
+libinput_log_set_handler(struct libinput *libinput,
+			 libinput_log_handler log_handler)
 {
-	log_data.handler = log_handler;
-	log_data.user_data = user_data;
+	libinput->log_handler = log_handler;
 }
 
 static void
@@ -277,7 +277,7 @@ libinput_event_keyboard_get_key(struct libinput_event_keyboard *event)
 	return event->key;
 }
 
-LIBINPUT_EXPORT enum libinput_keyboard_key_state
+LIBINPUT_EXPORT enum libinput_key_state
 libinput_event_keyboard_get_key_state(struct libinput_event_keyboard *event)
 {
 	return event->state;
@@ -311,13 +311,19 @@ libinput_event_pointer_get_dy(struct libinput_event_pointer *event)
 LIBINPUT_EXPORT double
 libinput_event_pointer_get_absolute_x(struct libinput_event_pointer *event)
 {
-	return event->x;
+	struct evdev_device *device =
+		(struct evdev_device *) event->base.device;
+
+	return evdev_convert_to_mm(device->abs.absinfo_x, event->x);
 }
 
 LIBINPUT_EXPORT double
 libinput_event_pointer_get_absolute_y(struct libinput_event_pointer *event)
 {
-	return event->y;
+	struct evdev_device *device =
+		(struct evdev_device *) event->base.device;
+
+	return evdev_convert_to_mm(device->abs.absinfo_y, event->y);
 }
 
 LIBINPUT_EXPORT double
@@ -394,7 +400,10 @@ libinput_event_touch_get_seat_slot(struct libinput_event_touch *event)
 LIBINPUT_EXPORT double
 libinput_event_touch_get_x(struct libinput_event_touch *event)
 {
-	return event->x;
+	struct evdev_device *device =
+		(struct evdev_device *) event->base.device;
+
+	return evdev_convert_to_mm(device->abs.absinfo_x, event->x);
 }
 
 LIBINPUT_EXPORT double
@@ -420,7 +429,10 @@ libinput_event_touch_get_y_transformed(struct libinput_event_touch *event,
 LIBINPUT_EXPORT double
 libinput_event_touch_get_y(struct libinput_event_touch *event)
 {
-	return event->y;
+	struct evdev_device *device =
+		(struct evdev_device *) event->base.device;
+
+	return evdev_convert_to_mm(device->abs.absinfo_y, event->y);
 }
 
 struct libinput_source *
@@ -479,11 +491,20 @@ libinput_init(struct libinput *libinput,
 		return -1;
 	}
 
+	libinput->log_handler = libinput_default_log_func;
+	libinput->log_priority = LIBINPUT_LOG_PRIORITY_ERROR;
 	libinput->interface = interface;
 	libinput->interface_backend = interface_backend;
 	libinput->user_data = user_data;
+	libinput->refcount = 1;
 	list_init(&libinput->source_destroy_list);
 	list_init(&libinput->seat_list);
+
+	if (libinput_timer_subsys_init(libinput) != 0) {
+		free(libinput->events);
+		close(libinput->epoll_fd);
+		return -1;
+	}
 
 	return 0;
 }
@@ -504,15 +525,27 @@ libinput_drop_destroyed_sources(struct libinput *libinput)
 	list_init(&libinput->source_destroy_list);
 }
 
-LIBINPUT_EXPORT void
-libinput_destroy(struct libinput *libinput)
+LIBINPUT_EXPORT struct libinput *
+libinput_ref(struct libinput *libinput)
+{
+	libinput->refcount++;
+	return libinput;
+}
+
+LIBINPUT_EXPORT struct libinput *
+libinput_unref(struct libinput *libinput)
 {
 	struct libinput_event *event;
 	struct libinput_device *device, *next_device;
 	struct libinput_seat *seat, *next_seat;
 
 	if (libinput == NULL)
-		return;
+		return NULL;
+
+	assert(libinput->refcount > 0);
+	libinput->refcount--;
+	if (libinput->refcount > 0)
+		return libinput;
 
 	libinput_suspend(libinput);
 
@@ -520,8 +553,6 @@ libinput_destroy(struct libinput *libinput)
 
 	while ((event = libinput_get_event(libinput)))
 	       libinput_event_destroy(event);
-
-	libinput_drop_destroyed_sources(libinput);
 
 	free(libinput->events);
 
@@ -534,8 +565,12 @@ libinput_destroy(struct libinput *libinput)
 		libinput_seat_destroy(seat);
 	}
 
+	libinput_timer_subsys_destroy(libinput);
+	libinput_drop_destroyed_sources(libinput);
 	close(libinput->epoll_fd);
 	free(libinput);
+
+	return NULL;
 }
 
 LIBINPUT_EXPORT void
@@ -581,10 +616,11 @@ libinput_seat_init(struct libinput_seat *seat,
 	list_insert(&libinput->seat_list, &seat->link);
 }
 
-LIBINPUT_EXPORT void
+LIBINPUT_EXPORT struct libinput_seat *
 libinput_seat_ref(struct libinput_seat *seat)
 {
 	seat->refcount++;
+	return seat;
 }
 
 static void
@@ -596,13 +632,17 @@ libinput_seat_destroy(struct libinput_seat *seat)
 	seat->destroy(seat);
 }
 
-LIBINPUT_EXPORT void
+LIBINPUT_EXPORT struct libinput_seat *
 libinput_seat_unref(struct libinput_seat *seat)
 {
 	assert(seat->refcount > 0);
 	seat->refcount--;
-	if (seat->refcount == 0)
+	if (seat->refcount == 0) {
 		libinput_seat_destroy(seat);
+		return NULL;
+	} else {
+		return seat;
+	}
 }
 
 LIBINPUT_EXPORT void
@@ -637,10 +677,11 @@ libinput_device_init(struct libinput_device *device,
 	device->refcount = 1;
 }
 
-LIBINPUT_EXPORT void
+LIBINPUT_EXPORT struct libinput_device *
 libinput_device_ref(struct libinput_device *device)
 {
 	device->refcount++;
+	return device;
 }
 
 static void
@@ -649,13 +690,17 @@ libinput_device_destroy(struct libinput_device *device)
 	evdev_device_destroy((struct evdev_device *) device);
 }
 
-LIBINPUT_EXPORT void
+LIBINPUT_EXPORT struct libinput_device *
 libinput_device_unref(struct libinput_device *device)
 {
 	assert(device->refcount > 0);
 	device->refcount--;
-	if (device->refcount == 0)
+	if (device->refcount == 0) {
 		libinput_device_destroy(device);
+		return NULL;
+	} else {
+		return device;
+	}
 }
 
 LIBINPUT_EXPORT int
@@ -691,14 +736,14 @@ libinput_dispatch(struct libinput *libinput)
 static uint32_t
 update_seat_key_count(struct libinput_seat *seat,
 		      int32_t key,
-		      enum libinput_keyboard_key_state state)
+		      enum libinput_key_state state)
 {
 	assert(key >= 0 && key <= KEY_MAX);
 
 	switch (state) {
-	case LIBINPUT_KEYBOARD_KEY_STATE_PRESSED:
+	case LIBINPUT_KEY_STATE_PRESSED:
 		return ++seat->button_count[key];
-	case LIBINPUT_KEYBOARD_KEY_STATE_RELEASED:
+	case LIBINPUT_KEY_STATE_RELEASED:
 		/* We might not have received the first PRESSED event. */
 		if (seat->button_count[key] == 0)
 			return 0;
@@ -790,7 +835,7 @@ void
 keyboard_notify_key(struct libinput_device *device,
 		    uint32_t time,
 		    uint32_t key,
-		    enum libinput_keyboard_key_state state)
+		    enum libinput_key_state state)
 {
 	struct libinput_event_keyboard *key_event;
 	uint32_t seat_key_count;
@@ -1157,6 +1202,16 @@ libinput_device_has_capability(struct libinput_device *device,
 {
 	return evdev_device_has_capability((struct evdev_device *) device,
 					   capability);
+}
+
+LIBINPUT_EXPORT int
+libinput_device_get_size(struct libinput_device *device,
+			 double *width,
+			 double *height)
+{
+	return evdev_device_get_size((struct evdev_device *)device,
+				     width,
+				     height);
 }
 
 LIBINPUT_EXPORT struct libinput_event *

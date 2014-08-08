@@ -57,16 +57,15 @@ const struct libinput_interface simple_interface = {
 START_TEST(path_create_NULL)
 {
 	struct libinput *li;
-	const struct libinput_interface interface;
 
 	open_func_count = 0;
 	close_func_count = 0;
 
 	li = libinput_path_create_context(NULL, NULL);
 	ck_assert(li == NULL);
-	li = libinput_path_create_context(&interface, NULL);
+	li = libinput_path_create_context(&simple_interface, NULL);
 	ck_assert(li != NULL);
-	libinput_destroy(li);
+	libinput_unref(li);
 
 	ck_assert_int_eq(open_func_count, 0);
 	ck_assert_int_eq(close_func_count, 0);
@@ -93,7 +92,7 @@ START_TEST(path_create_invalid)
 	ck_assert_int_eq(open_func_count, 0);
 	ck_assert_int_eq(close_func_count, 0);
 
-	libinput_destroy(li);
+	libinput_unref(li);
 	ck_assert_int_eq(close_func_count, 0);
 
 	open_func_count = 0;
@@ -127,7 +126,7 @@ START_TEST(path_create_destroy)
 	ck_assert_int_eq(open_func_count, 1);
 
 	libevdev_uinput_destroy(uinput);
-	libinput_destroy(li);
+	libinput_unref(li);
 	ck_assert_int_eq(close_func_count, 1);
 
 	open_func_count = 0;
@@ -158,7 +157,7 @@ START_TEST(path_added_seat)
 	ck_assert(seat != NULL);
 
 	seat_name = libinput_seat_get_logical_name(seat);
-	ck_assert_int_eq(strcmp(seat_name, "default"), 0);
+	ck_assert_str_eq(seat_name, "default");
 
 	libinput_event_destroy(event);
 }
@@ -237,7 +236,7 @@ START_TEST(path_add_device)
 		libinput_event_destroy(event);
 	}
 
-	ck_assert_int_eq(strcmp(sysname1, sysname2), 0);
+	ck_assert_str_eq(sysname1, sysname2);
 
 	libinput_event_destroy(event);
 }
@@ -373,7 +372,7 @@ START_TEST(path_suspend)
 	libinput_resume(li);
 
 	libevdev_uinput_destroy(uinput);
-	libinput_destroy(li);
+	libinput_unref(li);
 
 	open_func_count = 0;
 	close_func_count = 0;
@@ -407,7 +406,7 @@ START_TEST(path_double_suspend)
 	libinput_resume(li);
 
 	libevdev_uinput_destroy(uinput);
-	libinput_destroy(li);
+	libinput_unref(li);
 
 	open_func_count = 0;
 	close_func_count = 0;
@@ -441,7 +440,7 @@ START_TEST(path_double_resume)
 	libinput_resume(li);
 
 	libevdev_uinput_destroy(uinput);
-	libinput_destroy(li);
+	libinput_unref(li);
 
 	open_func_count = 0;
 	close_func_count = 0;
@@ -524,7 +523,7 @@ START_TEST(path_add_device_suspend_resume)
 
 	libevdev_uinput_destroy(uinput1);
 	libevdev_uinput_destroy(uinput2);
-	libinput_destroy(li);
+	libinput_unref(li);
 
 	open_func_count = 0;
 	close_func_count = 0;
@@ -615,7 +614,7 @@ START_TEST(path_add_device_suspend_resume_fail)
 	ck_assert_int_eq(nevents, 2);
 
 	libevdev_uinput_destroy(uinput2);
-	libinput_destroy(li);
+	libinput_unref(li);
 
 	open_func_count = 0;
 	close_func_count = 0;
@@ -705,7 +704,7 @@ START_TEST(path_add_device_suspend_resume_remove_device)
 	ck_assert_int_eq(nevents, 1);
 
 	libevdev_uinput_destroy(uinput1);
-	libinput_destroy(li);
+	libinput_unref(li);
 
 	open_func_count = 0;
 	close_func_count = 0;
@@ -791,7 +790,7 @@ START_TEST(path_seat_recycle)
 
 	ck_assert(found == 1);
 
-	libinput_destroy(li);
+	libinput_unref(li);
 
 	libevdev_uinput_destroy(uinput);
 }

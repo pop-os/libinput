@@ -21,6 +21,8 @@ libinput_la_SOURCES =			\
 	path.c				\
 	udev-seat.c			\
 	udev-seat.h			\
+	timer.c				\
+	timer.h				\
 	../include/linux/input.h
 
 libinput_la_LIBADD = $(MTDEV_LIBS) \
@@ -38,7 +40,6 @@ libinput_la_LDFLAGS = -version-info $(LIBINPUT_LT_VERSION)
 pkgconfigdir = $(libdir)/pkgconfig
 pkgconfig_DATA = libinput.pc
 
-AM_CPPFLAGS = $(FFI_CFLAGS)
 AM_CFLAGS = $(GCC_CFLAGS)
 
 DISTCLEANFILES = libinput-version.h

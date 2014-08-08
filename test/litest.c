@@ -44,6 +44,7 @@
 #include "libinput-util.h"
 
 static int in_debugger = -1;
+static int verbose = 0;
 
 struct test {
 	struct list node;
@@ -78,6 +79,7 @@ void litest_generic_device_teardown(void)
 extern struct litest_test_device litest_keyboard_device;
 extern struct litest_test_device litest_synaptics_clickpad_device;
 extern struct litest_test_device litest_synaptics_touchpad_device;
+extern struct litest_test_device litest_synaptics_t440_device;
 extern struct litest_test_device litest_trackpoint_device;
 extern struct litest_test_device litest_bcm5974_device;
 extern struct litest_test_device litest_mouse_device;
@@ -86,6 +88,7 @@ extern struct litest_test_device litest_wacom_touch_device;
 struct litest_test_device* devices[] = {
 	&litest_synaptics_clickpad_device,
 	&litest_synaptics_touchpad_device,
+	&litest_synaptics_t440_device,
 	&litest_keyboard_device,
 	&litest_trackpoint_device,
 	&litest_bcm5974_device,
@@ -203,7 +206,8 @@ litest_add(const char *name,
 	litest_add_tcase(s, func, required, excluded);
 }
 
-int is_debugger_attached()
+static int
+is_debugger_attached(void)
 {
 	int status;
 	int rc;
@@ -246,8 +250,44 @@ litest_list_tests(struct list *tests)
 	}
 }
 
+static void
+litest_log_handler(struct libinput *libinput,
+		   enum libinput_log_priority pri,
+		   const char *format,
+		   va_list args)
+{
+	const char *priority = NULL;
+
+	switch(pri) {
+	case LIBINPUT_LOG_PRIORITY_INFO: priority = "info"; break;
+	case LIBINPUT_LOG_PRIORITY_ERROR: priority = "error"; break;
+	case LIBINPUT_LOG_PRIORITY_DEBUG: priority = "debug"; break;
+	}
+
+	fprintf(stderr, "litest %s: ", priority);
+	vfprintf(stderr, format, args);
+}
+
+static int
+open_restricted(const char *path, int flags, void *userdata)
+{
+	return open(path, flags);
+}
+
+static void
+close_restricted(int fd, void *userdata)
+{
+	close(fd);
+}
+
+struct libinput_interface interface = {
+	.open_restricted = open_restricted,
+	.close_restricted = close_restricted,
+};
+
 static const struct option opts[] = {
 	{ "list", 0, 0, 'l' },
+	{ "verbose", 0, 0, 'v' },
 	{ 0, 0, 0, 0}
 };
 
@@ -281,6 +321,9 @@ litest_run(int argc, char **argv) {
 			case 'l':
 				litest_list_tests(&all_tests);
 				return 0;
+			case 'v':
+				verbose = 1;
+				break;
 			default:
 				fprintf(stderr, "usage: %s [--list]\n", argv[0]);
 				return 1;
@@ -308,24 +351,6 @@ litest_run(int argc, char **argv) {
 
 	return failed;
 }
-
-static int
-open_restricted(const char *path, int flags, void *userdata)
-{
-	return open(path, flags);
-}
-
-static void
-close_restricted(int fd, void *userdata)
-{
-	close(fd);
-}
-
-const struct libinput_interface interface = {
-	.open_restricted = open_restricted,
-	.close_restricted = close_restricted,
-};
-
 
 static struct input_absinfo *
 merge_absinfo(const struct input_absinfo *orig,
@@ -457,6 +482,11 @@ litest_create_context(void)
 	struct libinput *libinput =
 		libinput_path_create_context(&interface, NULL);
 	ck_assert_notnull(libinput);
+
+	libinput_log_set_handler(libinput, litest_log_handler);
+	if (verbose)
+		libinput_log_set_priority(libinput, LIBINPUT_LOG_PRIORITY_DEBUG);
+
 	return libinput;
 }
 
@@ -547,7 +577,7 @@ litest_delete_device(struct litest_device *d)
 
 	libinput_device_unref(d->libinput_device);
 	if (d->owns_context)
-		libinput_destroy(d->libinput);
+		libinput_unref(d->libinput);
 	libevdev_free(d->evdev);
 	libevdev_uinput_destroy(d->uinput);
 	memset(d,0, sizeof(*d));
@@ -713,6 +743,67 @@ litest_drain_events(struct libinput *li)
 	}
 }
 
+static void
+litest_print_event(struct libinput_event *event)
+{
+	struct libinput_event_pointer *p;
+	struct libinput_device *dev;
+	enum libinput_event_type type;
+	double x, y;
+
+	dev = libinput_event_get_device(event);
+	type = libinput_event_get_type(event);
+
+	fprintf(stderr,
+		"device %s type %d ",
+		libinput_device_get_sysname(dev),
+		type);
+	switch (type) {
+	case LIBINPUT_EVENT_POINTER_MOTION:
+		p = libinput_event_get_pointer_event(event);
+		x = libinput_event_pointer_get_dx(p);
+		y = libinput_event_pointer_get_dy(p);
+		fprintf(stderr, "motion: %.2f/%.2f", x, y);
+		break;
+	case LIBINPUT_EVENT_POINTER_MOTION_ABSOLUTE:
+		p = libinput_event_get_pointer_event(event);
+		x = libinput_event_pointer_get_absolute_x(p);
+		y = libinput_event_pointer_get_absolute_y(p);
+		fprintf(stderr, "motion: %.2f/%.2f", x, y);
+		break;
+	case LIBINPUT_EVENT_POINTER_BUTTON:
+		p = libinput_event_get_pointer_event(event);
+		fprintf(stderr,
+			"button: %d state %d",
+			libinput_event_pointer_get_button(p),
+			libinput_event_pointer_get_button_state(p));
+		break;
+	default:
+		break;
+	}
+
+	fprintf(stderr, "\n");
+}
+
+void
+litest_assert_empty_queue(struct libinput *li)
+{
+	bool empty_queue = true;
+	struct libinput_event *event;
+
+	libinput_dispatch(li);
+	while ((event = libinput_get_event(li))) {
+		empty_queue = false;
+		fprintf(stderr,
+			"Unexpected event: ");
+		litest_print_event(event);
+		libinput_event_destroy(event);
+		libinput_dispatch(li);
+	}
+
+	ck_assert(empty_queue);
+}
+
 struct libevdev_uinput *
 litest_create_uinput_device_from_description(const char *name,
 					     const struct input_id *id,
@@ -731,11 +822,13 @@ litest_create_uinput_device_from_description(const char *name,
 		.flat = 0,
 		.resolution = 100
 	};
+	char buf[512];
 
 	dev = libevdev_new();
 	ck_assert(dev != NULL);
 
-	libevdev_set_name(dev, name);
+	snprintf(buf, sizeof(buf), "litest %s", name);
+	libevdev_set_name(dev, buf);
 	if (id) {
 		libevdev_set_id_bustype(dev, id->bustype);
 		libevdev_set_id_vendor(dev, id->vendor);

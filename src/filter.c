@@ -197,19 +197,12 @@ calculate_velocity(struct pointer_accelerator *accel, uint64_t time)
 		/* Stop if too far away in time */
 		if (time - tracker->time > MOTION_TIMEOUT ||
 		    tracker->time > time)
-		{
-			fprintf(stderr, "old val (time: %lu, age: %lu, offs: %d)",
-			       	time, time - tracker->time, offset);
 			break;
-		}
 
 		/* Stop if direction changed */
 		dir &= tracker->dir;
 		if (dir == 0)
-		{
-			fprintf(stderr, "no dir (offs: %d)", offset);
 			break;
-		}
 
 		velocity = calculate_tracker_velocity(tracker, time);
 
@@ -219,11 +212,7 @@ calculate_velocity(struct pointer_accelerator *accel, uint64_t time)
 			/* Stop if velocity differs too much from initial */
 			velocity_diff = fabs(initial_velocity - velocity);
 			if (velocity_diff > MAX_VELOCITY_DIFF)
-			{
-				fprintf(stderr, "diff threshold, (offs: %d, init: %f, vel: %f)",
-				       offset, initial_velocity, velocity);
 				break;
-			}
 
 			result = velocity;
 		}
@@ -293,7 +282,6 @@ accelerator_filter(struct motion_filter *filter,
 	feed_trackers(accel, motion->dx, motion->dy, time);
 	velocity = calculate_velocity(accel, time);
 	accel_value = calculate_acceleration(accel, data, velocity, time);
-	fprintf(stderr, "vel: %f, acc: %f\n", velocity, accel_value);
 
 	motion->dx = accel_value * motion->dx;
 	motion->dy = accel_value * motion->dy;

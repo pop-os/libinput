@@ -22,12 +22,10 @@
 
 #include <errno.h>
 #include <limits.h>
-#include <time.h>
 #include <math.h>
 #include <string.h>
 #include <unistd.h>
 #include "linux/input.h"
-#include <sys/timerfd.h>
 
 #include "evdev-mt-touchpad.h"
 
@@ -130,34 +128,17 @@ is_inside_top_middle_area(struct tp_dispatch *tp, struct tp_touch *t)
 }
 
 static void
-tp_button_set_timer(struct tp_dispatch *tp, uint64_t timeout)
-{
-	struct itimerspec its;
-	its.it_interval.tv_sec = 0;
-	its.it_interval.tv_nsec = 0;
-	its.it_value.tv_sec = timeout / 1000;
-	its.it_value.tv_nsec = (timeout % 1000) * 1000 * 1000;
-	timerfd_settime(tp->buttons.timer_fd, TFD_TIMER_ABSTIME, &its, NULL);
-}
-
-static void
 tp_button_set_enter_timer(struct tp_dispatch *tp, struct tp_touch *t)
 {
-	t->button.timeout = t->millis + DEFAULT_BUTTON_ENTER_TIMEOUT;
-	tp_button_set_timer(tp, t->button.timeout);
+	libinput_timer_set(&t->button.timer,
+			   t->millis + DEFAULT_BUTTON_ENTER_TIMEOUT);
 }
 
 static void
 tp_button_set_leave_timer(struct tp_dispatch *tp, struct tp_touch *t)
 {
-	t->button.timeout = t->millis + DEFAULT_BUTTON_LEAVE_TIMEOUT;
-	tp_button_set_timer(tp, t->button.timeout);
-}
-
-static void
-tp_button_clear_timer(struct tp_dispatch *tp, struct tp_touch *t)
-{
-	t->button.timeout = 0;
+	libinput_timer_set(&t->button.timer,
+			   t->millis + DEFAULT_BUTTON_LEAVE_TIMEOUT);
 }
 
 /*
@@ -168,7 +149,7 @@ static void
 tp_button_set_state(struct tp_dispatch *tp, struct tp_touch *t,
 		    enum button_state new_state, enum button_event event)
 {
-	tp_button_clear_timer(tp, t);
+	libinput_timer_cancel(&t->button.timer);
 
 	t->button.state = new_state;
 	switch (t->button.state) {
@@ -471,6 +452,7 @@ tp_button_handle_event(struct tp_dispatch *tp,
 		       enum button_event event,
 		       uint64_t time)
 {
+	struct libinput *libinput = tp->device->base.seat->libinput;
 	enum button_state current = t->button.state;
 
 	switch(t->button.state) {
@@ -504,7 +486,8 @@ tp_button_handle_event(struct tp_dispatch *tp,
 	}
 
 	if (current != t->button.state)
-		log_debug("button state: from %s, event %s to %s\n",
+		log_debug(libinput,
+			  "button state: from %s, event %s to %s\n",
 			  button_state_to_str(current),
 			  button_event_to_str(event),
 			  button_state_to_str(t->button.state));
@@ -545,16 +528,11 @@ tp_button_handle_state(struct tp_dispatch *tp, uint64_t time)
 }
 
 static void
-tp_button_handle_timeout(struct tp_dispatch *tp, uint64_t now)
+tp_button_handle_timeout(uint64_t now, void *data)
 {
-	struct tp_touch *t;
+	struct tp_touch *t = data;
 
-	tp_for_each_touch(tp, t) {
-		if (t->button.timeout != 0 && t->button.timeout <= now) {
-			tp_button_clear_timer(tp, t);
-			tp_button_handle_event(tp, t, BUTTON_EVENT_TIMEOUT, now);
-		}
-	}
+	tp_button_handle_event(t->tp, t, BUTTON_EVENT_TIMEOUT, now);
 }
 
 int
@@ -562,11 +540,13 @@ tp_process_button(struct tp_dispatch *tp,
 		  const struct input_event *e,
 		  uint64_t time)
 {
+	struct libinput *libinput = tp->device->base.seat->libinput;
 	uint32_t mask = 1 << (e->code - BTN_LEFT);
 
 	/* Ignore other buttons on clickpads */
 	if (tp->buttons.is_clickpad && e->code != BTN_LEFT) {
-		log_bug_kernel("received %s button event on a clickpad\n",
+		log_bug_kernel(libinput,
+			       "received %s button event on a clickpad\n",
 			       libevdev_event_code_get_name(EV_KEY, e->code));
 		return 0;
 	}
@@ -582,34 +562,15 @@ tp_process_button(struct tp_dispatch *tp,
 	return 0;
 }
 
-static void
-tp_button_timeout_handler(void *data)
-{
-	struct tp_dispatch *tp = data;
-	uint64_t expires;
-	int len;
-	struct timespec ts;
-	uint64_t now;
-
-	len = read(tp->buttons.timer_fd, &expires, sizeof expires);
-	if (len != sizeof expires)
-		/* This will only happen if the application made the fd
-		 * non-blocking, but this function should only be called
-		 * upon the timeout, so lets continue anyway. */
-		log_error("timerfd read error: %s\n", strerror(errno));
-
-	clock_gettime(CLOCK_MONOTONIC, &ts);
-	now = ts.tv_sec * 1000ULL + ts.tv_nsec / 1000000;
-
-	tp_button_handle_timeout(tp, now);
-}
-
 int
 tp_init_buttons(struct tp_dispatch *tp,
 		struct evdev_device *device)
 {
+	struct libinput *libinput = tp->device->base.seat->libinput;
+	struct tp_touch *t;
 	int width, height;
 	double diagonal;
+	const struct input_absinfo *absinfo_x, *absinfo_y;
 
 	tp->buttons.is_clickpad = libevdev_has_property(device->evdev,
 							INPUT_PROP_BUTTONPAD);
@@ -619,14 +580,19 @@ tp_init_buttons(struct tp_dispatch *tp,
 	if (libevdev_has_event_code(device->evdev, EV_KEY, BTN_MIDDLE) ||
 	    libevdev_has_event_code(device->evdev, EV_KEY, BTN_RIGHT)) {
 		if (tp->buttons.is_clickpad)
-			log_bug_kernel("clickpad advertising right button\n");
+			log_bug_kernel(libinput,
+				       "clickpad advertising right button\n");
 	} else {
 		if (!tp->buttons.is_clickpad)
-			log_bug_kernel("non clickpad without right button?\n");
+			log_bug_kernel(libinput,
+				       "non clickpad without right button?\n");
 	}
 
-	width = abs(device->abs.max_x - device->abs.min_x);
-	height = abs(device->abs.max_y - device->abs.min_y);
+	absinfo_x = device->abs.absinfo_x;
+	absinfo_y = device->abs.absinfo_y;
+
+	width = abs(absinfo_x->maximum - absinfo_x->minimum);
+	height = abs(absinfo_y->maximum - absinfo_y->minimum);
 	diagonal = sqrt(width*width + height*height);
 
 	tp->buttons.motion_dist = diagonal * DEFAULT_BUTTON_MOTION_THRESHOLD;
@@ -635,31 +601,28 @@ tp_init_buttons(struct tp_dispatch *tp,
 		tp->buttons.use_clickfinger = true;
 
 	if (tp->buttons.is_clickpad && !tp->buttons.use_clickfinger) {
-		tp->buttons.bottom_area.top_edge = height * .8 + device->abs.min_y;
-		tp->buttons.bottom_area.rightbutton_left_edge = width/2 + device->abs.min_x;
+		int xoffset = absinfo_x->minimum,
+		    yoffset = absinfo_y->minimum;
+		tp->buttons.bottom_area.top_edge = height * .8 + yoffset;
+		tp->buttons.bottom_area.rightbutton_left_edge = width/2 + xoffset;
 
 		if (tp->buttons.has_topbuttons) {
-			tp->buttons.top_area.bottom_edge = height * .08 + device->abs.min_y;
-			tp->buttons.top_area.rightbutton_left_edge = width * .58 + device->abs.min_x;
-			tp->buttons.top_area.leftbutton_right_edge = width * .42 + device->abs.min_x;
+			tp->buttons.top_area.bottom_edge = height * .08 + yoffset;
+			tp->buttons.top_area.rightbutton_left_edge = width * .58 + xoffset;
+			tp->buttons.top_area.leftbutton_right_edge = width * .42 + xoffset;
 		} else {
 			tp->buttons.top_area.bottom_edge = INT_MIN;
 		}
-
-		tp->buttons.timer_fd = timerfd_create(CLOCK_MONOTONIC, TFD_CLOEXEC);
-		if (tp->buttons.timer_fd == -1)
-			return -1;
-
-		tp->buttons.source =
-			libinput_add_fd(tp->device->base.seat->libinput,
-					tp->buttons.timer_fd,
-					tp_button_timeout_handler,
-					tp);
-		if (tp->buttons.source == NULL)
-			return -1;
 	} else {
 		tp->buttons.bottom_area.top_edge = INT_MAX;
 		tp->buttons.top_area.bottom_edge = INT_MIN;
+	}
+
+	tp_for_each_touch(tp, t) {
+		t->button.state = BUTTON_STATE_NONE;
+		libinput_timer_init(&t->button.timer,
+				    tp->device->base.seat->libinput,
+				    tp_button_handle_timeout, t);
 	}
 
 	return 0;
@@ -668,15 +631,10 @@ tp_init_buttons(struct tp_dispatch *tp,
 void
 tp_destroy_buttons(struct tp_dispatch *tp)
 {
-	if (tp->buttons.source) {
-		libinput_remove_source(tp->device->base.seat->libinput,
-				       tp->buttons.source);
-		tp->buttons.source = NULL;
-	}
-	if (tp->buttons.timer_fd > -1) {
-		close(tp->buttons.timer_fd);
-		tp->buttons.timer_fd = -1;
-	}
+	struct tp_touch *t;
+
+	tp_for_each_touch(tp, t)
+		libinput_timer_cancel(&t->button.timer);
 }
 
 static int

@@ -18,14 +18,14 @@ var searchData=
   ['libinput_5fevent_5ftouch_5fframe',['LIBINPUT_EVENT_TOUCH_FRAME',['../group__base.html#ggac30276a06e8b1434b959f2c8dde74f7ca2b9b566a3bf1f460a144456697ee7387',1,'libinput.h']]],
   ['libinput_5fevent_5ftouch_5fmotion',['LIBINPUT_EVENT_TOUCH_MOTION',['../group__base.html#ggac30276a06e8b1434b959f2c8dde74f7caa96855d3716c4dccd47a69753ed2d468',1,'libinput.h']]],
   ['libinput_5fevent_5ftouch_5fup',['LIBINPUT_EVENT_TOUCH_UP',['../group__base.html#ggac30276a06e8b1434b959f2c8dde74f7ca1b48aaefbee80a1cbbcb5986d650bc62',1,'libinput.h']]],
-  ['libinput_5fkeyboard_5fkey_5fstate_5fpressed',['LIBINPUT_KEYBOARD_KEY_STATE_PRESSED',['../group__device.html#gga4b845f401f39ba2a13d0705422876664a8ad356d997a2ee497f93f6bddf96bb91',1,'libinput.h']]],
-  ['libinput_5fkeyboard_5fkey_5fstate_5freleased',['LIBINPUT_KEYBOARD_KEY_STATE_RELEASED',['../group__device.html#gga4b845f401f39ba2a13d0705422876664a61298129aedde075c7af33071b48a5be',1,'libinput.h']]],
+  ['libinput_5fkey_5fstate_5fpressed',['LIBINPUT_KEY_STATE_PRESSED',['../group__device.html#gga360bdea89a75606472a0b5d72678bd17a3fa7cb12e694a4b1310f6df77e93d46e',1,'libinput.h']]],
+  ['libinput_5fkey_5fstate_5freleased',['LIBINPUT_KEY_STATE_RELEASED',['../group__device.html#gga360bdea89a75606472a0b5d72678bd17a40f08dfe7bf96603f75bba186721992c',1,'libinput.h']]],
   ['libinput_5fled_5fcaps_5flock',['LIBINPUT_LED_CAPS_LOCK',['../group__device.html#gga37ec9afaec2e5407e3c5248faedd1970a10cf3c49445b0baf5e91590391e59ebe',1,'libinput.h']]],
   ['libinput_5fled_5fnum_5flock',['LIBINPUT_LED_NUM_LOCK',['../group__device.html#gga37ec9afaec2e5407e3c5248faedd1970aa82d6090fb4615d2379f59c06c79588a',1,'libinput.h']]],
   ['libinput_5fled_5fscroll_5flock',['LIBINPUT_LED_SCROLL_LOCK',['../group__device.html#gga37ec9afaec2e5407e3c5248faedd1970a1914ddccb1739d77543767d7768e3abd',1,'libinput.h']]],
   ['libinput_5flog_5fpriority_5fdebug',['LIBINPUT_LOG_PRIORITY_DEBUG',['../libinput_8h.html#aa7e9ebbd1a13fe2ed6f44e69df3216e1a3f46e5b7430e100479b4ea27f0fbb1f8',1,'libinput.h']]],
   ['libinput_5flog_5fpriority_5ferror',['LIBINPUT_LOG_PRIORITY_ERROR',['../libinput_8h.html#aa7e9ebbd1a13fe2ed6f44e69df3216e1ad79f66fcf1d6cbd03678cfc5b012b83d',1,'libinput.h']]],
   ['libinput_5flog_5fpriority_5finfo',['LIBINPUT_LOG_PRIORITY_INFO',['../libinput_8h.html#aa7e9ebbd1a13fe2ed6f44e69df3216e1a9b457be58d6cf5d66ea177aa3d2c5500',1,'libinput.h']]],
-  ['libinput_5fpointer_5faxis_5fhorizontal_5fscroll',['LIBINPUT_POINTER_AXIS_HORIZONTAL_SCROLL',['../group__device.html#gga82cd15b9476a4a60f25470df8d67483caa6d13b9d59b06c19f3d3b16502cf02df',1,'libinput.h']]],
-  ['libinput_5fpointer_5faxis_5fvertical_5fscroll',['LIBINPUT_POINTER_AXIS_VERTICAL_SCROLL',['../group__device.html#gga82cd15b9476a4a60f25470df8d67483ca8707ec175c35df78156516ae009414c3',1,'libinput.h']]]
+  ['libinput_5fpointer_5faxis_5fscroll_5fhorizontal',['LIBINPUT_POINTER_AXIS_SCROLL_HORIZONTAL',['../group__device.html#gga82cd15b9476a4a60f25470df8d67483caf0618a16f29ca56a8df0b624442f9852',1,'libinput.h']]],
+  ['libinput_5fpointer_5faxis_5fscroll_5fvertical',['LIBINPUT_POINTER_AXIS_SCROLL_VERTICAL',['../group__device.html#gga82cd15b9476a4a60f25470df8d67483ca538dfb7d4ab598030af4d57aac55a1e5',1,'libinput.h']]]
 ];
