@@ -455,7 +455,7 @@ libinput_event_pointer_get_dy(struct libinput_event_pointer *event);
  *
  * Return the current absolute x coordinate of the pointer event, in mm from
  * the top left corner of the device. To get the corresponding output screen
- * coordinate, use libinput_event_pointer_get_x_transformed().
+ * coordinate, use libinput_event_pointer_get_absolute_x_transformed().
  *
  * For pointer events that are not of type
  * LIBINPUT_EVENT_POINTER_MOTION_ABSOLUTE, this function returns 0.
@@ -473,7 +473,7 @@ libinput_event_pointer_get_absolute_x(struct libinput_event_pointer *event);
  *
  * Return the current absolute y coordinate of the pointer event, in mm from
  * the top left corner of the device. To get the corresponding output screen
- * coordinate, use libinput_event_pointer_get_x_transformed().
+ * coordinate, use libinput_event_pointer_get_absolute_y_transformed().
  *
  * For pointer events that are not of type
  * LIBINPUT_EVENT_POINTER_MOTION_ABSOLUTE, this function returns 0.
@@ -815,7 +815,7 @@ libinput_udev_create_context(const struct libinput_interface *interface,
  */
 int
 libinput_udev_assign_seat(struct libinput *libinput,
-		       const char *seat_id);
+			  const char *seat_id);
 
 /**
  * @ingroup base
@@ -1248,11 +1248,52 @@ libinput_device_get_user_data(struct libinput_device *device);
  *
  * Get the system name of the device.
  *
+ * To get the descriptive device name, use libinput_device_get_name().
+ *
  * @param device A previously obtained device
  * @return System name of the device
+ *
  */
 const char *
 libinput_device_get_sysname(struct libinput_device *device);
+
+/**
+ * @ingroup device
+ *
+ * The descriptive device name as advertised by the kernel and/or the
+ * hardware itself. To get the sysname for this device, use
+ * libinput_device_get_sysname().
+ *
+ * The lifetime of the returned string is tied to the struct
+ * libinput_device. The string may be the empty string but is never NULL.
+ *
+ * @param device A previously obtained device
+ * @return The device name
+ */
+const char *
+libinput_device_get_name(struct libinput_device *device);
+
+/**
+ * @ingroup device
+ *
+ * Get the product ID for this device.
+ *
+ * @param device A previously obtained device
+ * @return The product ID of this device
+ */
+unsigned int
+libinput_device_get_id_product(struct libinput_device *device);
+
+/**
+ * @ingroup device
+ *
+ * Get the vendor ID for this device.
+ *
+ * @param device A previously obtained device
+ * @return The vendor ID of this device
+ */
+unsigned int
+libinput_device_get_id_vendor(struct libinput_device *device);
 
 /**
  * @ingroup device
@@ -1361,8 +1402,131 @@ libinput_device_get_size(struct libinput_device *device,
 			 double *width,
 			 double *height);
 
+
+/**
+ * @defgroup config Device configuration
+ *
+ * Enable, disable, change and/or check for device-specific features. For
+ * all features, libinput assigns a default based on the hardware
+ * configuration. This default can be obtained with the respective
+ * get_default call.
+ *
+ * Some configuration option may be dependent on or mutually exclusive with
+ * with other options. The behavior in those cases is
+ * implementation-defined, the caller must ensure that the options are set
+ * in the right order.
+ */
+
+/**
+ * @ingroup config
+ *
+ * Status codes returned when applying configuration settings.
+ */
+enum libinput_config_status {
+	LIBINPUT_CONFIG_STATUS_SUCCESS = 0,	/**< Config applied successfully */
+	LIBINPUT_CONFIG_STATUS_UNSUPPORTED,	/**< Configuration not available on
+						     this device */
+	LIBINPUT_CONFIG_STATUS_INVALID,		/**< Invalid parameter range */
+};
+
+/**
+ * @ingroup config
+ *
+ * Return a string describing the error.
+ *
+ * @param status The status to translate to a string
+ * @return A human-readable string representing the error or NULL for an
+ * invalid status.
+ */
+const char *
+libinput_config_status_to_str(enum libinput_config_status status);
+
+/**
+ * @ingroup config
+ */
+enum libinput_config_tap_state {
+	LIBINPUT_CONFIG_TAP_DISABLED, /**< Tapping is to be disabled, or is
+					currently disabled */
+	LIBINPUT_CONFIG_TAP_ENABLED, /**< Tapping is to be enabled, or is
+				       currently enabled */
+};
+
+/**
+ * @ingroup config
+ *
+ * Check if the device supports tap-to-click. See
+ * libinput_device_config_tap_set_enabled() for more information.
+ *
+ * @param device The device to configure
+ * @return The number of fingers that can generate a tap event, or 0 if the
+ * device does not support tapping.
+ *
+ * @see libinput_device_config_tap_set_enabled
+ * @see libinput_device_config_tap_get_enabled
+ * @see libinput_device_config_tap_set_enabled_get_default
+ */
+int
+libinput_device_config_tap_get_finger_count(struct libinput_device *device);
+
+/**
+ * @ingroup config
+ *
+ * Enable or disable tap-to-click on this device, with a default mapping of
+ * 1, 2, 3 finger tap mapping to left, right, middle click, respectively.
+ * Tapping is limited by the number of simultaneous touches
+ * supported by the device, see
+ * libinput_device_config_tap_get_finger_count().
+ *
+ * @param device The device to configure
+ * @param enable @ref LIBINPUT_CONFIG_TAP_ENABLED to enable tapping or @ref
+ * LIBINPUT_CONFIG_TAP_DISABLED to disable tapping
+ *
+ * @return A config status code. Disabling tapping on a device that does not
+ * support tapping always succeeds.
+ *
+ * @see libinput_device_config_tap_get_finger_count
+ * @see libinput_device_config_tap_get_enabled
+ * @see libinput_device_config_tap_get_default_enabled
+ */
+enum libinput_config_status
+libinput_device_config_tap_set_enabled(struct libinput_device *device,
+				       enum libinput_config_tap_state enable);
+
+/**
+ * @ingroup config
+ *
+ * Check if tap-to-click is enabled on this device. If the device does not
+ * support tapping, this function always returns 0.
+ *
+ * @param device The device to configure
+ *
+ * @return @ref LIBINPUT_CONFIG_TAP_ENABLED if tapping is currently enabled,
+ * or @ref LIBINPUT_CONFIG_TAP_DISABLED is currently disabled
+ *
+ * @see libinput_device_config_tap_get_finger_count
+ * @see libinput_device_config_tap_set_enabled
+ * @see libinput_device_config_tap_get_default_enabled
+ */
+enum libinput_config_tap_state
+libinput_device_config_tap_get_enabled(struct libinput_device *device);
+
+/**
+ * @ingroup config
+ *
+ * Return the default setting for whether tapping is enabled on this device.
+ *
+ * @param device The device to configure
+ * @return @ref LIBINPUT_CONFIG_TAP_ENABLED if tapping is enabled by default,
+ * or @ref LIBINPUT_CONFIG_TAP_DISABLED is disabled by default
+ *
+ * @see libinput_device_config_tap_get_finger_count
+ * @see libinput_device_config_tap_set_enabled
+ * @see libinput_device_config_tap_get_enabled
+ */
+enum libinput_config_tap_state
+libinput_device_config_tap_get_default_enabled(struct libinput_device *device);
+
 #ifdef __cplusplus
 }
 #endif
-
 #endif /* LIBINPUT_H */

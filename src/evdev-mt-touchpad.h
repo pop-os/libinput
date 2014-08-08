@@ -33,6 +33,8 @@
 #define TOUCHPAD_HISTORY_LENGTH 4
 #define TOUCHPAD_MIN_SAMPLES 4
 
+#define VENDOR_ID_APPLE 0x5ac
+
 enum touchpad_event {
 	TOUCHPAD_EVENT_NONE		= 0,
 	TOUCHPAD_EVENT_MOTION		= (1 << 0),
@@ -64,8 +66,6 @@ enum button_state {
 	BUTTON_STATE_NONE,
 	BUTTON_STATE_AREA,
 	BUTTON_STATE_BOTTOM,
-	BUTTON_STATE_BOTTOM_NEW,
-	BUTTON_STATE_BOTTOM_TO_AREA,
 	BUTTON_STATE_TOP,
 	BUTTON_STATE_TOP_NEW,
 	BUTTON_STATE_TOP_TO_IGNORE,
@@ -88,6 +88,12 @@ enum tp_tap_state {
 	TAP_STATE_DEAD, /**< finger count exceeded */
 };
 
+enum tp_tap_touch_state {
+	TAP_TOUCH_STATE_IDLE = 16,	/**< not in touch */
+	TAP_TOUCH_STATE_TOUCH,		/**< touching, may tap */
+	TAP_TOUCH_STATE_DEAD,		/**< exceeded motion/timeout */
+};
+
 struct tp_motion {
 	int32_t x;
 	int32_t y;
@@ -97,7 +103,6 @@ struct tp_touch {
 	struct tp_dispatch *tp;
 	enum touch_state state;
 	bool dirty;
-	bool fake;				/* a fake touch */
 	bool is_pointer;			/* the pointer-controlling touch */
 	int32_t x;
 	int32_t y;
@@ -131,6 +136,16 @@ struct tp_touch {
 		enum button_event curr;
 		struct libinput_timer timer;
 	} button;
+
+	struct {
+		enum tp_tap_touch_state state;
+	} tap;
+
+	struct {
+		bool is_palm;
+		int32_t x, y;  /* first coordinates if is_palm == true */
+		uint32_t time; /* first timestamp if is_palm == true */
+	} palm;
 };
 
 struct tp_dispatch {
@@ -140,7 +155,8 @@ struct tp_dispatch {
 	unsigned int slot;			/* current slot */
 	bool has_mt;
 
-	unsigned int ntouches;			/* number of slots */
+	unsigned int real_touches;		/* number of slots */
+	unsigned int ntouches;			/* no slots inc. fakes */
 	struct tp_touch *touches;		/* len == ntouches */
 	unsigned int fake_touches;		/* fake touch mask */
 
@@ -152,10 +168,6 @@ struct tp_dispatch {
 	struct motion_filter *filter;
 
 	struct {
-		double constant_factor;
-		double min_factor;
-		double max_factor;
-
 		double x_scale_coeff;
 		double y_scale_coeff;
 	} accel;
@@ -193,10 +205,16 @@ struct tp_dispatch {
 	enum touchpad_event queued;
 
 	struct {
+		struct libinput_device_config_tap config;
 		bool enabled;
 		struct libinput_timer timer;
 		enum tp_tap_state state;
 	} tap;
+
+	struct {
+		int32_t right_edge;
+		int32_t left_edge;
+	} palm;
 };
 
 #define tp_for_each_touch(_tp, _t) \
@@ -236,5 +254,8 @@ tp_button_handle_state(struct tp_dispatch *tp, uint64_t time);
 
 int
 tp_button_touch_active(struct tp_dispatch *tp, struct tp_touch *t);
+
+bool
+tp_button_is_inside_softbutton_area(struct tp_dispatch *tp, struct tp_touch *t);
 
 #endif

@@ -142,8 +142,7 @@ draw(GtkWidget *widget, cairo_t *cr, gpointer data)
 	cairo_set_source_rgb(cr, .2, .4, .8);
 
 	cairo_save(cr);
-	cairo_move_to(cr, w->absx, w->absy);
-	cairo_arc(cr, 0, 0, 10, 0, 2 * M_PI);
+	cairo_arc(cr, w->absx, w->absy, 10, 0, 2 * M_PI);
 	cairo_fill(cr);
 	cairo_restore(cr);
 
@@ -224,6 +223,15 @@ handle_event_device_notify(struct libinput_event *ev)
 		type = "removed";
 
 	msg("%s %s\n", libinput_device_get_sysname(dev), type);
+
+	if (libinput_device_config_tap_get_finger_count(dev) > 0) {
+		enum libinput_config_status status;
+		status = libinput_device_config_tap_set_enabled(dev,
+								LIBINPUT_CONFIG_TAP_ENABLED);
+		if (status != LIBINPUT_CONFIG_STATUS_SUCCESS)
+			error("%s: Failed to enable tapping\n",
+			      libinput_device_get_sysname(dev));
+	}
 }
 
 static void
@@ -243,11 +251,11 @@ static void
 handle_event_absmotion(struct libinput_event *ev, struct window *w)
 {
 	struct libinput_event_pointer *p = libinput_event_get_pointer_event(ev);
-	double x = libinput_event_pointer_get_absolute_x(p),
-	       y = libinput_event_pointer_get_absolute_y(p);
+	double x = libinput_event_pointer_get_absolute_x_transformed(p, w->width),
+	       y = libinput_event_pointer_get_absolute_y_transformed(p, w->height);
 
-	w->absx = clip((int)x, 0, w->width);
-	w->absy = clip((int)y, 0, w->height);
+	w->absx = x;
+	w->absy = y;
 }
 
 static void
@@ -258,7 +266,7 @@ handle_event_touch(struct libinput_event *ev, struct window *w)
 	struct touch *touch;
 	double x, y;
 
-	if (slot == -1 || slot >= ARRAY_LENGTH(w->touches))
+	if (slot == -1 || slot >= (int) ARRAY_LENGTH(w->touches))
 		return;
 
 	touch = &w->touches[slot];
@@ -268,8 +276,8 @@ handle_event_touch(struct libinput_event *ev, struct window *w)
 		return;
 	}
 
-	x = libinput_event_touch_get_x(t),
-	y = libinput_event_touch_get_y(t);
+	x = libinput_event_touch_get_x_transformed(t, w->width),
+	y = libinput_event_touch_get_y_transformed(t, w->height);
 
 	touch->active = 1;
 	touch->x = (int)x;
@@ -423,7 +431,6 @@ parse_opts(int argc, char *argv[])
 	return 0;
 }
 
-
 static int
 open_restricted(const char *path, int flags, void *user_data)
 {
@@ -437,7 +444,7 @@ close_restricted(int fd, void *user_data)
 	close(fd);
 }
 
-const static struct libinput_interface interface = {
+static const struct libinput_interface interface = {
 	.open_restricted = open_restricted,
 	.close_restricted = close_restricted,
 };
