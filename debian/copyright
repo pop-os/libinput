@@ -16,6 +16,10 @@ Copyright: Copyright © 2008-2012 Kristian Høgsberg
            Copyright © 2013-2014 Red Hat, Inc.
 License: X11
 
+Files: include/linux/input.h
+Copyright: Copyright © 1999-2002 Vojtech Pavlik
+License: GPL-2
+
 License: X11
  Permission to use, copy, modify, distribute, and sell this software and its
  documentation for any purpose is hereby granted without fee, provided that
@@ -34,3 +38,11 @@ License: X11
  DATA OR PROFITS, WHETHER IN AN ACTION OF CONTRACT, NEGLIGENCE OR OTHER
  TORTIOUS ACTION, ARISING OUT OF OR IN CONNECTION WITH THE USE OR PERFORMANCE
  OF THIS SOFTWARE.
+
+License: GPL-2
+ This program is free software; you can redistribute it and/or modify it
+ under the terms of the GNU General Public License version 2 as published by
+ the Free Software Foundation.
+ .
+ On Debian systems, the complete text of the GNU General Public License
+ can be found in `/usr/share/common-licenses/GPL-2'.

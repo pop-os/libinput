@@ -5,6 +5,8 @@ libinput (0.5.0-1) UNRELEASED; urgency=medium
       libinput3.
   * debian/libinput3.symbols:
     + Updated for the new symbols.
+  * debian/copyright:
+    + Updated.
   * debian/gbp.conf:
     + Update for experimental.
 
