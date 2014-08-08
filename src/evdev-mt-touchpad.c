@@ -139,7 +139,7 @@ tp_motion_history_reset(struct tp_touch *t)
 static inline struct tp_touch *
 tp_current_touch(struct tp_dispatch *tp)
 {
-	return &tp->touches[min(tp->slot, tp->ntouches)];
+	return &tp->touches[min(tp->slot, tp->ntouches - 1)];
 }
 
 static inline struct tp_touch *
@@ -453,6 +453,8 @@ tp_post_twofinger_scroll(struct tp_dispatch *tp, uint64_t time)
 			dx += tmpx;
 			dy += tmpy;
 		}
+		/* Stop spurious MOTION events at the end of scrolling */
+		t->is_pointer = false;
 	}
 
 	if (nchanged == 0)
@@ -464,35 +466,25 @@ tp_post_twofinger_scroll(struct tp_dispatch *tp, uint64_t time)
 	tp_filter_motion(tp, &dx, &dy, time);
 
 	/* Require at least three px scrolling to start */
-	if (dy <= -3.0 || dy >= 3.0) {
-		tp->scroll.state = SCROLL_STATE_SCROLLING;
-		tp->scroll.direction |= (1 << LIBINPUT_POINTER_AXIS_VERTICAL_SCROLL);
-	}
-	if (dx <= -3.0 || dx >= 3.0) {
-		tp->scroll.state = SCROLL_STATE_SCROLLING;
-		tp->scroll.direction |= (1 << LIBINPUT_POINTER_AXIS_HORIZONTAL_SCROLL);
-	}
+	if (dy <= -3.0 || dy >= 3.0)
+		tp->scroll.direction |= (1 << LIBINPUT_POINTER_AXIS_SCROLL_VERTICAL);
 
-	if (tp->scroll.state == SCROLL_STATE_NONE)
-		return;
-
-	/* Stop spurious MOTION events at the end of scrolling */
-	tp_for_each_touch(tp, t)
-		t->is_pointer = false;
+	if (dx <= -3.0 || dx >= 3.0)
+		tp->scroll.direction |= (1 << LIBINPUT_POINTER_AXIS_SCROLL_HORIZONTAL);
 
 	if (dy != 0.0 &&
-	    (tp->scroll.direction & (1 << LIBINPUT_POINTER_AXIS_VERTICAL_SCROLL))) {
+	    (tp->scroll.direction & (1 << LIBINPUT_POINTER_AXIS_SCROLL_VERTICAL))) {
 		pointer_notify_axis(&tp->device->base,
 				    time,
-				    LIBINPUT_POINTER_AXIS_VERTICAL_SCROLL,
+				    LIBINPUT_POINTER_AXIS_SCROLL_VERTICAL,
 				    dy);
 	}
 
 	if (dx != 0.0 &&
-	    (tp->scroll.direction & (1 << LIBINPUT_POINTER_AXIS_HORIZONTAL_SCROLL))) {
+	    (tp->scroll.direction & (1 << LIBINPUT_POINTER_AXIS_SCROLL_HORIZONTAL))) {
 		pointer_notify_axis(&tp->device->base,
 				    time,
-				    LIBINPUT_POINTER_AXIS_HORIZONTAL_SCROLL,
+				    LIBINPUT_POINTER_AXIS_SCROLL_HORIZONTAL,
 				    dx);
 	}
 }
@@ -500,22 +492,18 @@ tp_post_twofinger_scroll(struct tp_dispatch *tp, uint64_t time)
 static void
 tp_stop_scroll_events(struct tp_dispatch *tp, uint64_t time)
 {
-	if (tp->scroll.state == SCROLL_STATE_NONE)
-		return;
-
 	/* terminate scrolling with a zero scroll event */
-	if (tp->scroll.direction & (1 << LIBINPUT_POINTER_AXIS_VERTICAL_SCROLL))
+	if (tp->scroll.direction & (1 << LIBINPUT_POINTER_AXIS_SCROLL_VERTICAL))
 		pointer_notify_axis(&tp->device->base,
 				    time,
-				    LIBINPUT_POINTER_AXIS_VERTICAL_SCROLL,
+				    LIBINPUT_POINTER_AXIS_SCROLL_VERTICAL,
 				    0);
-	if (tp->scroll.direction & (1 << LIBINPUT_POINTER_AXIS_HORIZONTAL_SCROLL))
+	if (tp->scroll.direction & (1 << LIBINPUT_POINTER_AXIS_SCROLL_HORIZONTAL))
 		pointer_notify_axis(&tp->device->base,
 				    time,
-				    LIBINPUT_POINTER_AXIS_HORIZONTAL_SCROLL,
+				    LIBINPUT_POINTER_AXIS_SCROLL_HORIZONTAL,
 				    0);
 
-	tp->scroll.state = SCROLL_STATE_NONE;
 	tp->scroll.direction = 0;
 }
 
@@ -545,13 +533,12 @@ tp_post_events(struct tp_dispatch *tp, uint64_t time)
 {
 	struct tp_touch *t = tp_current_touch(tp);
 	double dx, dy;
+	int consumed = 0;
 
-	if (tp_post_button_events(tp, time) != 0) {
-		tp_stop_scroll_events(tp, time);
-		return;
-	}
+	consumed |= tp_tap_handle_state(tp, time);
+	consumed |= tp_post_button_events(tp, time);
 
-	if (tp_tap_handle_state(tp, time) != 0) {
+	if (consumed) {
 		tp_stop_scroll_events(tp, time);
 		return;
 	}
@@ -628,7 +615,7 @@ static void
 tp_init_touch(struct tp_dispatch *tp,
 	      struct tp_touch *t)
 {
-	t->button.state = BUTTON_STATE_NONE;
+	t->tp = tp;
 }
 
 static int
@@ -733,7 +720,6 @@ static int
 tp_init_scroll(struct tp_dispatch *tp)
 {
 	tp->scroll.direction = 0;
-	tp->scroll.state = SCROLL_STATE_NONE;
 
 	return 0;
 }
@@ -747,14 +733,14 @@ tp_init(struct tp_dispatch *tp,
 
 	tp->base.interface = &tp_interface;
 	tp->device = device;
-	tp->tap.timer_fd = -1;
-	tp->buttons.timer_fd = -1;
 
 	if (tp_init_slots(tp, device) != 0)
 		return -1;
 
-	width = abs(device->abs.max_x - device->abs.min_x);
-	height = abs(device->abs.max_y - device->abs.min_y);
+	width = abs(device->abs.absinfo_x->maximum -
+		    device->abs.absinfo_x->minimum);
+	height = abs(device->abs.absinfo_y->maximum -
+		     device->abs.absinfo_y->minimum);
 	diagonal = sqrt(width*width + height*height);
 
 	tp->hysteresis.margin_x =

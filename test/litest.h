@@ -37,6 +37,7 @@ enum litest_device_type {
 	LITEST_NO_DEVICE = -1,
 	LITEST_SYNAPTICS_CLICKPAD,
 	LITEST_SYNAPTICS_TOUCHPAD,
+	LITEST_SYNAPTICS_TOPBUTTONPAD,
 	LITEST_BCM5974,
 	LITEST_KEYBOARD,
 	LITEST_TRACKPOINT,
@@ -55,6 +56,8 @@ enum litest_device_feature {
 	LITEST_WHEEL = 1 << 5,
 	LITEST_TOUCH = 1 << 6,
 	LITEST_SINGLE_TOUCH = 1 << 7,
+	LITEST_APPLE_CLICKPAD = 1 << 8,
+	LITEST_TOPBUTTONPAD = 1 << 9,
 };
 
 struct litest_device {
@@ -123,6 +126,7 @@ void litest_keyboard_key(struct litest_device *d,
 			 unsigned int key,
 			 bool is_press);
 void litest_drain_events(struct libinput *li);
+void litest_assert_empty_queue(struct libinput *li);
 
 struct libevdev_uinput * litest_create_uinput_device(const char *name,
 						     struct input_id *id,

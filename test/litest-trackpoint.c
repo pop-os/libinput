@@ -26,7 +26,6 @@
 
 #include "litest.h"
 #include "litest-int.h"
-#include "libinput-util.h"
 
 static void litest_trackpoint_setup(void)
 {
@@ -35,6 +34,7 @@ static void litest_trackpoint_setup(void)
 }
 
 static struct litest_device_interface interface = {
+	NULL
 };
 
 static struct input_id input_id = {

@@ -26,9 +26,9 @@
 
 #include "litest.h"
 #include "litest-int.h"
-#include "libinput-util.h"
 
-void litest_synaptics_touchpad_setup(void)
+static void
+litest_synaptics_touchpad_setup(void)
 {
 	struct litest_device *d = litest_create_device(LITEST_SYNAPTICS_TOUCHPAD);
 	litest_set_current_device(d);
