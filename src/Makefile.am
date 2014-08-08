@@ -14,19 +14,21 @@ libinput_la_SOURCES =			\
 	evdev-mt-touchpad.c		\
 	evdev-mt-touchpad.h		\
 	evdev-mt-touchpad-tap.c		\
-	evdev-touchpad.c		\
+	evdev-mt-touchpad-buttons.c	\
 	filter.c			\
 	filter.h			\
 	path.h				\
 	path.c				\
 	udev-seat.c			\
-	udev-seat.h
+	udev-seat.h			\
+	../include/linux/input.h
 
 libinput_la_LIBADD = $(MTDEV_LIBS) \
 		     $(LIBUDEV_LIBS) \
 		     $(LIBEVDEV_LIBS) \
 		     -lm
-libinput_la_CFLAGS = $(MTDEV_CFLAGS)	\
+libinput_la_CFLAGS = -I$(top_srcdir)/include \
+		     $(MTDEV_CFLAGS)	\
 		     $(LIBUDEV_CFLAGS)	\
 		     $(LIBEVDEV_CFLAGS)	\
 		     $(GCC_CFLAGS)

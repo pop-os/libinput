@@ -1,5 +1,8 @@
 if BUILD_TESTS
-AM_CPPFLAGS = -I$(top_srcdir)/src $(CHECK_CFLAGS) $(LIBEVDEV_CFLAGS)
+AM_CPPFLAGS = -I$(top_srcdir)/include \
+              -I$(top_srcdir)/src \
+              $(CHECK_CFLAGS) \
+              $(LIBEVDEV_CFLAGS)
 
 TEST_LIBS = liblitest.la $(CHECK_LIBS) $(LIBUDEV_LIBS) $(LIBEVDEV_LIBS) $(top_builddir)/src/libinput.la -lm
 TEST_CFLAGS = $(GCC_CFLAGS) $(AM_CFLAGS)
@@ -64,17 +67,17 @@ test_log_LDADD = $(TEST_LIBS)
 test_log_LDFLAGS = -static
 
 test_touchpad_SOURCES = touchpad.c
-test_touchpad_CFLAGS = $(AM_CPPFLAGS)
+test_touchpad_CFLAGS = $(TEST_CFLAGS)
 test_touchpad_LDADD = $(TEST_LIBS)
 test_touchpad_LDFLAGS = -static
 
 test_misc_SOURCES = misc.c
-test_misc_CFLAGS = $(AM_CPPFLAGS)
+test_misc_CFLAGS = $(TEST_CFLAGS)
 test_misc_LDADD = $(TEST_LIBS)
 test_misc_LDFLAGS = -static
 
 test_keyboard_SOURCES = keyboard.c
-test_keyboard_CFLAGS = $(AM_CPPFLAGS)
+test_keyboard_CFLAGS = $(TEST_CFLAGS)
 test_keyboard_LDADD = $(TEST_LIBS)
 test_keyboard_LDFLAGS = -static
 
@@ -101,7 +104,7 @@ VALGRIND_FLAGS=--leak-check=full \
 	       --suppressions=$(srcdir)/valgrind.suppressions
 
 valgrind:
-	$(MAKE) check-TESTS LOG_COMPILER="$(VALGRIND)" LOG_FLAGS="$(VALGRIND_FLAGS)"
+	$(MAKE) check-TESTS LOG_COMPILER="$(VALGRIND)" LOG_FLAGS="$(VALGRIND_FLAGS)" CK_FORK=no
 
 check: valgrind
 

@@ -78,6 +78,7 @@ PRE_UNINSTALL = :
 POST_UNINSTALL = :
 build_triplet = @build@
 host_triplet = @host@
+@HAVE_DOXYGEN_TRUE@am__append_1 = $(builddir)/html/index.html $(doc_src)
 subdir = doc
 DIST_COMMON = $(srcdir)/Makefile.in $(srcdir)/Makefile.am \
 	$(srcdir)/libinput.doxygen.in
@@ -252,12 +253,13 @@ target_alias = @target_alias@
 top_build_prefix = @top_build_prefix@
 top_builddir = @top_builddir@
 top_srcdir = @top_srcdir@
+EXTRA_DIST = touchpad-tap-state-machine.svg \
+	touchpad-softbutton-state-machine.svg $(am__append_1)
 @HAVE_DOXYGEN_TRUE@noinst_DATA = html/index.html
 @HAVE_DOXYGEN_TRUE@header_files = \
 @HAVE_DOXYGEN_TRUE@	$(top_srcdir)/src/libinput.h
 
 @HAVE_DOXYGEN_TRUE@doc_src = $(shell find html -type f -printf "html/%P\n" 2>/dev/null)
-@HAVE_DOXYGEN_TRUE@EXTRA_DIST = $(builddir)/html/index.html $(doc_src)
 all: all-am
 
 .SUFFIXES:

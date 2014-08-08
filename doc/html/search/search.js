@@ -7,7 +7,7 @@
 
 var indexSectionsWithContent =
 {
-  0: "acfiklopt",
+  0: "aciklopt",
   1: "l",
   2: "l",
   3: "l",
@@ -15,7 +15,8 @@ var indexSectionsWithContent =
   5: "l",
   6: "l",
   7: "l",
-  8: "afikpt"
+  8: "aikpt",
+  9: "t"
 };
 
 var indexSectionNames =
@@ -28,7 +29,8 @@ var indexSectionNames =
   5: "typedefs",
   6: "enums",
   7: "enumvalues",
-  8: "groups"
+  8: "groups",
+  9: "pages"
 };
 
 function convertToId(search)

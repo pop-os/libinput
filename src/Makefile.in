@@ -132,7 +132,7 @@ am_libinput_la_OBJECTS = libinput_la-libinput.lo \
 	libinput_la-libinput-util.lo libinput_la-evdev.lo \
 	libinput_la-evdev-mt-touchpad.lo \
 	libinput_la-evdev-mt-touchpad-tap.lo \
-	libinput_la-evdev-touchpad.lo libinput_la-filter.lo \
+	libinput_la-evdev-mt-touchpad-buttons.lo libinput_la-filter.lo \
 	libinput_la-path.lo libinput_la-udev-seat.lo
 libinput_la_OBJECTS = $(am_libinput_la_OBJECTS)
 AM_V_lt = $(am__v_lt_@AM_V@)
@@ -358,20 +358,22 @@ libinput_la_SOURCES = \
 	evdev-mt-touchpad.c		\
 	evdev-mt-touchpad.h		\
 	evdev-mt-touchpad-tap.c		\
-	evdev-touchpad.c		\
+	evdev-mt-touchpad-buttons.c	\
 	filter.c			\
 	filter.h			\
 	path.h				\
 	path.c				\
 	udev-seat.c			\
-	udev-seat.h
+	udev-seat.h			\
+	../include/linux/input.h
 
 libinput_la_LIBADD = $(MTDEV_LIBS) \
 		     $(LIBUDEV_LIBS) \
 		     $(LIBEVDEV_LIBS) \
 		     -lm
 
-libinput_la_CFLAGS = $(MTDEV_CFLAGS)	\
+libinput_la_CFLAGS = -I$(top_srcdir)/include \
+		     $(MTDEV_CFLAGS)	\
 		     $(LIBUDEV_CFLAGS)	\
 		     $(LIBEVDEV_CFLAGS)	\
 		     $(GCC_CFLAGS)
@@ -466,9 +468,9 @@ mostlyclean-compile:
 distclean-compile:
 	-rm -f *.tab.c
 
+@AMDEP_TRUE@@am__include@ @am__quote@./$(DEPDIR)/libinput_la-evdev-mt-touchpad-buttons.Plo@am__quote@
 @AMDEP_TRUE@@am__include@ @am__quote@./$(DEPDIR)/libinput_la-evdev-mt-touchpad-tap.Plo@am__quote@
 @AMDEP_TRUE@@am__include@ @am__quote@./$(DEPDIR)/libinput_la-evdev-mt-touchpad.Plo@am__quote@
-@AMDEP_TRUE@@am__include@ @am__quote@./$(DEPDIR)/libinput_la-evdev-touchpad.Plo@am__quote@
 @AMDEP_TRUE@@am__include@ @am__quote@./$(DEPDIR)/libinput_la-evdev.Plo@am__quote@
 @AMDEP_TRUE@@am__include@ @am__quote@./$(DEPDIR)/libinput_la-filter.Plo@am__quote@
 @AMDEP_TRUE@@am__include@ @am__quote@./$(DEPDIR)/libinput_la-libinput-util.Plo@am__quote@
@@ -532,12 +534,12 @@ libinput_la-evdev-mt-touchpad-tap.lo: evdev-mt-touchpad-tap.c
 @AMDEP_TRUE@@am__fastdepCC_FALSE@	DEPDIR=$(DEPDIR) $(CCDEPMODE) $(depcomp) @AMDEPBACKSLASH@
 @am__fastdepCC_FALSE@	$(AM_V_CC@am__nodep@)$(LIBTOOL) $(AM_V_lt) --tag=CC $(AM_LIBTOOLFLAGS) $(LIBTOOLFLAGS) --mode=compile $(CC) $(DEFS) $(DEFAULT_INCLUDES) $(INCLUDES) $(AM_CPPFLAGS) $(CPPFLAGS) $(libinput_la_CFLAGS) $(CFLAGS) -c -o libinput_la-evdev-mt-touchpad-tap.lo `test -f 'evdev-mt-touchpad-tap.c' || echo '$(srcdir)/'`evdev-mt-touchpad-tap.c
 
-libinput_la-evdev-touchpad.lo: evdev-touchpad.c
-@am__fastdepCC_TRUE@	$(AM_V_CC)$(LIBTOOL) $(AM_V_lt) --tag=CC $(AM_LIBTOOLFLAGS) $(LIBTOOLFLAGS) --mode=compile $(CC) $(DEFS) $(DEFAULT_INCLUDES) $(INCLUDES) $(AM_CPPFLAGS) $(CPPFLAGS) $(libinput_la_CFLAGS) $(CFLAGS) -MT libinput_la-evdev-touchpad.lo -MD -MP -MF $(DEPDIR)/libinput_la-evdev-touchpad.Tpo -c -o libinput_la-evdev-touchpad.lo `test -f 'evdev-touchpad.c' || echo '$(srcdir)/'`evdev-touchpad.c
-@am__fastdepCC_TRUE@	$(AM_V_at)$(am__mv) $(DEPDIR)/libinput_la-evdev-touchpad.Tpo $(DEPDIR)/libinput_la-evdev-touchpad.Plo
-@AMDEP_TRUE@@am__fastdepCC_FALSE@	$(AM_V_CC)source='evdev-touchpad.c' object='libinput_la-evdev-touchpad.lo' libtool=yes @AMDEPBACKSLASH@
+libinput_la-evdev-mt-touchpad-buttons.lo: evdev-mt-touchpad-buttons.c
+@am__fastdepCC_TRUE@	$(AM_V_CC)$(LIBTOOL) $(AM_V_lt) --tag=CC $(AM_LIBTOOLFLAGS) $(LIBTOOLFLAGS) --mode=compile $(CC) $(DEFS) $(DEFAULT_INCLUDES) $(INCLUDES) $(AM_CPPFLAGS) $(CPPFLAGS) $(libinput_la_CFLAGS) $(CFLAGS) -MT libinput_la-evdev-mt-touchpad-buttons.lo -MD -MP -MF $(DEPDIR)/libinput_la-evdev-mt-touchpad-buttons.Tpo -c -o libinput_la-evdev-mt-touchpad-buttons.lo `test -f 'evdev-mt-touchpad-buttons.c' || echo '$(srcdir)/'`evdev-mt-touchpad-buttons.c
+@am__fastdepCC_TRUE@	$(AM_V_at)$(am__mv) $(DEPDIR)/libinput_la-evdev-mt-touchpad-buttons.Tpo $(DEPDIR)/libinput_la-evdev-mt-touchpad-buttons.Plo
+@AMDEP_TRUE@@am__fastdepCC_FALSE@	$(AM_V_CC)source='evdev-mt-touchpad-buttons.c' object='libinput_la-evdev-mt-touchpad-buttons.lo' libtool=yes @AMDEPBACKSLASH@
 @AMDEP_TRUE@@am__fastdepCC_FALSE@	DEPDIR=$(DEPDIR) $(CCDEPMODE) $(depcomp) @AMDEPBACKSLASH@
-@am__fastdepCC_FALSE@	$(AM_V_CC@am__nodep@)$(LIBTOOL) $(AM_V_lt) --tag=CC $(AM_LIBTOOLFLAGS) $(LIBTOOLFLAGS) --mode=compile $(CC) $(DEFS) $(DEFAULT_INCLUDES) $(INCLUDES) $(AM_CPPFLAGS) $(CPPFLAGS) $(libinput_la_CFLAGS) $(CFLAGS) -c -o libinput_la-evdev-touchpad.lo `test -f 'evdev-touchpad.c' || echo '$(srcdir)/'`evdev-touchpad.c
+@am__fastdepCC_FALSE@	$(AM_V_CC@am__nodep@)$(LIBTOOL) $(AM_V_lt) --tag=CC $(AM_LIBTOOLFLAGS) $(LIBTOOLFLAGS) --mode=compile $(CC) $(DEFS) $(DEFAULT_INCLUDES) $(INCLUDES) $(AM_CPPFLAGS) $(CPPFLAGS) $(libinput_la_CFLAGS) $(CFLAGS) -c -o libinput_la-evdev-mt-touchpad-buttons.lo `test -f 'evdev-mt-touchpad-buttons.c' || echo '$(srcdir)/'`evdev-mt-touchpad-buttons.c
 
 libinput_la-filter.lo: filter.c
 @am__fastdepCC_TRUE@	$(AM_V_CC)$(LIBTOOL) $(AM_V_lt) --tag=CC $(AM_LIBTOOLFLAGS) $(LIBTOOLFLAGS) --mode=compile $(CC) $(DEFS) $(DEFAULT_INCLUDES) $(INCLUDES) $(AM_CPPFLAGS) $(CPPFLAGS) $(libinput_la_CFLAGS) $(CFLAGS) -MT libinput_la-filter.lo -MD -MP -MF $(DEPDIR)/libinput_la-filter.Tpo -c -o libinput_la-filter.lo `test -f 'filter.c' || echo '$(srcdir)/'`filter.c

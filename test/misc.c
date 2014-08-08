@@ -68,8 +68,8 @@ create_simple_test_device(const char *name, ...)
 
 	va_start(args, name);
 
-	while ((type = va_arg(args, unsigned int)) != -1 &&
-	       (code = va_arg(args, unsigned int)) != -1) {
+	while ((type = va_arg(args, unsigned int)) != (unsigned int)-1 &&
+	       (code = va_arg(args, unsigned int)) != (unsigned int)-1) {
 		const struct input_absinfo *a = NULL;
 		if (type == EV_ABS)
 			a = &abs;
@@ -158,6 +158,11 @@ START_TEST(event_conversion_pointer)
 	li = libinput_path_create_context(&simple_interface, NULL);
 	libinput_path_add_device(li, libevdev_uinput_get_devnode(uinput));
 
+	/* Queue at least two relative motion events as the first one may
+	 * be absorbed by the pointer acceleration filter. */
+	libevdev_uinput_write_event(uinput, EV_REL, REL_X, -1);
+	libevdev_uinput_write_event(uinput, EV_REL, REL_Y, -1);
+	libevdev_uinput_write_event(uinput, EV_SYN, SYN_REPORT, 0);
 	libevdev_uinput_write_event(uinput, EV_REL, REL_X, -1);
 	libevdev_uinput_write_event(uinput, EV_REL, REL_Y, -1);
 	libevdev_uinput_write_event(uinput, EV_KEY, BTN_LEFT, 1);

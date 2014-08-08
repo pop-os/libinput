@@ -659,7 +659,11 @@ target_alias = @target_alias@
 top_build_prefix = @top_build_prefix@
 top_builddir = @top_builddir@
 top_srcdir = @top_srcdir@
-@BUILD_TESTS_TRUE@AM_CPPFLAGS = -I$(top_srcdir)/src $(CHECK_CFLAGS) $(LIBEVDEV_CFLAGS)
+@BUILD_TESTS_TRUE@AM_CPPFLAGS = -I$(top_srcdir)/include \
+@BUILD_TESTS_TRUE@              -I$(top_srcdir)/src \
+@BUILD_TESTS_TRUE@              $(CHECK_CFLAGS) \
+@BUILD_TESTS_TRUE@              $(LIBEVDEV_CFLAGS)
+
 @BUILD_TESTS_TRUE@TEST_LIBS = liblitest.la $(CHECK_LIBS) $(LIBUDEV_LIBS) $(LIBEVDEV_LIBS) $(top_builddir)/src/libinput.la -lm
 @BUILD_TESTS_TRUE@TEST_CFLAGS = $(GCC_CFLAGS) $(AM_CFLAGS)
 @BUILD_TESTS_TRUE@noinst_LTLIBRARIES = liblitest.la
@@ -714,15 +718,15 @@ top_srcdir = @top_srcdir@
 @BUILD_TESTS_TRUE@test_log_LDADD = $(TEST_LIBS)
 @BUILD_TESTS_TRUE@test_log_LDFLAGS = -static
 @BUILD_TESTS_TRUE@test_touchpad_SOURCES = touchpad.c
-@BUILD_TESTS_TRUE@test_touchpad_CFLAGS = $(AM_CPPFLAGS)
+@BUILD_TESTS_TRUE@test_touchpad_CFLAGS = $(TEST_CFLAGS)
 @BUILD_TESTS_TRUE@test_touchpad_LDADD = $(TEST_LIBS)
 @BUILD_TESTS_TRUE@test_touchpad_LDFLAGS = -static
 @BUILD_TESTS_TRUE@test_misc_SOURCES = misc.c
-@BUILD_TESTS_TRUE@test_misc_CFLAGS = $(AM_CPPFLAGS)
+@BUILD_TESTS_TRUE@test_misc_CFLAGS = $(TEST_CFLAGS)
 @BUILD_TESTS_TRUE@test_misc_LDADD = $(TEST_LIBS)
 @BUILD_TESTS_TRUE@test_misc_LDFLAGS = -static
 @BUILD_TESTS_TRUE@test_keyboard_SOURCES = keyboard.c
-@BUILD_TESTS_TRUE@test_keyboard_CFLAGS = $(AM_CPPFLAGS)
+@BUILD_TESTS_TRUE@test_keyboard_CFLAGS = $(TEST_CFLAGS)
 @BUILD_TESTS_TRUE@test_keyboard_LDADD = $(TEST_LIBS)
 @BUILD_TESTS_TRUE@test_keyboard_LDFLAGS = -static
 
@@ -1527,7 +1531,7 @@ uninstall-am:
 @BUILD_TESTS_TRUE@.NOTPARALLEL:
 
 @BUILD_TESTS_TRUE@@HAVE_VALGRIND_TRUE@valgrind:
-@BUILD_TESTS_TRUE@@HAVE_VALGRIND_TRUE@	$(MAKE) check-TESTS LOG_COMPILER="$(VALGRIND)" LOG_FLAGS="$(VALGRIND_FLAGS)"
+@BUILD_TESTS_TRUE@@HAVE_VALGRIND_TRUE@	$(MAKE) check-TESTS LOG_COMPILER="$(VALGRIND)" LOG_FLAGS="$(VALGRIND_FLAGS)" CK_FORK=no
 
 @BUILD_TESTS_TRUE@@HAVE_VALGRIND_TRUE@check: valgrind
 
