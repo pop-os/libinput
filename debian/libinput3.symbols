@@ -1,4 +1,4 @@
-libinput.so.0 libinput0 #MINVER#
+libinput.so.3 libinput3 #MINVER#
 * Build-Depends-Package: libinput-dev
  libinput_destroy@Base 0.1.0
  libinput_device_calibrate@Base 0.1.0
