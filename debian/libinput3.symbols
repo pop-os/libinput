@@ -1,10 +1,18 @@
 libinput.so.3 libinput3 #MINVER#
 * Build-Depends-Package: libinput-dev
- libinput_destroy@Base 0.1.0
+ libinput_config_status_to_str@Base 0.5.0
  libinput_device_calibrate@Base 0.1.0
+ libinput_device_config_tap_get_default_enabled@Base 0.5.0
+ libinput_device_config_tap_get_enabled@Base 0.5.0
+ libinput_device_config_tap_get_finger_count@Base 0.5.0
+ libinput_device_config_tap_set_enabled@Base 0.5.0
+ libinput_device_get_id_product@Base 0.5.0
+ libinput_device_get_id_vendor@Base 0.5.0
  libinput_device_get_keys@Base 0.1.0
+ libinput_device_get_name@Base 0.5.0
  libinput_device_get_output_name@Base 0.1.0
  libinput_device_get_seat@Base 0.1.0
+ libinput_device_get_size@Base 0.5.0
  libinput_device_get_sysname@Base 0.1.0
  libinput_device_get_user_data@Base 0.1.0
  libinput_device_has_capability@Base 0.1.0
@@ -58,6 +66,7 @@ libinput.so.3 libinput3 #MINVER#
  libinput_path_add_device@Base 0.1.0
  libinput_path_create_context@Base 0.1.0
  libinput_path_remove_device@Base 0.1.0
+ libinput_ref@Base 0.5.0
  libinput_resume@Base 0.1.0
  libinput_seat_get_logical_name@Base 0.1.0
  libinput_seat_get_physical_name@Base 0.1.0
@@ -66,4 +75,6 @@ libinput.so.3 libinput3 #MINVER#
  libinput_seat_set_user_data@Base 0.1.0
  libinput_seat_unref@Base 0.1.0
  libinput_suspend@Base 0.1.0
- libinput_udev_create_for_seat@Base 0.1.0
+ libinput_udev_assign_seat@Base 0.5.0
+ libinput_udev_create_context@Base 0.5.0
+ libinput_unref@Base 0.5.0
