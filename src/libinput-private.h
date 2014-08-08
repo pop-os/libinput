@@ -23,7 +23,7 @@
 #ifndef LIBINPUT_PRIVATE_H
 #define LIBINPUT_PRIVATE_H
 
-#include <linux/input.h>
+#include "linux/input.h"
 
 #include "libinput.h"
 #include "libinput-util.h"
@@ -84,7 +84,9 @@ struct libinput_source;
 #define log_debug(...) log_msg(LIBINPUT_LOG_PRIORITY_DEBUG, __VA_ARGS__)
 #define log_info(...) log_msg(LIBINPUT_LOG_PRIORITY_INFO, __VA_ARGS__)
 #define log_error(...) log_msg(LIBINPUT_LOG_PRIORITY_ERROR, __VA_ARGS__)
-#define log_bug(...) log_msg(LIBINPUT_LOG_PRIORITY_ERROR, "BUG: "__VA_ARGS__)
+#define log_bug_kernel(...) log_msg(LIBINPUT_LOG_PRIORITY_ERROR, "kernel bug: " __VA_ARGS__)
+#define log_bug_libinput(...) log_msg(LIBINPUT_LOG_PRIORITY_ERROR, "libinput bug: " __VA_ARGS__);
+#define log_bug_client(...) log_msg(LIBINPUT_LOG_PRIORITY_ERROR, "client bug: " __VA_ARGS__);
 
 void
 log_msg(enum libinput_log_priority priority, const char *format, ...);
@@ -138,42 +140,42 @@ keyboard_notify_key(struct libinput_device *device,
 void
 pointer_notify_motion(struct libinput_device *device,
 		      uint32_t time,
-		      li_fixed_t dx,
-		      li_fixed_t dy);
+		      double dx,
+		      double dy);
 
 void
 pointer_notify_motion_absolute(struct libinput_device *device,
 			       uint32_t time,
-			       li_fixed_t x,
-			       li_fixed_t y);
+			       double x,
+			       double y);
 
 void
 pointer_notify_button(struct libinput_device *device,
 		      uint32_t time,
 		      int32_t button,
-		      enum libinput_pointer_button_state state);
+		      enum libinput_button_state state);
 
 void
 pointer_notify_axis(struct libinput_device *device,
 		    uint32_t time,
 		    enum libinput_pointer_axis axis,
-		    li_fixed_t value);
+		    double value);
 
 void
 touch_notify_touch_down(struct libinput_device *device,
 			uint32_t time,
 			int32_t slot,
 			int32_t seat_slot,
-			li_fixed_t x,
-			li_fixed_t y);
+			double x,
+			double y);
 
 void
 touch_notify_touch_motion(struct libinput_device *device,
 			  uint32_t time,
 			  int32_t slot,
 			  int32_t seat_slot,
-			  li_fixed_t x,
-			  li_fixed_t y);
+			  double x,
+			  double y);
 
 void
 touch_notify_touch_up(struct libinput_device *device,

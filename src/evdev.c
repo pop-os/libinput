@@ -23,25 +23,24 @@
 
 #include "config.h"
 
+#include <stdio.h>
 #include <errno.h>
 #include <stdlib.h>
 #include <string.h>
-#include <linux/input.h>
+#include "linux/input.h"
 #include <unistd.h>
 #include <fcntl.h>
 #include <mtdev-plumbing.h>
 #include <assert.h>
 #include <time.h>
+#include <math.h>
 
 #include "libinput.h"
 #include "evdev.h"
+#include "filter.h"
 #include "libinput-private.h"
 
-#define DEFAULT_AXIS_STEP_DISTANCE li_fixed_from_int(10)
-
-#ifndef KEY_LIGHTS_TOGGLE
-#define KEY_LIGHTS_TOGGLE 0x160
-#endif
+#define DEFAULT_AXIS_STEP_DISTANCE 10
 
 void
 evdev_device_led_update(struct evdev_device *device, enum libinput_led leds)
@@ -91,29 +90,31 @@ transform_absolute(struct evdev_device *device, int32_t *x, int32_t *y)
 	}
 }
 
-li_fixed_t
+double
 evdev_device_transform_x(struct evdev_device *device,
-			 li_fixed_t x,
+			 double x,
 			 uint32_t width)
 {
-	return ((uint64_t)x - li_fixed_from_int(device->abs.min_x)) * width /
+	return (x - device->abs.min_x) * width /
 		(device->abs.max_x - device->abs.min_x + 1);
 }
 
-li_fixed_t
+double
 evdev_device_transform_y(struct evdev_device *device,
-			 li_fixed_t y,
+			 double y,
 			 uint32_t height)
 {
-	return ((uint64_t)y - li_fixed_from_int(device->abs.min_y)) * height /
+	return (y - device->abs.min_y) * height /
 		(device->abs.max_y - device->abs.min_y + 1);
 }
 
 static void
-evdev_flush_pending_event(struct evdev_device *device, uint32_t time)
+evdev_flush_pending_event(struct evdev_device *device, uint64_t time)
 {
+	struct motion_params motion;
 	int32_t cx, cy;
-	li_fixed_t x, y;
+	double x, y;
+	double _x, _y;
 	int slot;
 	int seat_slot;
 	struct libinput_device *base = &device->base;
@@ -125,20 +126,33 @@ evdev_flush_pending_event(struct evdev_device *device, uint32_t time)
 	case EVDEV_NONE:
 		return;
 	case EVDEV_RELATIVE_MOTION:
-		pointer_notify_motion(base,
-				      time,
-				      device->rel.dx,
-				      device->rel.dy);
+		motion.dx = device->rel.dx;
+		motion.dy = device->rel.dy;
+		_x = motion.dx;
+	       	_y = motion.dy;
 		device->rel.dx = 0;
 		device->rel.dy = 0;
+
+		/* Apply pointer acceleration. */
+		filter_dispatch(device->pointer.filter, &motion, device, time);
+
+		fprintf(stderr, "filter, time: %lu, in: (%f, %f), out: (%f, %f)\n",
+			time,
+			_x, _y,
+			motion.dx, motion.dy);
+
+		if (motion.dx == 0.0 && motion.dy == 0.0)
+			break;
+
+		pointer_notify_motion(base, time, motion.dx, motion.dy);
 		break;
 	case EVDEV_ABSOLUTE_MT_DOWN:
 		if (!(device->seat_caps & EVDEV_DEVICE_TOUCH))
 			break;
 
 		if (device->mt.slots[slot].seat_slot != -1) {
-			log_bug("%s: Driver sent multiple touch down for the "
-				"same slot", device->devnode);
+			log_bug_kernel("%s: Driver sent multiple touch down for the "
+				       "same slot", device->devnode);
 			break;
 		}
 
@@ -149,8 +163,8 @@ evdev_flush_pending_event(struct evdev_device *device, uint32_t time)
 			break;
 
 		seat->slot_map |= 1 << seat_slot;
-		x = li_fixed_from_int(device->mt.slots[slot].x);
-		y = li_fixed_from_int(device->mt.slots[slot].y);
+		x = device->mt.slots[slot].x;
+		y = device->mt.slots[slot].y;
 
 		touch_notify_touch_down(base, time, slot, seat_slot, x, y);
 		break;
@@ -159,8 +173,8 @@ evdev_flush_pending_event(struct evdev_device *device, uint32_t time)
 			break;
 
 		seat_slot = device->mt.slots[slot].seat_slot;
-		x = li_fixed_from_int(device->mt.slots[slot].x);
-		y = li_fixed_from_int(device->mt.slots[slot].y);
+		x = device->mt.slots[slot].x;
+		y = device->mt.slots[slot].y;
 
 		if (seat_slot == -1)
 			break;
@@ -186,8 +200,8 @@ evdev_flush_pending_event(struct evdev_device *device, uint32_t time)
 			break;
 
 		if (device->abs.seat_slot != -1) {
-			log_bug("%s: Driver sent multiple touch down for the "
-				"same slot", device->devnode);
+			log_bug_kernel("%s: Driver sent multiple touch down for the "
+				       "same slot", device->devnode);
 			break;
 		}
 
@@ -200,15 +214,13 @@ evdev_flush_pending_event(struct evdev_device *device, uint32_t time)
 		seat->slot_map |= 1 << seat_slot;
 
 		transform_absolute(device, &cx, &cy);
-		x = li_fixed_from_int(cx);
-		y = li_fixed_from_int(cy);
 
-		touch_notify_touch_down(base, time, -1, seat_slot, x, y);
+		touch_notify_touch_down(base, time, -1, seat_slot, cx, cy);
 		break;
 	case EVDEV_ABSOLUTE_MOTION:
 		transform_absolute(device, &cx, &cy);
-		x = li_fixed_from_int(cx);
-		y = li_fixed_from_int(cy);
+		x = cx;
+		y = cy;
 
 		if (device->seat_caps & EVDEV_DEVICE_TOUCH) {
 			seat_slot = device->abs.seat_slot;
@@ -244,7 +256,8 @@ evdev_flush_pending_event(struct evdev_device *device, uint32_t time)
 }
 
 static void
-evdev_process_touch_button(struct evdev_device *device, int time, int value)
+evdev_process_touch_button(struct evdev_device *device,
+			   uint64_t time, int value)
 {
 	if (device->pending_event != EVDEV_NONE &&
 	    device->pending_event != EVDEV_ABSOLUTE_MOTION)
@@ -256,7 +269,8 @@ evdev_process_touch_button(struct evdev_device *device, int time, int value)
 }
 
 static inline void
-evdev_process_key(struct evdev_device *device, struct input_event *e, int time)
+evdev_process_key(struct evdev_device *device,
+		  struct input_event *e, uint64_t time)
 {
 	/* ignore kernel key repeat */
 	if (e->value == 2)
@@ -286,8 +300,8 @@ evdev_process_key(struct evdev_device *device, struct input_event *e, int time)
 			&device->base,
 			time,
 			e->code,
-			e->value ? LIBINPUT_POINTER_BUTTON_STATE_PRESSED :
-				   LIBINPUT_POINTER_BUTTON_STATE_RELEASED);
+			e->value ? LIBINPUT_BUTTON_STATE_PRESSED :
+				   LIBINPUT_BUTTON_STATE_RELEASED);
 		break;
 
 	default:
@@ -309,7 +323,7 @@ evdev_process_key(struct evdev_device *device, struct input_event *e, int time)
 static void
 evdev_process_touch(struct evdev_device *device,
 		    struct input_event *e,
-		    uint32_t time)
+		    uint64_t time)
 {
 	switch (e->code) {
 	case ABS_MT_SLOT:
@@ -358,7 +372,7 @@ evdev_process_absolute_motion(struct evdev_device *device,
 
 static inline void
 evdev_process_relative(struct evdev_device *device,
-		       struct input_event *e, uint32_t time)
+		       struct input_event *e, uint64_t time)
 {
 	struct libinput_device *base = &device->base;
 
@@ -366,13 +380,13 @@ evdev_process_relative(struct evdev_device *device,
 	case REL_X:
 		if (device->pending_event != EVDEV_RELATIVE_MOTION)
 			evdev_flush_pending_event(device, time);
-		device->rel.dx += li_fixed_from_int(e->value);
+		device->rel.dx += e->value;
 		device->pending_event = EVDEV_RELATIVE_MOTION;
 		break;
 	case REL_Y:
 		if (device->pending_event != EVDEV_RELATIVE_MOTION)
 			evdev_flush_pending_event(device, time);
-		device->rel.dy += li_fixed_from_int(e->value);
+		device->rel.dy += e->value;
 		device->pending_event = EVDEV_RELATIVE_MOTION;
 		break;
 	case REL_WHEEL:
@@ -406,7 +420,7 @@ evdev_process_relative(struct evdev_device *device,
 static inline void
 evdev_process_absolute(struct evdev_device *device,
 		       struct input_event *e,
-		       uint32_t time)
+		       uint64_t time)
 {
 	if (device->is_mt) {
 		evdev_process_touch(device, e, time);
@@ -441,7 +455,7 @@ static void
 fallback_process(struct evdev_dispatch *dispatch,
 		 struct evdev_device *device,
 		 struct input_event *event,
-		 uint32_t time)
+		 uint64_t time)
 {
 	int need_frame = 0;
 
@@ -491,7 +505,8 @@ static inline void
 evdev_process_event(struct evdev_device *device, struct input_event *e)
 {
 	struct evdev_dispatch *dispatch = device->dispatch;
-	uint32_t time = e->time.tv_sec * 1000 + e->time.tv_usec / 1000;
+	fprintf(stderr, "tv sec: %lld, usec: %lld\n", (long long) e->time.tv_sec, (long long) e->time.tv_usec);
+	uint64_t time = e->time.tv_sec * 1000ULL + e->time.tv_usec / 1000;
 
 	dispatch->interface->process(dispatch, device, e, time);
 }
@@ -564,6 +579,18 @@ evdev_device_dispatch(void *data)
 		libinput_remove_source(libinput, device->source);
 		device->source = NULL;
 	}
+}
+
+static int
+configure_pointer_acceleration(struct evdev_device *device)
+{
+	device->pointer.filter =
+		create_pointer_accelator_filter(
+			pointer_accel_profile_smooth_simple);
+	if (!device->pointer.filter)
+		return -1;
+
+	return 0;
 }
 
 static int
@@ -648,7 +675,8 @@ evdev_configure_device(struct evdev_device *device)
 		has_rel = 1;
 
 	if (libevdev_has_event_type(evdev, EV_KEY)) {
-		if (libevdev_has_event_code(evdev, EV_KEY, BTN_TOOL_FINGER) &&
+		if (!libevdev_has_property(evdev, INPUT_PROP_DIRECT) &&
+		    libevdev_has_event_code(evdev, EV_KEY, BTN_TOOL_FINGER) &&
 		    !libevdev_has_event_code(evdev, EV_KEY, BTN_TOOL_PEN) &&
 		    (has_abs || has_mt)) {
 			device->dispatch = evdev_mt_touchpad_create(device);
@@ -676,7 +704,11 @@ evdev_configure_device(struct evdev_device *device)
 		has_keyboard = 1;
 
 	if ((has_abs || has_rel) && has_button) {
+		if (configure_pointer_acceleration(device) == -1)
+			return -1;
+
 		device->seat_caps |= EVDEV_DEVICE_POINTER;
+
 		log_info("input device '%s', %s is a pointer caps =%s%s%s\n",
 			 device->devname, device->devnode,
 			 has_abs ? " absolute-motion" : "",
@@ -849,6 +881,7 @@ evdev_device_destroy(struct evdev_device *device)
 	if (dispatch)
 		dispatch->interface->destroy(dispatch);
 
+	motion_filter_destroy(device->pointer.filter);
 	libinput_seat_unref(device->base.seat);
 	libevdev_free(device->evdev);
 	free(device->mt.slots);

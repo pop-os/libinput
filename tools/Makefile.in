@@ -94,16 +94,17 @@ CONFIG_HEADER = $(top_builddir)/config.h
 CONFIG_CLEAN_FILES =
 CONFIG_CLEAN_VPATH_FILES =
 PROGRAMS = $(noinst_PROGRAMS)
-am_event_debug_OBJECTS = event-debug.$(OBJEXT)
+am_event_debug_OBJECTS = event_debug-event-debug.$(OBJEXT)
 event_debug_OBJECTS = $(am_event_debug_OBJECTS)
-event_debug_DEPENDENCIES = ../src/libinput.la
+am__DEPENDENCIES_1 =
+event_debug_DEPENDENCIES = ../src/libinput.la $(am__DEPENDENCIES_1)
 AM_V_lt = $(am__v_lt_@AM_V@)
 am__v_lt_ = $(am__v_lt_@AM_DEFAULT_V@)
 am__v_lt_0 = --silent
 am__v_lt_1 = 
 event_debug_LINK = $(LIBTOOL) $(AM_V_lt) --tag=CC $(AM_LIBTOOLFLAGS) \
-	$(LIBTOOLFLAGS) --mode=link $(CCLD) $(AM_CFLAGS) $(CFLAGS) \
-	$(event_debug_LDFLAGS) $(LDFLAGS) -o $@
+	$(LIBTOOLFLAGS) --mode=link $(CCLD) $(event_debug_CFLAGS) \
+	$(CFLAGS) $(event_debug_LDFLAGS) $(LDFLAGS) -o $@
 AM_V_P = $(am__v_P_@AM_V@)
 am__v_P_ = $(am__v_P_@AM_DEFAULT_V@)
 am__v_P_0 = false
@@ -303,10 +304,13 @@ target_alias = @target_alias@
 top_build_prefix = @top_build_prefix@
 top_builddir = @top_builddir@
 top_srcdir = @top_srcdir@
-AM_CPPFLAGS = -I$(top_srcdir)/src
+AM_CPPFLAGS = -I$(top_srcdir)/include \
+              -I$(top_srcdir)/src
+
 event_debug_SOURCES = event-debug.c
-event_debug_LDADD = ../src/libinput.la
+event_debug_LDADD = ../src/libinput.la $(LIBUDEV_LIBS)
 event_debug_LDFLAGS = -static
+event_debug_CFLAGS = $(LIBUDEV_CFLAGS)
 all: all-am
 
 .SUFFIXES:
@@ -361,7 +365,7 @@ mostlyclean-compile:
 distclean-compile:
 	-rm -f *.tab.c
 
-@AMDEP_TRUE@@am__include@ @am__quote@./$(DEPDIR)/event-debug.Po@am__quote@
+@AMDEP_TRUE@@am__include@ @am__quote@./$(DEPDIR)/event_debug-event-debug.Po@am__quote@
 
 .c.o:
 @am__fastdepCC_TRUE@	$(AM_V_CC)$(COMPILE) -MT $@ -MD -MP -MF $(DEPDIR)/$*.Tpo -c -o $@ $<
@@ -383,6 +387,20 @@ distclean-compile:
 @AMDEP_TRUE@@am__fastdepCC_FALSE@	$(AM_V_CC)source='$<' object='$@' libtool=yes @AMDEPBACKSLASH@
 @AMDEP_TRUE@@am__fastdepCC_FALSE@	DEPDIR=$(DEPDIR) $(CCDEPMODE) $(depcomp) @AMDEPBACKSLASH@
 @am__fastdepCC_FALSE@	$(AM_V_CC@am__nodep@)$(LTCOMPILE) -c -o $@ $<
+
+event_debug-event-debug.o: event-debug.c
+@am__fastdepCC_TRUE@	$(AM_V_CC)$(CC) $(DEFS) $(DEFAULT_INCLUDES) $(INCLUDES) $(AM_CPPFLAGS) $(CPPFLAGS) $(event_debug_CFLAGS) $(CFLAGS) -MT event_debug-event-debug.o -MD -MP -MF $(DEPDIR)/event_debug-event-debug.Tpo -c -o event_debug-event-debug.o `test -f 'event-debug.c' || echo '$(srcdir)/'`event-debug.c
+@am__fastdepCC_TRUE@	$(AM_V_at)$(am__mv) $(DEPDIR)/event_debug-event-debug.Tpo $(DEPDIR)/event_debug-event-debug.Po
+@AMDEP_TRUE@@am__fastdepCC_FALSE@	$(AM_V_CC)source='event-debug.c' object='event_debug-event-debug.o' libtool=no @AMDEPBACKSLASH@
+@AMDEP_TRUE@@am__fastdepCC_FALSE@	DEPDIR=$(DEPDIR) $(CCDEPMODE) $(depcomp) @AMDEPBACKSLASH@
+@am__fastdepCC_FALSE@	$(AM_V_CC@am__nodep@)$(CC) $(DEFS) $(DEFAULT_INCLUDES) $(INCLUDES) $(AM_CPPFLAGS) $(CPPFLAGS) $(event_debug_CFLAGS) $(CFLAGS) -c -o event_debug-event-debug.o `test -f 'event-debug.c' || echo '$(srcdir)/'`event-debug.c
+
+event_debug-event-debug.obj: event-debug.c
+@am__fastdepCC_TRUE@	$(AM_V_CC)$(CC) $(DEFS) $(DEFAULT_INCLUDES) $(INCLUDES) $(AM_CPPFLAGS) $(CPPFLAGS) $(event_debug_CFLAGS) $(CFLAGS) -MT event_debug-event-debug.obj -MD -MP -MF $(DEPDIR)/event_debug-event-debug.Tpo -c -o event_debug-event-debug.obj `if test -f 'event-debug.c'; then $(CYGPATH_W) 'event-debug.c'; else $(CYGPATH_W) '$(srcdir)/event-debug.c'; fi`
+@am__fastdepCC_TRUE@	$(AM_V_at)$(am__mv) $(DEPDIR)/event_debug-event-debug.Tpo $(DEPDIR)/event_debug-event-debug.Po
+@AMDEP_TRUE@@am__fastdepCC_FALSE@	$(AM_V_CC)source='event-debug.c' object='event_debug-event-debug.obj' libtool=no @AMDEPBACKSLASH@
+@AMDEP_TRUE@@am__fastdepCC_FALSE@	DEPDIR=$(DEPDIR) $(CCDEPMODE) $(depcomp) @AMDEPBACKSLASH@
+@am__fastdepCC_FALSE@	$(AM_V_CC@am__nodep@)$(CC) $(DEFS) $(DEFAULT_INCLUDES) $(INCLUDES) $(AM_CPPFLAGS) $(CPPFLAGS) $(event_debug_CFLAGS) $(CFLAGS) -c -o event_debug-event-debug.obj `if test -f 'event-debug.c'; then $(CYGPATH_W) 'event-debug.c'; else $(CYGPATH_W) '$(srcdir)/event-debug.c'; fi`
 
 mostlyclean-libtool:
 	-rm -f *.lo

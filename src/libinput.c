@@ -61,13 +61,13 @@ struct libinput_event_keyboard {
 struct libinput_event_pointer {
 	struct libinput_event base;
 	uint32_t time;
-	li_fixed_t x;
-	li_fixed_t y;
+	double x;
+	double y;
 	uint32_t button;
 	uint32_t seat_button_count;
-	enum libinput_pointer_button_state state;
+	enum libinput_button_state state;
 	enum libinput_pointer_axis axis;
-	li_fixed_t value;
+	double value;
 };
 
 struct libinput_event_touch {
@@ -75,8 +75,8 @@ struct libinput_event_touch {
 	uint32_t time;
 	int32_t slot;
 	int32_t seat_slot;
-	li_fixed_t x;
-	li_fixed_t y;
+	double x;
+	double y;
 };
 
 static void
@@ -296,31 +296,31 @@ libinput_event_pointer_get_time(struct libinput_event_pointer *event)
 	return event->time;
 }
 
-LIBINPUT_EXPORT li_fixed_t
+LIBINPUT_EXPORT double
 libinput_event_pointer_get_dx(struct libinput_event_pointer *event)
 {
 	return event->x;
 }
 
-LIBINPUT_EXPORT li_fixed_t
+LIBINPUT_EXPORT double
 libinput_event_pointer_get_dy(struct libinput_event_pointer *event)
 {
 	return event->y;
 }
 
-LIBINPUT_EXPORT li_fixed_t
+LIBINPUT_EXPORT double
 libinput_event_pointer_get_absolute_x(struct libinput_event_pointer *event)
 {
 	return event->x;
 }
 
-LIBINPUT_EXPORT li_fixed_t
+LIBINPUT_EXPORT double
 libinput_event_pointer_get_absolute_y(struct libinput_event_pointer *event)
 {
 	return event->y;
 }
 
-LIBINPUT_EXPORT li_fixed_t
+LIBINPUT_EXPORT double
 libinput_event_pointer_get_absolute_x_transformed(
 	struct libinput_event_pointer *event,
 	uint32_t width)
@@ -331,7 +331,7 @@ libinput_event_pointer_get_absolute_x_transformed(
 	return evdev_device_transform_x(device, event->x, width);
 }
 
-LIBINPUT_EXPORT li_fixed_t
+LIBINPUT_EXPORT double
 libinput_event_pointer_get_absolute_y_transformed(
 	struct libinput_event_pointer *event,
 	uint32_t height)
@@ -348,7 +348,7 @@ libinput_event_pointer_get_button(struct libinput_event_pointer *event)
 	return event->button;
 }
 
-LIBINPUT_EXPORT enum libinput_pointer_button_state
+LIBINPUT_EXPORT enum libinput_button_state
 libinput_event_pointer_get_button_state(struct libinput_event_pointer *event)
 {
 	return event->state;
@@ -367,7 +367,7 @@ libinput_event_pointer_get_axis(struct libinput_event_pointer *event)
 	return event->axis;
 }
 
-LIBINPUT_EXPORT li_fixed_t
+LIBINPUT_EXPORT double
 libinput_event_pointer_get_axis_value(struct libinput_event_pointer *event)
 {
 	return event->value;
@@ -391,13 +391,13 @@ libinput_event_touch_get_seat_slot(struct libinput_event_touch *event)
 	return event->seat_slot;
 }
 
-LIBINPUT_EXPORT li_fixed_t
+LIBINPUT_EXPORT double
 libinput_event_touch_get_x(struct libinput_event_touch *event)
 {
 	return event->x;
 }
 
-LIBINPUT_EXPORT li_fixed_t
+LIBINPUT_EXPORT double
 libinput_event_touch_get_x_transformed(struct libinput_event_touch *event,
 				       uint32_t width)
 {
@@ -407,7 +407,7 @@ libinput_event_touch_get_x_transformed(struct libinput_event_touch *event,
 	return evdev_device_transform_x(device, event->x, width);
 }
 
-LIBINPUT_EXPORT li_fixed_t
+LIBINPUT_EXPORT double
 libinput_event_touch_get_y_transformed(struct libinput_event_touch *event,
 				       uint32_t height)
 {
@@ -417,7 +417,7 @@ libinput_event_touch_get_y_transformed(struct libinput_event_touch *event,
 	return evdev_device_transform_y(device, event->y, height);
 }
 
-LIBINPUT_EXPORT li_fixed_t
+LIBINPUT_EXPORT double
 libinput_event_touch_get_y(struct libinput_event_touch *event)
 {
 	return event->y;
@@ -712,14 +712,14 @@ update_seat_key_count(struct libinput_seat *seat,
 static uint32_t
 update_seat_button_count(struct libinput_seat *seat,
 			 int32_t button,
-			 enum libinput_pointer_button_state state)
+			 enum libinput_button_state state)
 {
 	assert(button >= 0 && button <= KEY_MAX);
 
 	switch (state) {
-	case LIBINPUT_POINTER_BUTTON_STATE_PRESSED:
+	case LIBINPUT_BUTTON_STATE_PRESSED:
 		return ++seat->button_count[button];
-	case LIBINPUT_POINTER_BUTTON_STATE_RELEASED:
+	case LIBINPUT_BUTTON_STATE_RELEASED:
 		/* We might not have received the first PRESSED event. */
 		if (seat->button_count[button] == 0)
 			return 0;
@@ -816,8 +816,8 @@ keyboard_notify_key(struct libinput_device *device,
 void
 pointer_notify_motion(struct libinput_device *device,
 		      uint32_t time,
-		      li_fixed_t dx,
-		      li_fixed_t dy)
+		      double dx,
+		      double dy)
 {
 	struct libinput_event_pointer *motion_event;
 
@@ -839,8 +839,8 @@ pointer_notify_motion(struct libinput_device *device,
 void
 pointer_notify_motion_absolute(struct libinput_device *device,
 			       uint32_t time,
-			       li_fixed_t x,
-			       li_fixed_t y)
+			       double x,
+			       double y)
 {
 	struct libinput_event_pointer *motion_absolute_event;
 
@@ -863,7 +863,7 @@ void
 pointer_notify_button(struct libinput_device *device,
 		      uint32_t time,
 		      int32_t button,
-		      enum libinput_pointer_button_state state)
+		      enum libinput_button_state state)
 {
 	struct libinput_event_pointer *button_event;
 	int32_t seat_button_count;
@@ -892,7 +892,7 @@ void
 pointer_notify_axis(struct libinput_device *device,
 		    uint32_t time,
 		    enum libinput_pointer_axis axis,
-		    li_fixed_t value)
+		    double value)
 {
 	struct libinput_event_pointer *axis_event;
 
@@ -916,8 +916,8 @@ touch_notify_touch_down(struct libinput_device *device,
 			uint32_t time,
 			int32_t slot,
 			int32_t seat_slot,
-			li_fixed_t x,
-			li_fixed_t y)
+			double x,
+			double y)
 {
 	struct libinput_event_touch *touch_event;
 
@@ -943,8 +943,8 @@ touch_notify_touch_motion(struct libinput_device *device,
 			  uint32_t time,
 			  int32_t slot,
 			  int32_t seat_slot,
-			  li_fixed_t x,
-			  li_fixed_t y)
+			  double x,
+			  double y)
 {
 	struct libinput_event_touch *touch_event;
 

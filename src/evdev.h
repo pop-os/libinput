@@ -26,7 +26,7 @@
 
 #include "config.h"
 
-#include <linux/input.h>
+#include "linux/input.h"
 #include <libevdev/libevdev.h>
 
 #include "libinput-private.h"
@@ -83,13 +83,17 @@ struct evdev_device {
 	struct mtdev *mtdev;
 
 	struct {
-		li_fixed_t dx, dy;
+		int dx, dy;
 	} rel;
 
 	enum evdev_event_type pending_event;
 	enum evdev_device_seat_capability seat_caps;
 
 	int is_mt;
+
+	struct {
+		struct motion_filter *filter;
+	} pointer;
 };
 
 #define EVDEV_UNHANDLED_DEVICE ((struct evdev_device *) 1)
@@ -101,7 +105,7 @@ struct evdev_dispatch_interface {
 	void (*process)(struct evdev_dispatch *dispatch,
 			struct evdev_device *device,
 			struct input_event *event,
-			uint32_t time);
+			uint64_t time);
 
 	/* Destroy an event dispatch handler and free all its resources. */
 	void (*destroy)(struct evdev_dispatch *dispatch);
@@ -144,14 +148,14 @@ int
 evdev_device_has_capability(struct evdev_device *device,
 			    enum libinput_device_capability capability);
 
-li_fixed_t
+double
 evdev_device_transform_x(struct evdev_device *device,
-			 li_fixed_t x,
+			 double x,
 			 uint32_t width);
 
-li_fixed_t
+double
 evdev_device_transform_y(struct evdev_device *device,
-			 li_fixed_t y,
+			 double y,
 			 uint32_t height);
 
 void

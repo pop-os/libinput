@@ -1,5 +1,7 @@
 var searchData=
 [
+  ['libinput_5fbutton_5fstate_5fpressed',['LIBINPUT_BUTTON_STATE_PRESSED',['../group__device.html#gga543a8bb3f2d7421f76e63bb4ee2fb5bfa68b58fac43509a92230c315993dcf6b4',1,'libinput.h']]],
+  ['libinput_5fbutton_5fstate_5freleased',['LIBINPUT_BUTTON_STATE_RELEASED',['../group__device.html#gga543a8bb3f2d7421f76e63bb4ee2fb5bfad20bd759a424b497d7d363ef136f856b',1,'libinput.h']]],
   ['libinput_5fdevice_5fcap_5fkeyboard',['LIBINPUT_DEVICE_CAP_KEYBOARD',['../group__device.html#gga3110cdddce94a1df0b8a3306909c8f15a733315d968cac7bd569b43b71664ae4b',1,'libinput.h']]],
   ['libinput_5fdevice_5fcap_5fpointer',['LIBINPUT_DEVICE_CAP_POINTER',['../group__device.html#gga3110cdddce94a1df0b8a3306909c8f15a6e7c3249a8f0503fce7e0a5effc4d73f',1,'libinput.h']]],
   ['libinput_5fdevice_5fcap_5ftouch',['LIBINPUT_DEVICE_CAP_TOUCH',['../group__device.html#gga3110cdddce94a1df0b8a3306909c8f15aad61f92a8154c9017d4e621c768712aa',1,'libinput.h']]],
@@ -25,7 +27,5 @@ var searchData=
   ['libinput_5flog_5fpriority_5ferror',['LIBINPUT_LOG_PRIORITY_ERROR',['../libinput_8h.html#aa7e9ebbd1a13fe2ed6f44e69df3216e1ad79f66fcf1d6cbd03678cfc5b012b83d',1,'libinput.h']]],
   ['libinput_5flog_5fpriority_5finfo',['LIBINPUT_LOG_PRIORITY_INFO',['../libinput_8h.html#aa7e9ebbd1a13fe2ed6f44e69df3216e1a9b457be58d6cf5d66ea177aa3d2c5500',1,'libinput.h']]],
   ['libinput_5fpointer_5faxis_5fhorizontal_5fscroll',['LIBINPUT_POINTER_AXIS_HORIZONTAL_SCROLL',['../group__device.html#gga82cd15b9476a4a60f25470df8d67483caa6d13b9d59b06c19f3d3b16502cf02df',1,'libinput.h']]],
-  ['libinput_5fpointer_5faxis_5fvertical_5fscroll',['LIBINPUT_POINTER_AXIS_VERTICAL_SCROLL',['../group__device.html#gga82cd15b9476a4a60f25470df8d67483ca8707ec175c35df78156516ae009414c3',1,'libinput.h']]],
-  ['libinput_5fpointer_5fbutton_5fstate_5fpressed',['LIBINPUT_POINTER_BUTTON_STATE_PRESSED',['../group__device.html#gga635e9d392bf6495bafd5c272f0dfddadad757205d3fbe069d05d57e2570e25c7f',1,'libinput.h']]],
-  ['libinput_5fpointer_5fbutton_5fstate_5freleased',['LIBINPUT_POINTER_BUTTON_STATE_RELEASED',['../group__device.html#gga635e9d392bf6495bafd5c272f0dfddada21b3246bb79bb448e8ac1a89ffdec8a2',1,'libinput.h']]]
+  ['libinput_5fpointer_5faxis_5fvertical_5fscroll',['LIBINPUT_POINTER_AXIS_VERTICAL_SCROLL',['../group__device.html#gga82cd15b9476a4a60f25470df8d67483ca8707ec175c35df78156516ae009414c3',1,'libinput.h']]]
 ];

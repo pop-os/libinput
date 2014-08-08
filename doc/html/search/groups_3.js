@@ -1,4 +1,4 @@
 var searchData=
 [
-  ['keyboard_20events',['Keyboard events',['../group__event__keyboard.html',1,'']]]
+  ['pointer_20events',['Pointer events',['../group__event__pointer.html',1,'']]]
 ];

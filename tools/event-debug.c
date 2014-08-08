@@ -30,7 +30,8 @@
 #include <string.h>
 #include <time.h>
 #include <unistd.h>
-#include <linux/input.h>
+#include <libudev.h>
+#include "linux/input.h"
 #include <sys/ioctl.h>
 #include <sys/signalfd.h>
 
@@ -125,7 +126,7 @@ close_restricted(int fd, void *user_data)
 	close(fd);
 }
 
-const static struct libinput_interface interface = {
+static const struct libinput_interface interface = {
 	.open_restricted = open_restricted,
 	.close_restricted = close_restricted,
 };
@@ -253,43 +254,39 @@ static void
 print_motion_event(struct libinput_event *ev)
 {
 	struct libinput_event_pointer *p = libinput_event_get_pointer_event(ev);
-	li_fixed_t x =	libinput_event_pointer_get_dx(p),
-		   y = libinput_event_pointer_get_dy(p);
+	double x = libinput_event_pointer_get_dx(p);
+	double y = libinput_event_pointer_get_dy(p);
 
 	print_event_time(libinput_event_pointer_get_time(p));
 
-	printf("%6.2f/%6.2f\n",
-	       li_fixed_to_double(x),
-	       li_fixed_to_double(y));
+	printf("%6.2f/%6.2f\n", x, y);
 }
 
 static void
 print_absmotion_event(struct libinput_event *ev)
 {
 	struct libinput_event_pointer *p = libinput_event_get_pointer_event(ev);
-	li_fixed_t x = libinput_event_pointer_get_absolute_x_transformed(
+	double x = libinput_event_pointer_get_absolute_x_transformed(
 		p, screen_width);
-	li_fixed_t y = libinput_event_pointer_get_absolute_y_transformed(
+	double y = libinput_event_pointer_get_absolute_y_transformed(
 		p, screen_height);
 
 	print_event_time(libinput_event_pointer_get_time(p));
-	printf("%6.2f/%6.2f\n",
-	       li_fixed_to_double(x),
-	       li_fixed_to_double(y));
+	printf("%6.2f/%6.2f\n", x, y);
 }
 
 static void
 print_button_event(struct libinput_event *ev)
 {
 	struct libinput_event_pointer *p = libinput_event_get_pointer_event(ev);
-	enum libinput_pointer_button_state state;
+	enum libinput_button_state state;
 
 	print_event_time(libinput_event_pointer_get_time(p));
 
 	state = libinput_event_pointer_get_button_state(p);
 	printf("%3d %s, seat count: %u\n",
 	       libinput_event_pointer_get_button(p),
-	       state == LIBINPUT_POINTER_BUTTON_STATE_PRESSED ? "pressed" : "released",
+	       state == LIBINPUT_BUTTON_STATE_PRESSED ? "pressed" : "released",
 	       libinput_event_pointer_get_seat_button_count(p));
 }
 
@@ -299,7 +296,7 @@ print_axis_event(struct libinput_event *ev)
 	struct libinput_event_pointer *p = libinput_event_get_pointer_event(ev);
 	enum libinput_pointer_axis axis = libinput_event_pointer_get_axis(p);
 	const char *ax;
-	li_fixed_t val;
+	double val;
 
 	switch (axis) {
 	case LIBINPUT_POINTER_AXIS_VERTICAL_SCROLL:
@@ -314,8 +311,7 @@ print_axis_event(struct libinput_event *ev)
 
 	print_event_time(libinput_event_pointer_get_time(p));
 	val = libinput_event_pointer_get_axis_value(p);
-	printf("%s %.2f\n",
-	       ax, li_fixed_to_double(val));
+	printf("%s %.2f\n", ax, val);
 }
 
 static void
@@ -331,16 +327,15 @@ static void
 print_touch_event_with_coords(struct libinput_event *ev)
 {
 	struct libinput_event_touch *t = libinput_event_get_touch_event(ev);
-	li_fixed_t x = libinput_event_touch_get_x_transformed(t, screen_width),
-		   y = libinput_event_touch_get_y_transformed(t, screen_height);
+	double x = libinput_event_touch_get_x_transformed(t, screen_width);
+	double y = libinput_event_touch_get_y_transformed(t, screen_height);
 
 	print_event_time(libinput_event_touch_get_time(t));
 
 	printf("%d (%d) %5.2f/%5.2f\n",
 	       libinput_event_touch_get_slot(t),
 	       libinput_event_touch_get_seat_slot(t),
-	       li_fixed_to_double(x),
-	       li_fixed_to_double(y));
+	       x, y);
 }
 
 static int
@@ -474,6 +469,7 @@ main(int argc, char **argv)
 
 	mainloop(li);
 
+	libinput_destroy(li);
 	if (udev)
 		udev_unref(udev);
 

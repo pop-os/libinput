@@ -1,4 +1,4 @@
 var searchData=
 [
-  ['pointer_20events',['Pointer events',['../group__event__pointer.html',1,'']]]
+  ['touch_20events',['Touch events',['../group__event__touch.html',1,'']]]
 ];

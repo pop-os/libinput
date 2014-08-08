@@ -22,6 +22,7 @@
 
 #include "config.h"
 
+#include <stdio.h>
 #include <stdlib.h>
 #include <stdint.h>
 #include <limits.h>
@@ -32,13 +33,21 @@
 void
 filter_dispatch(struct motion_filter *filter,
 		struct motion_params *motion,
-		void *data, uint32_t time)
+		void *data, uint64_t time)
 {
 	filter->interface->filter(filter, motion, data, time);
 }
 
 /*
- * Pointer acceleration filter
+ * Default parameters for pointer acceleration profiles.
+ */
+
+#define DEFAULT_CONSTANT_ACCELERATION 10.0
+#define DEFAULT_THRESHOLD 4.0
+#define DEFAULT_ACCELERATION 2.0
+
+/*
+ * Pointer acceleration filter constants
  */
 
 #define MAX_VELOCITY_DIFF	1.0
@@ -48,7 +57,7 @@ filter_dispatch(struct motion_filter *filter,
 struct pointer_tracker {
 	double dx;
 	double dy;
-	uint32_t time;
+	uint64_t time;
 	int dir;
 };
 
@@ -96,15 +105,14 @@ get_direction(int dx, int dy)
 		else if (dx < 0 && dy < 0)
 			dir = N | NW | W;
 		else if (dx > 0)
-			dir = NW | W | SW;
-		else if (dx < 0)
 			dir = NE | E | SE;
+		else if (dx < 0)
+			dir = NW | W | SW;
 		else if (dy > 0)
 			dir = SE | S | SW;
 		else if (dy < 0)
 			dir = NE | N | NW;
-	}
-	else {
+	} else {
 		/* Calculate r within the interval  [0 to 8)
 		 *
 		 * r = [0 .. 2π] where 0 is North
@@ -128,7 +136,7 @@ get_direction(int dx, int dy)
 static void
 feed_trackers(struct pointer_accelerator *accel,
 	      double dx, double dy,
-	      uint32_t time)
+	      uint64_t time)
 {
 	int i, current;
 	struct pointer_tracker *trackers = accel->trackers;
@@ -157,7 +165,7 @@ tracker_by_offset(struct pointer_accelerator *accel, unsigned int offset)
 }
 
 static double
-calculate_tracker_velocity(struct pointer_tracker *tracker, uint32_t time)
+calculate_tracker_velocity(struct pointer_tracker *tracker, uint64_t time)
 {
 	int dx;
 	int dy;
@@ -170,53 +178,55 @@ calculate_tracker_velocity(struct pointer_tracker *tracker, uint32_t time)
 }
 
 static double
-calculate_velocity(struct pointer_accelerator *accel, uint32_t time)
+calculate_velocity(struct pointer_accelerator *accel, uint64_t time)
 {
 	struct pointer_tracker *tracker;
 	double velocity;
 	double result = 0.0;
-	double initial_velocity;
+	double initial_velocity = 0.0;
 	double velocity_diff;
 	unsigned int offset;
 
 	unsigned int dir = tracker_by_offset(accel, 0)->dir;
 
-	/* Find first velocity */
-	for (offset = 1; offset < NUM_POINTER_TRACKERS; offset++) {
-		tracker = tracker_by_offset(accel, offset);
-
-		if (time <= tracker->time)
-			continue;
-
-		result = initial_velocity =
-			calculate_tracker_velocity(tracker, time);
-		if (initial_velocity > 0.0)
-			break;
-	}
-
 	/* Find least recent vector within a timelimit, maximum velocity diff
 	 * and direction threshold. */
-	for (; offset < NUM_POINTER_TRACKERS; offset++) {
+	for (offset = 1; offset < NUM_POINTER_TRACKERS; offset++) {
 		tracker = tracker_by_offset(accel, offset);
 
 		/* Stop if too far away in time */
 		if (time - tracker->time > MOTION_TIMEOUT ||
 		    tracker->time > time)
+		{
+			fprintf(stderr, "old val (time: %lu, age: %lu, offs: %d)",
+			       	time, time - tracker->time, offset);
 			break;
+		}
 
 		/* Stop if direction changed */
 		dir &= tracker->dir;
 		if (dir == 0)
+		{
+			fprintf(stderr, "no dir (offs: %d)", offset);
 			break;
+		}
 
 		velocity = calculate_tracker_velocity(tracker, time);
 
-		/* Stop if velocity differs too much from initial */
-		velocity_diff = fabs(initial_velocity - velocity);
-		if (velocity_diff > MAX_VELOCITY_DIFF)
-			break;
+		if (initial_velocity == 0.0) {
+			result = initial_velocity = velocity;
+		} else {
+			/* Stop if velocity differs too much from initial */
+			velocity_diff = fabs(initial_velocity - velocity);
+			if (velocity_diff > MAX_VELOCITY_DIFF)
+			{
+				fprintf(stderr, "diff threshold, (offs: %d, init: %f, vel: %f)",
+				       offset, initial_velocity, velocity);
+				break;
+			}
 
-		result = velocity;
+			result = velocity;
+		}
 	}
 
 	return result;
@@ -224,14 +234,14 @@ calculate_velocity(struct pointer_accelerator *accel, uint32_t time)
 
 static double
 acceleration_profile(struct pointer_accelerator *accel,
-		     void *data, double velocity, uint32_t time)
+		     void *data, double velocity, uint64_t time)
 {
 	return accel->profile(&accel->base, data, velocity, time);
 }
 
 static double
 calculate_acceleration(struct pointer_accelerator *accel,
-		       void *data, double velocity, uint32_t time)
+		       void *data, double velocity, uint64_t time)
 {
 	double factor;
 
@@ -273,7 +283,7 @@ apply_softening(struct pointer_accelerator *accel,
 static void
 accelerator_filter(struct motion_filter *filter,
 		   struct motion_params *motion,
-		   void *data, uint32_t time)
+		   void *data, uint64_t time)
 {
 	struct pointer_accelerator *accel =
 		(struct pointer_accelerator *) filter;
@@ -283,6 +293,7 @@ accelerator_filter(struct motion_filter *filter,
 	feed_trackers(accel, motion->dx, motion->dy, time);
 	velocity = calculate_velocity(accel, time);
 	accel_value = calculate_acceleration(accel, data, velocity, time);
+	fprintf(stderr, "vel: %f, acc: %f\n", velocity, accel_value);
 
 	motion->dx = accel_value * motion->dx;
 	motion->dy = accel_value * motion->dy;
@@ -331,4 +342,49 @@ create_pointer_accelator_filter(accel_profile_func_t profile)
 	filter->cur_tracker = 0;
 
 	return &filter->base;
+}
+
+void
+motion_filter_destroy(struct motion_filter *filter)
+{
+	if (!filter)
+		return;
+
+	filter->interface->destroy(filter);
+}
+
+static inline double
+calc_penumbral_gradient(double x)
+{
+	x *= 2.0;
+	x -= 1.0;
+	return 0.5 + (x * sqrt(1.0 - x * x) + asin(x)) / M_PI;
+}
+
+double
+pointer_accel_profile_smooth_simple(struct motion_filter *filter,
+				    void *data,
+				    double velocity,
+				    uint64_t time)
+{
+	double threshold = DEFAULT_THRESHOLD;
+	double accel = DEFAULT_ACCELERATION;
+	double smooth_accel_coefficient;
+
+	velocity *= DEFAULT_CONSTANT_ACCELERATION;
+
+	if (velocity < 1.0)
+		return calc_penumbral_gradient(0.5 + velocity * 0.5) * 2.0 - 1.0;
+	if (threshold < 1.0)
+		threshold = 1.0;
+	if (velocity <= threshold)
+		return 1;
+	velocity /= threshold;
+	if (velocity >= accel) {
+		return accel;
+	} else {
+		smooth_accel_coefficient =
+			calc_penumbral_gradient(velocity / accel);
+		return 1.0 + (smooth_accel_coefficient * (accel - 1.0));
+	}
 }
