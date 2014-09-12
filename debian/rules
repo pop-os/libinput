@@ -1,10 +1,10 @@
 #!/usr/bin/make -f
 
 override_dh_makeshlibs:
-	dh_makeshlibs -plibinput3 -V -- -c4
+	dh_makeshlibs -plibinput5 -V -- -c4
 
 override_dh_strip:
-	dh_strip -plibinput3 --dbg-package=libinput3-dbg
+	dh_strip -plibinput5 --dbg-package=libinput5-dbg
 
 %:
 	dh $@ --with autoreconf

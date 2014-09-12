@@ -1,4 +1,3 @@
 usr/include
-usr/lib/*/libinput.a
 usr/lib/*/libinput.so
 usr/lib/*/pkgconfig

@@ -1,7 +1,11 @@
-libinput.so.3 libinput3 #MINVER#
+libinput.so.5 libinput5 #MINVER#
 * Build-Depends-Package: libinput-dev
  libinput_config_status_to_str@Base 0.5.0
  libinput_device_calibrate@Base 0.1.0
+ libinput_device_config_calibration_get_default_matrix@Base 0.6.0
+ libinput_device_config_calibration_get_matrix@Base 0.6.0
+ libinput_device_config_calibration_has_matrix@Base 0.6.0
+ libinput_device_config_calibration_set_matrix@Base 0.6.0
  libinput_device_config_tap_get_default_enabled@Base 0.5.0
  libinput_device_config_tap_get_enabled@Base 0.5.0
  libinput_device_config_tap_get_finger_count@Base 0.5.0

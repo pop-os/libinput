@@ -12,7 +12,7 @@ Build-Depends:
 Standards-Version: 3.9.5
 Homepage: http://www.freedesktop.org/wiki/Software/libinput/
 
-Package: libinput3
+Package: libinput5
 Architecture: any
 Pre-Depends: ${misc:Pre-Depends}
 Multi-Arch: same
@@ -28,13 +28,13 @@ Description: input device management and event handling library - shared library
  code the user of libinput need to provide the common set of
  functionality that users expect.
 
-Package: libinput3-dbg
+Package: libinput5-dbg
 Section: debug
 Priority: extra
 Architecture: any
 Multi-Arch: same
 Depends:
- libinput3 (= ${binary:Version}),
+ libinput5 (= ${binary:Version}),
  ${shlibs:Depends},
  ${misc:Depends},
 Description: input device management and event handling library - debugging symbols
@@ -52,7 +52,7 @@ Priority: extra
 Architecture: any
 Multi-Arch: same
 Depends:
- libinput3 (= ${binary:Version}),
+ libinput5 (= ${binary:Version}),
  ${shlibs:Depends},
  ${misc:Depends},
 Description: input device management and event handling library - development files

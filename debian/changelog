@@ -1,3 +1,10 @@
+libinput (0.6.0+dfsg-1) experimental; urgency=medium
+
+  * New upstream release.
+  * Upload to experimental.
+
+ -- Hector Oron <zumbi@debian.org>  Fri, 12 Sep 2014 16:41:38 +0200
+
 libinput (0.5.0+dfsg-1) unstable; urgency=medium
 
   * debian/copyright,
