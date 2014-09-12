@@ -41,6 +41,82 @@
 
 #define DEFAULT_AXIS_STEP_DISTANCE 10
 
+enum evdev_key_type {
+	EVDEV_KEY_TYPE_NONE,
+	EVDEV_KEY_TYPE_KEY,
+	EVDEV_KEY_TYPE_BUTTON,
+};
+
+static void
+set_key_down(struct evdev_device *device, int code, int pressed)
+{
+	long_set_bit_state(device->key_mask, code, pressed);
+}
+
+static int
+is_key_down(struct evdev_device *device, int code)
+{
+	return long_bit_is_set(device->key_mask, code);
+}
+
+static int
+get_key_down_count(struct evdev_device *device, int code)
+{
+	return device->key_count[code];
+}
+
+static int
+update_key_down_count(struct evdev_device *device, int code, int pressed)
+{
+	int key_count;
+	assert(code >= 0 && code < KEY_CNT);
+
+	if (pressed) {
+		key_count = ++device->key_count[code];
+	} else {
+		assert(device->key_count[code] > 0);
+		key_count = --device->key_count[code];
+	}
+
+	if (key_count > 32) {
+		log_bug_libinput(device->base.seat->libinput,
+				 "Key count for %s reached abnormal values\n",
+				 libevdev_event_code_get_name(EV_KEY, code));
+	}
+
+	return key_count;
+}
+
+void
+evdev_keyboard_notify_key(struct evdev_device *device,
+			  uint32_t time,
+			  int key,
+			  enum libinput_key_state state)
+{
+	int down_count;
+
+	down_count = update_key_down_count(device, key, state);
+
+	if ((state == LIBINPUT_KEY_STATE_PRESSED && down_count == 1) ||
+	    (state == LIBINPUT_KEY_STATE_RELEASED && down_count == 0))
+		keyboard_notify_key(&device->base, time, key, state);
+}
+
+void
+evdev_pointer_notify_button(struct evdev_device *device,
+			    uint32_t time,
+			    int button,
+			    enum libinput_button_state state)
+{
+	int down_count;
+
+	down_count = update_key_down_count(device, button, state);
+
+	if ((state == LIBINPUT_BUTTON_STATE_PRESSED && down_count == 1) ||
+	    (state == LIBINPUT_BUTTON_STATE_RELEASED && down_count == 0))
+		pointer_notify_button(&device->base, time, button, state);
+}
+
 void
 evdev_device_led_update(struct evdev_device *device, enum libinput_led leds)
 {
@@ -74,19 +150,10 @@ evdev_device_led_update(struct evdev_device *device, enum libinput_led leds)
 static void
 transform_absolute(struct evdev_device *device, int32_t *x, int32_t *y)
 {
-	if (!device->abs.apply_calibration) {
-		*x = device->abs.x;
-		*y = device->abs.y;
+	if (!device->abs.apply_calibration)
 		return;
-	} else {
-		*x = device->abs.x * device->abs.calibration[0] +
-			device->abs.y * device->abs.calibration[1] +
-			device->abs.calibration[2];
 
-		*y = device->abs.x * device->abs.calibration[3] +
-			device->abs.y * device->abs.calibration[4] +
-			device->abs.calibration[5];
-	}
+	matrix_mult_vec(&device->abs.calibration, x, y);
 }
 
 static inline double
@@ -118,7 +185,7 @@ evdev_flush_pending_event(struct evdev_device *device, uint64_t time)
 	struct libinput *libinput = device->base.seat->libinput;
 	struct motion_params motion;
 	int32_t cx, cy;
-	double x, y;
+	int32_t x, y;
 	int slot;
 	int seat_slot;
 	struct libinput_device *base = &device->base;
@@ -163,6 +230,7 @@ evdev_flush_pending_event(struct evdev_device *device, uint64_t time)
 		seat->slot_map |= 1 << seat_slot;
 		x = device->mt.slots[slot].x;
 		y = device->mt.slots[slot].y;
+		transform_absolute(device, &x, &y);
 
 		touch_notify_touch_down(base, time, slot, seat_slot, x, y);
 		break;
@@ -177,6 +245,7 @@ evdev_flush_pending_event(struct evdev_device *device, uint64_t time)
 		if (seat_slot == -1)
 			break;
 
+		transform_absolute(device, &x, &y);
 		touch_notify_touch_motion(base, time, slot, seat_slot, x, y);
 		break;
 	case EVDEV_ABSOLUTE_MT_UP:
@@ -212,11 +281,15 @@ evdev_flush_pending_event(struct evdev_device *device, uint64_t time)
 
 		seat->slot_map |= 1 << seat_slot;
 
+		cx = device->abs.x;
+		cy = device->abs.y;
 		transform_absolute(device, &cx, &cy);
 
 		touch_notify_touch_down(base, time, -1, seat_slot, cx, cy);
 		break;
 	case EVDEV_ABSOLUTE_MOTION:
+		cx = device->abs.x;
+		cy = device->abs.y;
 		transform_absolute(device, &cx, &cy);
 		x = cx;
 		y = cy;
@@ -254,6 +327,23 @@ evdev_flush_pending_event(struct evdev_device *device, uint64_t time)
 	device->pending_event = EVDEV_NONE;
 }
 
+static enum evdev_key_type
+get_key_type(uint16_t code)
+{
+	if (code == BTN_TOUCH)
+		return EVDEV_KEY_TYPE_NONE;
+
+	if (code >= KEY_ESC && code <= KEY_MICMUTE)
+		return EVDEV_KEY_TYPE_KEY;
+	if (code >= BTN_MISC && code <= BTN_GEAR_UP)
+		return EVDEV_KEY_TYPE_BUTTON;
+	if (code >= KEY_OK && code <= KEY_LIGHTS_TOGGLE)
+		return EVDEV_KEY_TYPE_KEY;
+	if (code >= BTN_DPAD_UP && code <= BTN_TRIGGER_HAPPY40)
+		return EVDEV_KEY_TYPE_BUTTON;
+	return EVDEV_KEY_TYPE_NONE;
+}
+
 static void
 evdev_process_touch_button(struct evdev_device *device,
 			   uint64_t time, int value)
@@ -271,11 +361,10 @@ static inline void
 evdev_process_key(struct evdev_device *device,
 		  struct input_event *e, uint64_t time)
 {
+	enum evdev_key_type type;
+
 	/* ignore kernel key repeat */
 	if (e->value == 2)
-		return;
-
-	if (e->code > KEY_MAX)
 		return;
 
 	if (e->code == BTN_TOUCH) {
@@ -286,35 +375,41 @@ evdev_process_key(struct evdev_device *device,
 
 	evdev_flush_pending_event(device, time);
 
-	switch (e->code) {
-	case BTN_LEFT:
-	case BTN_RIGHT:
-	case BTN_MIDDLE:
-	case BTN_SIDE:
-	case BTN_EXTRA:
-	case BTN_FORWARD:
-	case BTN_BACK:
-	case BTN_TASK:
-		pointer_notify_button(
-			&device->base,
-			time,
-			e->code,
-			e->value ? LIBINPUT_BUTTON_STATE_PRESSED :
-				   LIBINPUT_BUTTON_STATE_RELEASED);
-		break;
+	type = get_key_type(e->code);
 
-	default:
-		/* Only let KEY_* codes pass through. */
-		if (!(e->code <= KEY_MICMUTE ||
-		      (e->code >= KEY_OK && e->code <= KEY_LIGHTS_TOGGLE)))
+	/* Ignore key release events from the kernel for keys that libinput
+	 * never got a pressed event for. */
+	if (e->value == 0) {
+		switch (type) {
+		case EVDEV_KEY_TYPE_NONE:
 			break;
+		case EVDEV_KEY_TYPE_KEY:
+		case EVDEV_KEY_TYPE_BUTTON:
+			if (!is_key_down(device, e->code))
+				return;
+		}
+	}
 
-		keyboard_notify_key(
-			&device->base,
+	set_key_down(device, e->code, e->value);
+
+	switch (type) {
+	case EVDEV_KEY_TYPE_NONE:
+		break;
+	case EVDEV_KEY_TYPE_KEY:
+		evdev_keyboard_notify_key(
+			device,
 			time,
 			e->code,
 			e->value ? LIBINPUT_KEY_STATE_PRESSED :
 				   LIBINPUT_KEY_STATE_RELEASED);
+		break;
+	case EVDEV_KEY_TYPE_BUTTON:
+		evdev_pointer_notify_button(
+			device,
+			time,
+			e->code,
+			e->value ? LIBINPUT_BUTTON_STATE_PRESSED :
+				   LIBINPUT_BUTTON_STATE_RELEASED);
 		break;
 	}
 }
@@ -483,19 +578,66 @@ fallback_destroy(struct evdev_dispatch *dispatch)
 	free(dispatch);
 }
 
+static int
+evdev_calibration_has_matrix(struct libinput_device *libinput_device)
+{
+	struct evdev_device *device = (struct evdev_device*)libinput_device;
+
+	return device->abs.absinfo_x && device->abs.absinfo_y;
+}
+
+static enum libinput_config_status
+evdev_calibration_set_matrix(struct libinput_device *libinput_device,
+			     const float matrix[6])
+{
+	struct evdev_device *device = (struct evdev_device*)libinput_device;
+
+	evdev_device_calibrate(device, matrix);
+
+	return LIBINPUT_CONFIG_STATUS_SUCCESS;
+}
+
+static int
+evdev_calibration_get_matrix(struct libinput_device *libinput_device,
+			     float matrix[6])
+{
+	struct evdev_device *device = (struct evdev_device*)libinput_device;
+
+	matrix_to_farray6(&device->abs.usermatrix, matrix);
+
+	return !matrix_is_identity(&device->abs.usermatrix);
+}
+
+static int
+evdev_calibration_get_default_matrix(struct libinput_device *libinput_device,
+				     float matrix[6])
+{
+	struct evdev_device *device = (struct evdev_device*)libinput_device;
+
+	matrix_to_farray6(&device->abs.default_calibration, matrix);
+
+	return !matrix_is_identity(&device->abs.default_calibration);
+}
+
 struct evdev_dispatch_interface fallback_interface = {
 	fallback_process,
 	fallback_destroy
 };
 
 static struct evdev_dispatch *
-fallback_dispatch_create(void)
+fallback_dispatch_create(struct libinput_device *device)
 {
 	struct evdev_dispatch *dispatch = malloc(sizeof *dispatch);
 	if (dispatch == NULL)
 		return NULL;
 
 	dispatch->interface = &fallback_interface;
+	device->config.calibration = &dispatch->calibration;
+
+	dispatch->calibration.has_matrix = evdev_calibration_has_matrix;
+	dispatch->calibration.set_matrix = evdev_calibration_set_matrix;
+	dispatch->calibration.get_matrix = evdev_calibration_get_matrix;
+	dispatch->calibration.get_default_matrix = evdev_calibration_get_default_matrix;
 
 	return dispatch;
 }
@@ -620,6 +762,7 @@ evdev_configure_device(struct evdev_device *device)
 				fixed = *absinfo;
 				fixed.resolution = 1;
 				libevdev_set_abs_info(evdev, ABS_X, &fixed);
+				device->abs.fake_resolution = 1;
 			}
 			device->abs.absinfo_x = absinfo;
 			has_abs = 1;
@@ -629,6 +772,7 @@ evdev_configure_device(struct evdev_device *device)
 				fixed = *absinfo;
 				fixed.resolution = 1;
 				libevdev_set_abs_info(evdev, ABS_Y, &fixed);
+				device->abs.fake_resolution = 1;
 			}
 			device->abs.absinfo_y = absinfo;
 			has_abs = 1;
@@ -645,6 +789,7 @@ evdev_configure_device(struct evdev_device *device)
 				libevdev_set_abs_info(evdev,
 						      ABS_MT_POSITION_X,
 						      &fixed);
+				device->abs.fake_resolution = 1;
 			}
 			device->abs.absinfo_x = absinfo;
 			absinfo = libevdev_get_abs_info(evdev, ABS_MT_POSITION_Y);
@@ -654,6 +799,7 @@ evdev_configure_device(struct evdev_device *device)
 				libevdev_set_abs_info(evdev,
 						      ABS_MT_POSITION_Y,
 						      &fixed);
+				device->abs.fake_resolution = 1;
 			}
 			device->abs.absinfo_y = absinfo;
 			device->is_mt = 1;
@@ -703,23 +849,26 @@ evdev_configure_device(struct evdev_device *device)
 			log_info(libinput,
 				 "input device '%s', %s is a touchpad\n",
 				 device->devname, device->devnode);
+			return device->dispatch == NULL ? -1 : 0;
 		}
-		for (i = KEY_ESC; i < KEY_MAX; i++) {
-			if (i >= BTN_MISC && i < KEY_OK)
-				continue;
+
+		for (i = 0; i < KEY_MAX; i++) {
 			if (libevdev_has_event_code(evdev, EV_KEY, i)) {
-				has_keyboard = 1;
-				break;
+				switch (get_key_type(i)) {
+				case EVDEV_KEY_TYPE_NONE:
+					break;
+				case EVDEV_KEY_TYPE_KEY:
+					has_keyboard = 1;
+					break;
+				case EVDEV_KEY_TYPE_BUTTON:
+					has_button = 1;
+					break;
+				}
 			}
 		}
+
 		if (libevdev_has_event_code(evdev, EV_KEY, BTN_TOUCH))
 			has_touch = 1;
-		for (i = BTN_MISC; i < BTN_JOYSTICK; i++) {
-			if (libevdev_has_event_code(evdev, EV_KEY, i)) {
-				has_button = 1;
-				break;
-			}
-		}
 	}
 	if (libevdev_has_event_type(evdev, EV_LED))
 		has_keyboard = 1;
@@ -780,10 +929,11 @@ evdev_device_create(struct libinput_seat *seat,
 		return NULL;
 
 	libinput_device_init(&device->base, seat);
+	libinput_seat_ref(seat);
 
 	rc = libevdev_new_from_fd(fd, &device->evdev);
 	if (rc != 0)
-		return NULL;
+		goto err;
 
 	libevdev_set_clock_id(device->evdev, CLOCK_MONOTONIC);
 
@@ -800,7 +950,9 @@ evdev_device_create(struct libinput_seat *seat,
 	device->pending_event = EVDEV_NONE;
 	device->devname = libevdev_get_name(device->evdev);
 
-	libinput_seat_ref(seat);
+	matrix_init_identity(&device->abs.calibration);
+	matrix_init_identity(&device->abs.usermatrix);
+	matrix_init_identity(&device->abs.default_calibration);
 
 	if (evdev_configure_device(device) == -1)
 		goto err;
@@ -812,7 +964,7 @@ evdev_device_create(struct libinput_seat *seat,
 
 	/* If the dispatch was not set up use the fallback. */
 	if (device->dispatch == NULL)
-		device->dispatch = fallback_dispatch_create();
+		device->dispatch = fallback_dispatch_create(&device->base);
 	if (device->dispatch == NULL)
 		goto err;
 
@@ -837,12 +989,8 @@ err:
 int
 evdev_device_get_keys(struct evdev_device *device, char *keys, size_t size)
 {
-	int len;
-
 	memset(keys, 0, size);
-	len = ioctl(device->fd, EVIOCGKEY(size), keys);
-
-	return (len == -1) ? -errno : len;
+	return 0;
 }
 
 const char *
@@ -876,10 +1024,75 @@ evdev_device_get_id_vendor(struct evdev_device *device)
 }
 
 void
-evdev_device_calibrate(struct evdev_device *device, float calibration[6])
+evdev_device_set_default_calibration(struct evdev_device *device,
+				     const float calibration[6])
 {
-	device->abs.apply_calibration = 1;
-	memcpy(device->abs.calibration, calibration, sizeof device->abs.calibration);
+	matrix_from_farray6(&device->abs.default_calibration, calibration);
+	evdev_device_calibrate(device, calibration);
+}
+
+void
+evdev_device_calibrate(struct evdev_device *device,
+		       const float calibration[6])
+{
+	struct matrix scale,
+		      translate,
+		      transform;
+	double sx, sy;
+
+	matrix_from_farray6(&transform, calibration);
+	device->abs.apply_calibration = !matrix_is_identity(&transform);
+
+	if (!device->abs.apply_calibration) {
+		matrix_init_identity(&device->abs.calibration);
+		return;
+	}
+
+	sx = device->abs.absinfo_x->maximum - device->abs.absinfo_x->minimum + 1;
+	sy = device->abs.absinfo_y->maximum - device->abs.absinfo_y->minimum + 1;
+
+	/* The transformation matrix is in the form:
+	 *  [ a b c ]
+	 *  [ d e f ]
+	 *  [ 0 0 1 ]
+	 * Where a, e are the scale components, a, b, d, e are the rotation
+	 * component (combined with scale) and c and f are the translation
+	 * component. The translation component in the input matrix must be
+	 * normalized to multiples of the device width and height,
+	 * respectively. e.g. c == 1 shifts one device-width to the right.
+	 *
+	 * We pre-calculate a single matrix to apply to event coordinates:
+	 *     M = Un-Normalize * Calibration * Normalize
+	 *
+	 * Normalize: scales the device coordinates to [0,1]
+	 * Calibration: user-supplied matrix
+	 * Un-Normalize: scales back up to device coordinates
+	 * Matrix maths requires the normalize/un-normalize in reverse
+	 * order.
+	 */
+
+	/* back up the user matrix so we can return it on request */
+	matrix_from_farray6(&device->abs.usermatrix, calibration);
+
+	/* Un-Normalize */
+	matrix_init_translate(&translate,
+			      device->abs.absinfo_x->minimum,
+			      device->abs.absinfo_y->minimum);
+	matrix_init_scale(&scale, sx, sy);
+	matrix_mult(&scale, &translate, &scale);
+
+	/* Calibration */
+	matrix_mult(&transform, &scale, &transform);
+
+	/* Normalize */
+	matrix_init_translate(&translate,
+			      -device->abs.absinfo_x->minimum/sx,
+			      -device->abs.absinfo_y->minimum/sy);
+	matrix_init_scale(&scale, 1.0/sx, 1.0/sy);
+	matrix_mult(&scale, &translate, &scale);
+
+	/* store final matrix in device */
+	matrix_mult(&device->abs.calibration, &transform, &scale);
 }
 
 int
@@ -908,7 +1121,8 @@ evdev_device_get_size(struct evdev_device *device,
 	x = libevdev_get_abs_info(device->evdev, ABS_X);
 	y = libevdev_get_abs_info(device->evdev, ABS_Y);
 
-	if (!x || !y || !x->resolution || !y->resolution)
+	if (!x || !y || device->abs.fake_resolution ||
+	    !x->resolution || !y->resolution)
 		return -1;
 
 	*width = evdev_convert_to_mm(x, x->maximum);
@@ -917,12 +1131,53 @@ evdev_device_get_size(struct evdev_device *device,
 	return 0;
 }
 
+static void
+release_pressed_keys(struct evdev_device *device)
+{
+	struct libinput *libinput = device->base.seat->libinput;
+	struct timespec ts;
+	uint64_t time;
+	int code;
+
+	if (clock_gettime(CLOCK_MONOTONIC, &ts) != 0) {
+		log_bug_libinput(libinput, "clock_gettime: %s\n", strerror(errno));
+		return;
+	}
+
+	time = ts.tv_sec * 1000ULL + ts.tv_nsec / 1000000;
+
+	for (code = 0; code < KEY_CNT; code++) {
+		if (get_key_down_count(device, code) > 0) {
+			switch (get_key_type(code)) {
+			case EVDEV_KEY_TYPE_NONE:
+				break;
+			case EVDEV_KEY_TYPE_KEY:
+				keyboard_notify_key(
+					&device->base,
+					time,
+					code,
+					LIBINPUT_KEY_STATE_RELEASED);
+				break;
+			case EVDEV_KEY_TYPE_BUTTON:
+				pointer_notify_button(
+					&device->base,
+					time,
+					code,
+					LIBINPUT_BUTTON_STATE_RELEASED);
+				break;
+			}
+		}
+	}
+}
+
 void
 evdev_device_remove(struct evdev_device *device)
 {
 	if (device->source)
 		libinput_remove_source(device->base.seat->libinput,
 				       device->source);
+
+	release_pressed_keys(device);
 
 	if (device->mtdev)
 		mtdev_close_delete(device->mtdev);

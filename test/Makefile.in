@@ -98,15 +98,18 @@ CONFIG_CLEAN_VPATH_FILES =
 LTLIBRARIES = $(noinst_LTLIBRARIES)
 liblitest_la_LIBADD =
 am__liblitest_la_SOURCES_DIST = ../src/libinput-util.h \
-	../src/libinput-util.c litest.h litest-int.h litest-bcm5974.c \
-	litest-keyboard.c litest-mouse.c litest-synaptics.c \
-	litest-synaptics-st.c litest-synaptics-t440.c \
-	litest-trackpoint.c litest-wacom-touch.c litest.c
+	../src/libinput-util.c litest.h litest-int.h \
+	litest-alps-semi-mt.c litest-bcm5974.c \
+	litest-generic-singletouch.c litest-keyboard.c litest-mouse.c \
+	litest-synaptics.c litest-synaptics-st.c \
+	litest-synaptics-t440.c litest-trackpoint.c \
+	litest-wacom-touch.c litest.c
 am__dirstamp = $(am__leading_dot)dirstamp
 @BUILD_TESTS_TRUE@am_liblitest_la_OBJECTS = ../src/libinput-util.lo \
-@BUILD_TESTS_TRUE@	litest-bcm5974.lo litest-keyboard.lo \
-@BUILD_TESTS_TRUE@	litest-mouse.lo litest-synaptics.lo \
-@BUILD_TESTS_TRUE@	litest-synaptics-st.lo \
+@BUILD_TESTS_TRUE@	litest-alps-semi-mt.lo litest-bcm5974.lo \
+@BUILD_TESTS_TRUE@	litest-generic-singletouch.lo \
+@BUILD_TESTS_TRUE@	litest-keyboard.lo litest-mouse.lo \
+@BUILD_TESTS_TRUE@	litest-synaptics.lo litest-synaptics-st.lo \
 @BUILD_TESTS_TRUE@	litest-synaptics-t440.lo \
 @BUILD_TESTS_TRUE@	litest-trackpoint.lo litest-wacom-touch.lo \
 @BUILD_TESTS_TRUE@	litest.lo
@@ -679,7 +682,9 @@ top_srcdir = @top_srcdir@
 @BUILD_TESTS_TRUE@	../src/libinput-util.c \
 @BUILD_TESTS_TRUE@	litest.h \
 @BUILD_TESTS_TRUE@	litest-int.h \
+@BUILD_TESTS_TRUE@	litest-alps-semi-mt.c \
 @BUILD_TESTS_TRUE@	litest-bcm5974.c \
+@BUILD_TESTS_TRUE@	litest-generic-singletouch.c \
 @BUILD_TESTS_TRUE@	litest-keyboard.c \
 @BUILD_TESTS_TRUE@	litest-mouse.c \
 @BUILD_TESTS_TRUE@	litest-synaptics.c \
@@ -707,28 +712,28 @@ top_srcdir = @top_srcdir@
 
 @BUILD_TESTS_TRUE@test_udev_SOURCES = udev.c
 @BUILD_TESTS_TRUE@test_udev_LDADD = $(TEST_LIBS)
-@BUILD_TESTS_TRUE@test_udev_LDFLAGS = -static
+@BUILD_TESTS_TRUE@test_udev_LDFLAGS = -no-install
 @BUILD_TESTS_TRUE@test_path_SOURCES = path.c
 @BUILD_TESTS_TRUE@test_path_LDADD = $(TEST_LIBS)
-@BUILD_TESTS_TRUE@test_path_LDFLAGS = -static
+@BUILD_TESTS_TRUE@test_path_LDFLAGS = -no-install
 @BUILD_TESTS_TRUE@test_pointer_SOURCES = pointer.c
 @BUILD_TESTS_TRUE@test_pointer_LDADD = $(TEST_LIBS)
-@BUILD_TESTS_TRUE@test_pointer_LDFLAGS = -static
+@BUILD_TESTS_TRUE@test_pointer_LDFLAGS = -no-install
 @BUILD_TESTS_TRUE@test_touch_SOURCES = touch.c
 @BUILD_TESTS_TRUE@test_touch_LDADD = $(TEST_LIBS)
-@BUILD_TESTS_TRUE@test_touch_LDFLAGS = -static
+@BUILD_TESTS_TRUE@test_touch_LDFLAGS = -no-install
 @BUILD_TESTS_TRUE@test_log_SOURCES = log.c
 @BUILD_TESTS_TRUE@test_log_LDADD = $(TEST_LIBS)
-@BUILD_TESTS_TRUE@test_log_LDFLAGS = -static
+@BUILD_TESTS_TRUE@test_log_LDFLAGS = -no-install
 @BUILD_TESTS_TRUE@test_touchpad_SOURCES = touchpad.c
 @BUILD_TESTS_TRUE@test_touchpad_LDADD = $(TEST_LIBS)
-@BUILD_TESTS_TRUE@test_touchpad_LDFLAGS = -static
+@BUILD_TESTS_TRUE@test_touchpad_LDFLAGS = -no-install
 @BUILD_TESTS_TRUE@test_misc_SOURCES = misc.c
 @BUILD_TESTS_TRUE@test_misc_LDADD = $(TEST_LIBS)
-@BUILD_TESTS_TRUE@test_misc_LDFLAGS = -static
+@BUILD_TESTS_TRUE@test_misc_LDFLAGS = -no-install
 @BUILD_TESTS_TRUE@test_keyboard_SOURCES = keyboard.c
 @BUILD_TESTS_TRUE@test_keyboard_LDADD = $(TEST_LIBS)
-@BUILD_TESTS_TRUE@test_keyboard_LDFLAGS = -static
+@BUILD_TESTS_TRUE@test_keyboard_LDFLAGS = -no-install
 
 # build-test only
 @BUILD_TESTS_TRUE@test_build_pedantic_c99_SOURCES = build-pedantic.c
@@ -874,7 +879,9 @@ distclean-compile:
 
 @AMDEP_TRUE@@am__include@ @am__quote@../src/$(DEPDIR)/libinput-util.Plo@am__quote@
 @AMDEP_TRUE@@am__include@ @am__quote@./$(DEPDIR)/keyboard.Po@am__quote@
+@AMDEP_TRUE@@am__include@ @am__quote@./$(DEPDIR)/litest-alps-semi-mt.Plo@am__quote@
 @AMDEP_TRUE@@am__include@ @am__quote@./$(DEPDIR)/litest-bcm5974.Plo@am__quote@
+@AMDEP_TRUE@@am__include@ @am__quote@./$(DEPDIR)/litest-generic-singletouch.Plo@am__quote@
 @AMDEP_TRUE@@am__include@ @am__quote@./$(DEPDIR)/litest-keyboard.Plo@am__quote@
 @AMDEP_TRUE@@am__include@ @am__quote@./$(DEPDIR)/litest-mouse.Plo@am__quote@
 @AMDEP_TRUE@@am__include@ @am__quote@./$(DEPDIR)/litest-synaptics-st.Plo@am__quote@

@@ -24,6 +24,7 @@
 #include "config.h"
 #endif
 
+#include <assert.h>
 #include <check.h>
 #include <errno.h>
 #include <fcntl.h>
@@ -84,6 +85,8 @@ extern struct litest_test_device litest_trackpoint_device;
 extern struct litest_test_device litest_bcm5974_device;
 extern struct litest_test_device litest_mouse_device;
 extern struct litest_test_device litest_wacom_touch_device;
+extern struct litest_test_device litest_alps_device;
+extern struct litest_test_device litest_generic_singletouch_device;
 
 struct litest_test_device* devices[] = {
 	&litest_synaptics_clickpad_device,
@@ -94,6 +97,8 @@ struct litest_test_device* devices[] = {
 	&litest_bcm5974_device,
 	&litest_mouse_device,
 	&litest_wacom_touch_device,
+	&litest_alps_device,
+	&litest_generic_singletouch_device,
 	NULL,
 };
 
@@ -178,11 +183,8 @@ litest_add_no_device(const char *name, void *func)
 	litest_add(name, func, LITEST_DISABLE_DEVICE, LITEST_DISABLE_DEVICE);
 }
 
-void
-litest_add(const char *name,
-	   void *func,
-	   enum litest_device_feature required,
-	   enum litest_device_feature excluded)
+static struct suite *
+get_suite(const char *name)
 {
 	struct suite *s;
 
@@ -190,10 +192,8 @@ litest_add(const char *name,
 		list_init(&all_tests);
 
 	list_for_each(s, &all_tests, node) {
-		if (strcmp(s->name, name) == 0) {
-			litest_add_tcase(s, func, required, excluded);
-			return;
-		}
+		if (strcmp(s->name, name) == 0)
+			return s;
 	}
 
 	s = zalloc(sizeof(*s));
@@ -202,7 +202,37 @@ litest_add(const char *name,
 
 	list_init(&s->tests);
 	list_insert(&all_tests, &s->node);
-	litest_add_tcase(s, func, required, excluded);
+
+	return s;
+}
+
+void
+litest_add(const char *name,
+	   void *func,
+	   enum litest_device_feature required,
+	   enum litest_device_feature excluded)
+{
+	litest_add_tcase(get_suite(name), func, required, excluded);
+}
+
+void
+litest_add_for_device(const char *name,
+		      void *func,
+		      enum litest_device_type type)
+{
+	struct suite *s;
+	struct litest_test_device **dev = devices;
+
+	s = get_suite(name);
+	while (*dev) {
+		if ((*dev)->type == type) {
+			litest_add_tcase_for_device(s, func, *dev);
+			return;
+		}
+		dev++;
+	}
+
+	ck_abort_msg("Invalid test device type");
 }
 
 static int
@@ -329,7 +359,7 @@ litest_run(int argc, char **argv) {
 		}
 	}
 
-	srunner_run_all(sr, CK_NORMAL);
+	srunner_run_all(sr, CK_ENV);
 	failed = srunner_ntests_failed(sr);
 	srunner_free(sr);
 
@@ -573,10 +603,12 @@ litest_delete_device(struct litest_device *d)
 		return;
 
 	libinput_device_unref(d->libinput_device);
+	libinput_path_remove_device(d->libinput_device);
 	if (d->owns_context)
 		libinput_unref(d->libinput);
 	libevdev_free(d->evdev);
 	libevdev_uinput_destroy(d->uinput);
+	free(d->private);
 	memset(d,0, sizeof(*d));
 	free(d);
 }
@@ -589,10 +621,10 @@ litest_event(struct litest_device *d, unsigned int type,
 	ck_assert_int_eq(ret, 0);
 }
 
-static int
-auto_assign_value(struct litest_device *d,
-		  const struct input_event *ev,
-		  int slot, double x, double y)
+int
+litest_auto_assign_value(struct litest_device *d,
+			 const struct input_event *ev,
+			 int slot, double x, double y)
 {
 	static int tracking_id;
 	int value = ev->value;
@@ -620,12 +652,26 @@ auto_assign_value(struct litest_device *d,
 	return value;
 }
 
+static void
+send_btntool(struct litest_device *d)
+{
+	litest_event(d, EV_KEY, BTN_TOUCH, d->ntouches_down != 0);
+	litest_event(d, EV_KEY, BTN_TOOL_FINGER, d->ntouches_down == 1);
+	litest_event(d, EV_KEY, BTN_TOOL_DOUBLETAP, d->ntouches_down == 2);
+	litest_event(d, EV_KEY, BTN_TOOL_TRIPLETAP, d->ntouches_down == 3);
+	litest_event(d, EV_KEY, BTN_TOOL_QUADTAP, d->ntouches_down == 4);
+	litest_event(d, EV_KEY, BTN_TOOL_QUINTTAP, d->ntouches_down == 5);
+}
 
 void
 litest_touch_down(struct litest_device *d, unsigned int slot,
 		  double x, double y)
 {
 	struct input_event *ev;
+
+	assert(++d->ntouches_down > 0);
+
+	send_btntool(d);
 
 	if (d->interface->touch_down) {
 		d->interface->touch_down(d, slot, x, y);
@@ -634,7 +680,7 @@ litest_touch_down(struct litest_device *d, unsigned int slot,
 
 	ev = d->interface->touch_down_events;
 	while (ev && (int16_t)ev->type != -1 && (int16_t)ev->code != -1) {
-		int value = auto_assign_value(d, ev, slot, x, y);
+		int value = litest_auto_assign_value(d, ev, slot, x, y);
 		litest_event(d, ev->type, ev->code, value);
 		ev++;
 	}
@@ -651,6 +697,10 @@ litest_touch_up(struct litest_device *d, unsigned int slot)
 		{ .type = -1, .code = -1 }
 	};
 
+	assert(--d->ntouches_down >= 0);
+
+	send_btntool(d);
+
 	if (d->interface->touch_up) {
 		d->interface->touch_up(d, slot);
 		return;
@@ -660,7 +710,7 @@ litest_touch_up(struct litest_device *d, unsigned int slot)
 		ev = up;
 
 	while (ev && (int16_t)ev->type != -1 && (int16_t)ev->code != -1) {
-		int value = auto_assign_value(d, ev, slot, 0, 0);
+		int value = litest_auto_assign_value(d, ev, slot, 0, 0);
 		litest_event(d, ev->type, ev->code, value);
 		ev++;
 	}
@@ -679,7 +729,7 @@ litest_touch_move(struct litest_device *d, unsigned int slot,
 
 	ev = d->interface->touch_move_events;
 	while (ev && (int16_t)ev->type != -1 && (int16_t)ev->code != -1) {
-		int value = auto_assign_value(d, ev, slot, x, y);
+		int value = litest_auto_assign_value(d, ev, slot, x, y);
 		litest_event(d, ev->type, ev->code, value);
 		ev++;
 	}
@@ -730,6 +780,53 @@ litest_scale(const struct litest_device *d, unsigned int axis, double val)
 	min = d->interface->min[axis];
 	max = d->interface->max[axis];
 	return (max - min) * val/100.0 + min;
+}
+
+void
+litest_wait_for_event(struct libinput *li)
+{
+	return litest_wait_for_event_of_type(li, -1);
+}
+
+void
+litest_wait_for_event_of_type(struct libinput *li, ...)
+{
+	va_list args;
+	enum libinput_event_type types[32] = {LIBINPUT_EVENT_NONE};
+	size_t ntypes = 0;
+	enum libinput_event_type type;
+
+	va_start(args, li);
+	type = va_arg(args, int);
+	while ((int)type != -1) {
+		assert(type > 0);
+		assert(ntypes < ARRAY_LENGTH(types));
+		types[ntypes++] = type;
+		type = va_arg(args, int);
+	}
+	va_end(args);
+
+	while (1) {
+		size_t i;
+		struct libinput_event *event;
+
+		while ((type = libinput_next_event_type(li)) == LIBINPUT_EVENT_NONE) {
+			msleep(10);
+			libinput_dispatch(li);
+		}
+
+		/* no event mask means wait for any event */
+		if (ntypes == 0)
+			return;
+
+		for (i = 0; i < ntypes; i++) {
+			if (type == types[i])
+				return;
+		}
+
+		event = libinput_get_event(li);
+		libinput_event_destroy(event);
+	}
 }
 
 void
@@ -852,8 +949,6 @@ litest_create_uinput_device_from_description(const char *name,
 		if (type == INPUT_PROP_MAX) {
 			rc = libevdev_enable_property(dev, code);
 		} else {
-			if (type != EV_SYN)
-				ck_assert(!libevdev_has_event_code(dev, type, code));
 			rc = libevdev_enable_event_code(dev, type, code,
 							type == EV_ABS ? &default_abs : NULL);
 		}

@@ -67,12 +67,15 @@ struct evdev_device {
 	int fd;
 	struct {
 		const struct input_absinfo *absinfo_x, *absinfo_y;
-		int32_t x, y;
+		int fake_resolution;
 
+		int32_t x, y;
 		int32_t seat_slot;
 
 		int apply_calibration;
-		float calibration[6];
+		struct matrix calibration;
+		struct matrix default_calibration; /* from LIBINPUT_CALIBRATION_MATRIX */
+		struct matrix usermatrix; /* as supplied by the caller */
 	} abs;
 
 	struct {
@@ -94,6 +97,13 @@ struct evdev_device {
 	struct {
 		struct motion_filter *filter;
 	} pointer;
+
+	/* Bitmask of pressed keys used to ignore initial release events from
+	 * the kernel. */
+	unsigned long key_mask[NLONGS(KEY_CNT)];
+	/* Key counter used for multiplexing button events internally in
+	 * libinput. */
+	uint8_t key_count[KEY_CNT];
 };
 
 #define EVDEV_UNHANDLED_DEVICE ((struct evdev_device *) 1)
@@ -113,6 +123,7 @@ struct evdev_dispatch_interface {
 
 struct evdev_dispatch {
 	struct evdev_dispatch_interface *interface;
+	struct libinput_device_config_calibration calibration;
 };
 
 struct evdev_device *
@@ -151,7 +162,11 @@ unsigned int
 evdev_device_get_id_vendor(struct evdev_device *device);
 
 void
-evdev_device_calibrate(struct evdev_device *device, float calibration[6]);
+evdev_device_set_default_calibration(struct evdev_device *device,
+				     const float calibration[6]);
+void
+evdev_device_calibrate(struct evdev_device *device,
+		       const float calibration[6]);
 
 int
 evdev_device_has_capability(struct evdev_device *device,
@@ -171,6 +186,18 @@ double
 evdev_device_transform_y(struct evdev_device *device,
 			 double y,
 			 uint32_t height);
+
+void
+evdev_keyboard_notify_key(struct evdev_device *device,
+			  uint32_t time,
+			  int key,
+			  enum libinput_key_state state);
+
+void
+evdev_pointer_notify_button(struct evdev_device *device,
+			    uint32_t time,
+			    int button,
+			    enum libinput_button_state state);
 
 void
 evdev_device_remove(struct evdev_device *device);
