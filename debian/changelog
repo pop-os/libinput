@@ -1,3 +1,9 @@
+libinput (0.6.0+dfsg-2) unstable; urgency=medium
+
+  * Upload to unstable.
+
+ -- Emilio Pozuelo Monfort <pochu@debian.org>  Tue, 16 Sep 2014 22:23:11 +0200
+
 libinput (0.6.0+dfsg-1) experimental; urgency=medium
 
   * New upstream release.
