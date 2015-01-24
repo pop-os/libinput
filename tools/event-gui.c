@@ -27,7 +27,6 @@
 #include <cairo.h>
 #include <errno.h>
 #include <fcntl.h>
-#include <getopt.h>
 #include <math.h>
 #include <stdio.h>
 #include <stdlib.h>
@@ -40,7 +39,11 @@
 #include <libinput.h>
 #include <libinput-util.h>
 
+#include "shared.h"
+
 #define clip(val_, min_, max_) min((max_), max((min_), (val_)))
+
+struct tools_options options;
 
 struct touch {
 	int active;
@@ -67,6 +70,8 @@ struct window {
 
 	/* l/m/r mouse buttons */
 	int l, m, r;
+
+	struct libinput_device *devices[50];
 };
 
 static int
@@ -91,12 +96,6 @@ msg(const char *fmt, ...)
 	va_start(args, fmt);
 	vprintf(fmt, args);
 	va_end(args);
-}
-
-static void
-usage(void)
-{
-	printf("%s [path/to/device]\n", program_invocation_short_name);
 }
 
 static gboolean
@@ -212,17 +211,68 @@ window_init(struct window *w)
 }
 
 static void
+window_cleanup(struct window *w)
+{
+	struct libinput_device **dev;
+	ARRAY_FOR_EACH(w->devices, dev) {
+		if (*dev)
+			libinput_device_unref(*dev);
+	}
+}
+
+static void
+change_ptraccel(struct window *w, double amount)
+{
+	struct libinput_device **dev;
+
+	ARRAY_FOR_EACH(w->devices, dev) {
+		double speed;
+		enum libinput_config_status status;
+
+		if (*dev == NULL)
+			continue;
+
+		if (!libinput_device_config_accel_is_available(*dev))
+			continue;
+
+		speed = libinput_device_config_accel_get_speed(*dev);
+		speed = clip(speed + amount, -1, 1);
+
+		status = libinput_device_config_accel_set_speed(*dev, speed);
+
+		if (status != LIBINPUT_CONFIG_STATUS_SUCCESS) {
+			msg("%s: failed to change accel to %.2f (%s)\n",
+			    libinput_device_get_name(*dev),
+			    speed,
+			    libinput_config_status_to_str(status));
+		} else {
+			printf("%s: speed is %.2f\n",
+			       libinput_device_get_name(*dev),
+			       speed);
+		}
+
+	}
+}
+
+
+static void
 handle_event_device_notify(struct libinput_event *ev)
 {
 	struct libinput_device *dev = libinput_event_get_device(ev);
+	struct libinput *li;
+	struct window *w;
 	const char *type;
+	int i;
 
 	if (libinput_event_get_type(ev) == LIBINPUT_EVENT_DEVICE_ADDED)
 		type = "added";
 	else
 		type = "removed";
 
-	msg("%s %s\n", libinput_device_get_sysname(dev), type);
+	msg("%s %-30s %s\n",
+	    libinput_device_get_sysname(dev),
+	    libinput_device_get_name(dev),
+	    type);
 
 	if (libinput_device_config_tap_get_finger_count(dev) > 0) {
 		enum libinput_config_status status;
@@ -231,6 +281,26 @@ handle_event_device_notify(struct libinput_event *ev)
 		if (status != LIBINPUT_CONFIG_STATUS_SUCCESS)
 			error("%s: Failed to enable tapping\n",
 			      libinput_device_get_sysname(dev));
+	}
+
+	li = libinput_event_get_context(ev);
+	w = libinput_get_user_data(li);
+
+	if (libinput_event_get_type(ev) == LIBINPUT_EVENT_DEVICE_ADDED) {
+		for (i = 0; i < ARRAY_LENGTH(w->devices); i++) {
+			if (w->devices[i] == NULL) {
+				w->devices[i] = libinput_device_ref(dev);
+				break;
+			}
+		}
+	} else  {
+		for (i = 0; i < ARRAY_LENGTH(w->devices); i++) {
+			if (w->devices[i] == dev) {
+				libinput_device_unref(w->devices[i]);
+				w->devices[i] = NULL;
+				break;
+			}
+		}
 	}
 }
 
@@ -288,20 +358,20 @@ static void
 handle_event_axis(struct libinput_event *ev, struct window *w)
 {
 	struct libinput_event_pointer *p = libinput_event_get_pointer_event(ev);
-	enum libinput_pointer_axis axis = libinput_event_pointer_get_axis(p);
-	double v = libinput_event_pointer_get_axis_value(p);
+	double v, h;
 
-	switch (axis) {
-	case LIBINPUT_POINTER_AXIS_SCROLL_VERTICAL:
+	v = libinput_event_pointer_get_axis_value(p,
+		      LIBINPUT_POINTER_AXIS_SCROLL_VERTICAL);
+	h = libinput_event_pointer_get_axis_value(p,
+		      LIBINPUT_POINTER_AXIS_SCROLL_HORIZONTAL);
+
+	if (v != 0.0) {
 		w->vy += (int)v;
 		w->vy = clip(w->vy, 0, w->height);
-		break;
-	case LIBINPUT_POINTER_AXIS_SCROLL_HORIZONTAL:
+	}
+	if (h != 0.0) {
 		w->hx += (int)v;
 		w->hx = clip(w->hx, 0, w->width);
-		break;
-	default:
-		abort();
 	}
 }
 
@@ -309,9 +379,24 @@ static int
 handle_event_keyboard(struct libinput_event *ev, struct window *w)
 {
 	struct libinput_event_keyboard *k = libinput_event_get_keyboard_event(ev);
+	unsigned int key = libinput_event_keyboard_get_key(k);
 
-	if (libinput_event_keyboard_get_key(k) == KEY_ESC)
+	if (libinput_event_keyboard_get_key_state(k) ==
+	    LIBINPUT_KEY_STATE_RELEASED)
+		return 0;
+
+	switch(key) {
+	case KEY_ESC:
 		return 1;
+	case KEY_UP:
+		change_ptraccel(w, 0.1);
+		break;
+	case KEY_DOWN:
+		change_ptraccel(w, -0.1);
+		break;
+	default:
+		break;
+	}
 
 	return 0;
 }
@@ -403,35 +488,6 @@ sockets_init(struct libinput *li)
 }
 
 static int
-parse_opts(int argc, char *argv[])
-{
-	while (1) {
-		static struct option long_options[] = {
-			{ "help", no_argument, 0, 'h' },
-		};
-
-		int option_index = 0;
-		int c;
-
-		c = getopt_long(argc, argv, "h", long_options,
-				&option_index);
-		if (c == -1)
-			break;
-
-		switch(c) {
-		case 'h':
-			usage();
-			return 0;
-		default:
-			usage();
-			return 1;
-		}
-	}
-
-	return 0;
-}
-
-static int
 open_restricted(const char *path, int flags, void *user_data)
 {
 	int fd = open(path, flags);
@@ -458,22 +514,25 @@ main(int argc, char *argv[])
 
 	gtk_init(&argc, &argv);
 
-	if (parse_opts(argc, argv) != 0)
+	tools_init_options(&options);
+
+	if (tools_parse_args(argc, argv, &options) != 0)
 		return 1;
 
 	udev = udev_new();
 	if (!udev)
 		error("Failed to initialize udev\n");
 
-	li = libinput_udev_create_context(&interface, &w, udev);
-	if (!li || libinput_udev_assign_seat(li, "seat0") != 0)
-		error("Failed to initialize context from udev\n");
+	li = tools_open_backend(&options, &w, &interface);
+	if (!li)
+		return 1;
 
 	window_init(&w);
 	sockets_init(li);
 
 	gtk_main();
 
+	window_cleanup(&w);
 	libinput_unref(li);
 	udev_unref(udev);
 

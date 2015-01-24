@@ -42,6 +42,15 @@ enum touchpad_event {
 	TOUCHPAD_EVENT_BUTTON_RELEASE	= (1 << 2),
 };
 
+enum touchpad_model {
+	MODEL_UNKNOWN = 0,
+	MODEL_SYNAPTICS,
+	MODEL_ALPS,
+	MODEL_APPLETOUCH,
+	MODEL_ELANTECH,
+	MODEL_UNIBODY_MACBOOK
+};
+
 enum touch_state {
 	TOUCH_NONE = 0,
 	TOUCH_BEGIN,
@@ -94,6 +103,25 @@ enum tp_tap_touch_state {
 	TAP_TOUCH_STATE_DEAD,		/**< exceeded motion/timeout */
 };
 
+/* For edge scrolling, so we only care about right and bottom */
+enum tp_edge {
+	EDGE_NONE = 0,
+	EDGE_RIGHT = (1 << 0),
+	EDGE_BOTTOM = (1 << 1),
+};
+
+enum tp_edge_scroll_touch_state {
+	EDGE_SCROLL_TOUCH_STATE_NONE,
+	EDGE_SCROLL_TOUCH_STATE_EDGE_NEW,
+	EDGE_SCROLL_TOUCH_STATE_EDGE,
+	EDGE_SCROLL_TOUCH_STATE_AREA,
+};
+
+enum tp_twofinger_scroll_state {
+	TWOFINGER_SCROLL_STATE_NONE,
+	TWOFINGER_SCROLL_STATE_ACTIVE,
+};
+
 struct tp_motion {
 	int32_t x;
 	int32_t y;
@@ -142,6 +170,14 @@ struct tp_touch {
 	} tap;
 
 	struct {
+		enum tp_edge_scroll_touch_state edge_state;
+		uint32_t edge;
+		int direction;
+		double threshold;
+		struct libinput_timer timer;
+	} scroll;
+
+	struct {
 		bool is_palm;
 		int32_t x, y;  /* first coordinates if is_palm == true */
 		uint32_t time; /* first timestamp if is_palm == true */
@@ -156,6 +192,7 @@ struct tp_dispatch {
 	unsigned int slot;			/* current slot */
 	bool has_mt;
 	bool semi_mt;
+	enum touchpad_model model;
 
 	unsigned int real_touches;		/* number of slots */
 	unsigned int ntouches;			/* no slots inc. fakes */
@@ -166,8 +203,6 @@ struct tp_dispatch {
 		int32_t margin_x;
 		int32_t margin_y;
 	} hysteresis;
-
-	struct motion_filter *filter;
 
 	struct {
 		double x_scale_coeff;
@@ -183,6 +218,7 @@ struct tp_dispatch {
 		uint32_t old_state;
 		uint32_t motion_dist;		/* for pinned touches */
 		unsigned int active;		/* currently active button, for release event */
+		bool active_is_topbutton;	/* is active a top button? */
 
 		/* Only used for clickpads. The software button areas are
 		 * always 2 horizontal stripes across the touchpad.
@@ -198,10 +234,16 @@ struct tp_dispatch {
 			int32_t rightbutton_left_edge;
 			int32_t leftbutton_right_edge;
 		} top_area;
+
+		struct evdev_device *trackpoint;
 	} buttons;				/* physical buttons */
 
 	struct {
-		enum libinput_pointer_axis direction;
+		struct libinput_device_config_scroll_method config_method;
+		enum libinput_config_scroll_method method;
+		int32_t right_edge;
+		int32_t bottom_edge;
+		enum tp_twofinger_scroll_state twofinger_state;
 	} scroll;
 
 	enum touchpad_event queued;
@@ -209,14 +251,24 @@ struct tp_dispatch {
 	struct {
 		struct libinput_device_config_tap config;
 		bool enabled;
+		bool suspended;
 		struct libinput_timer timer;
 		enum tp_tap_state state;
+		uint32_t buttons_pressed;
 	} tap;
 
 	struct {
 		int32_t right_edge;
 		int32_t left_edge;
 	} palm;
+
+	struct {
+		struct libinput_device_config_send_events config;
+		enum libinput_config_send_events_mode current_mode;
+		bool trackpoint_active;
+		struct libinput_event_listener trackpoint_listener;
+		struct libinput_timer trackpoint_timer;
+	} sendevents;
 };
 
 #define tp_for_each_touch(_tp, _t) \
@@ -228,6 +280,12 @@ tp_get_delta(struct tp_touch *t, double *dx, double *dy);
 void
 tp_set_pointer(struct tp_dispatch *tp, struct tp_touch *t);
 
+void
+tp_filter_motion(struct tp_dispatch *tp,
+	         double *dx, double *dy,
+	         double *dx_unaccel, double *dy_unaccel,
+		 uint64_t time);
+
 int
 tp_tap_handle_state(struct tp_dispatch *tp, uint64_t time);
 
@@ -235,18 +293,27 @@ int
 tp_init_tap(struct tp_dispatch *tp);
 
 void
-tp_destroy_tap(struct tp_dispatch *tp);
+tp_remove_tap(struct tp_dispatch *tp);
 
 int
 tp_init_buttons(struct tp_dispatch *tp, struct evdev_device *device);
 
 void
-tp_destroy_buttons(struct tp_dispatch *tp);
+tp_init_softbuttons(struct tp_dispatch *tp,
+		    struct evdev_device *device,
+		    double topbutton_size_mult);
+
+void
+tp_remove_buttons(struct tp_dispatch *tp);
 
 int
 tp_process_button(struct tp_dispatch *tp,
 		  const struct input_event *e,
 		  uint64_t time);
+
+void
+tp_release_all_buttons(struct tp_dispatch *tp,
+		       uint64_t time);
 
 int
 tp_post_button_events(struct tp_dispatch *tp, uint64_t time);
@@ -259,5 +326,36 @@ tp_button_touch_active(struct tp_dispatch *tp, struct tp_touch *t);
 
 bool
 tp_button_is_inside_softbutton_area(struct tp_dispatch *tp, struct tp_touch *t);
+
+void
+tp_release_all_taps(struct tp_dispatch *tp,
+		    uint64_t time);
+
+void
+tp_tap_suspend(struct tp_dispatch *tp, uint64_t time);
+
+void
+tp_tap_resume(struct tp_dispatch *tp, uint64_t time);
+
+bool
+tp_tap_dragging(struct tp_dispatch *tp);
+
+int
+tp_edge_scroll_init(struct tp_dispatch *tp, struct evdev_device *device);
+
+void
+tp_remove_edge_scroll(struct tp_dispatch *tp);
+
+void
+tp_edge_scroll_handle_state(struct tp_dispatch *tp, uint64_t time);
+
+int
+tp_edge_scroll_post_events(struct tp_dispatch *tp, uint64_t time);
+
+void
+tp_edge_scroll_stop_events(struct tp_dispatch *tp, uint64_t time);
+
+int
+tp_edge_scroll_touch_active(struct tp_dispatch *tp, struct tp_touch *t);
 
 #endif

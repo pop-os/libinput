@@ -1,3 +1,15 @@
+libinput (0.8.0+dfsg-1) experimental; urgency=medium
+
+  * New upstream release.
+  * d/control: add myself to uploaders
+  * Upload to experimental.
+  * d/control: bump standards version, no changes needed.
+  * d/control: bump libinput5 to libinput7. soname bump.
+  * d/libinput7.install: bump lib soname
+  * d/libinput7.symbols: update
+
+ -- Hector Oron <zumbi@debian.org>  Sat, 24 Jan 2015 10:54:10 +0100
+
 libinput (0.6.0+dfsg-2) unstable; urgency=medium
 
   * Upload to unstable.

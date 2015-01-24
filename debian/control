@@ -2,6 +2,7 @@ Source: libinput
 Section: libs
 Priority: optional
 Maintainer: Emilio Pozuelo Monfort <pochu@debian.org>
+Uploaders: Hector Oron <zumbi@debian.org>
 Build-Depends:
  debhelper (>= 9),
  dh-autoreconf,
@@ -9,10 +10,10 @@ Build-Depends:
  libmtdev-dev (>= 1.1.0),
  libudev-dev,
  libevdev-dev (>= 0.4),
-Standards-Version: 3.9.5
+Standards-Version: 3.9.6
 Homepage: http://www.freedesktop.org/wiki/Software/libinput/
 
-Package: libinput5
+Package: libinput7
 Architecture: any
 Pre-Depends: ${misc:Pre-Depends}
 Multi-Arch: same
@@ -28,13 +29,13 @@ Description: input device management and event handling library - shared library
  code the user of libinput need to provide the common set of
  functionality that users expect.
 
-Package: libinput5-dbg
+Package: libinput7-dbg
 Section: debug
 Priority: extra
 Architecture: any
 Multi-Arch: same
 Depends:
- libinput5 (= ${binary:Version}),
+ libinput7 (= ${binary:Version}),
  ${shlibs:Depends},
  ${misc:Depends},
 Description: input device management and event handling library - debugging symbols
@@ -52,7 +53,7 @@ Priority: extra
 Architecture: any
 Multi-Arch: same
 Depends:
- libinput5 (= ${binary:Version}),
+ libinput7 (= ${binary:Version}),
  ${shlibs:Depends},
  ${misc:Depends},
 Description: input device management and event handling library - development files

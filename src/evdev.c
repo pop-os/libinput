@@ -24,6 +24,7 @@
 #include "config.h"
 
 #include <errno.h>
+#include <stdbool.h>
 #include <stdlib.h>
 #include <string.h>
 #include "linux/input.h"
@@ -39,7 +40,8 @@
 #include "filter.h"
 #include "libinput-private.h"
 
-#define DEFAULT_AXIS_STEP_DISTANCE 10
+#define DEFAULT_WHEEL_CLICK_ANGLE 15
+#define DEFAULT_MIDDLE_BUTTON_SCROLL_TIMEOUT 200
 
 enum evdev_key_type {
 	EVDEV_KEY_TYPE_NONE,
@@ -48,15 +50,15 @@ enum evdev_key_type {
 };
 
 static void
-set_key_down(struct evdev_device *device, int code, int pressed)
+hw_set_key_down(struct evdev_device *device, int code, int pressed)
 {
-	long_set_bit_state(device->key_mask, code, pressed);
+	long_set_bit_state(device->hw_key_mask, code, pressed);
 }
 
 static int
-is_key_down(struct evdev_device *device, int code)
+hw_is_key_down(struct evdev_device *device, int code)
 {
-	return long_bit_is_set(device->key_mask, code);
+	return long_bit_is_set(device->hw_key_mask, code);
 }
 
 static int
@@ -113,8 +115,18 @@ evdev_pointer_notify_button(struct evdev_device *device,
 	down_count = update_key_down_count(device, button, state);
 
 	if ((state == LIBINPUT_BUTTON_STATE_PRESSED && down_count == 1) ||
-	    (state == LIBINPUT_BUTTON_STATE_RELEASED && down_count == 0))
+	    (state == LIBINPUT_BUTTON_STATE_RELEASED && down_count == 0)) {
 		pointer_notify_button(&device->base, time, button, state);
+
+		if (state == LIBINPUT_BUTTON_STATE_RELEASED &&
+		    device->left_handed.change_to_enabled)
+			device->left_handed.change_to_enabled(device);
+
+		if (state == LIBINPUT_BUTTON_STATE_RELEASED &&
+		    device->scroll.change_scroll_method)
+			device->scroll.change_scroll_method(device);
+	}
+
 }
 
 void
@@ -184,6 +196,7 @@ evdev_flush_pending_event(struct evdev_device *device, uint64_t time)
 {
 	struct libinput *libinput = device->base.seat->libinput;
 	struct motion_params motion;
+	double dx_unaccel, dy_unaccel;
 	int32_t cx, cy;
 	int32_t x, y;
 	int slot;
@@ -197,18 +210,36 @@ evdev_flush_pending_event(struct evdev_device *device, uint64_t time)
 	case EVDEV_NONE:
 		return;
 	case EVDEV_RELATIVE_MOTION:
-		motion.dx = device->rel.dx;
-		motion.dy = device->rel.dy;
+		dx_unaccel = device->rel.dx / ((double) device->dpi /
+					       DEFAULT_MOUSE_DPI);
+		dy_unaccel = device->rel.dy / ((double) device->dpi /
+					       DEFAULT_MOUSE_DPI);
 		device->rel.dx = 0;
 		device->rel.dy = 0;
 
+		/* Use unaccelerated deltas for pointing stick scroll */
+		if (device->scroll.method == LIBINPUT_CONFIG_SCROLL_ON_BUTTON_DOWN &&
+		    hw_is_key_down(device, device->scroll.button)) {
+			if (device->scroll.button_scroll_active)
+				evdev_post_scroll(device, time,
+						  LIBINPUT_POINTER_AXIS_SOURCE_CONTINUOUS,
+						  dx_unaccel, dy_unaccel);
+			break;
+		}
+
 		/* Apply pointer acceleration. */
+		motion.dx = dx_unaccel;
+		motion.dy = dy_unaccel;
 		filter_dispatch(device->pointer.filter, &motion, device, time);
 
-		if (motion.dx == 0.0 && motion.dy == 0.0)
+		if (motion.dx == 0.0 && motion.dy == 0.0 &&
+		    dx_unaccel == 0.0 && dy_unaccel == 0.0) {
 			break;
+		}
 
-		pointer_notify_motion(base, time, motion.dx, motion.dy);
+		pointer_notify_motion(base, time,
+				      motion.dx, motion.dy,
+				      dx_unaccel, dy_unaccel);
 		break;
 	case EVDEV_ABSOLUTE_MT_DOWN:
 		if (!(device->seat_caps & EVDEV_DEVICE_TOUCH))
@@ -217,7 +248,8 @@ evdev_flush_pending_event(struct evdev_device *device, uint64_t time)
 		if (device->mt.slots[slot].seat_slot != -1) {
 			log_bug_kernel(libinput,
 				       "%s: Driver sent multiple touch down for the "
-				       "same slot", device->devnode);
+				       "same slot",
+				       udev_device_get_devnode(device->udev_device));
 			break;
 		}
 
@@ -269,7 +301,8 @@ evdev_flush_pending_event(struct evdev_device *device, uint64_t time)
 		if (device->abs.seat_slot != -1) {
 			log_bug_kernel(libinput,
 				       "%s: Driver sent multiple touch down for the "
-				       "same slot", device->devnode);
+				       "same slot",
+				       udev_device_get_devnode(device->udev_device));
 			break;
 		}
 
@@ -345,6 +378,40 @@ get_key_type(uint16_t code)
 }
 
 static void
+evdev_button_scroll_timeout(uint64_t time, void *data)
+{
+	struct evdev_device *device = data;
+
+	device->scroll.button_scroll_active = true;
+}
+
+static void
+evdev_button_scroll_button(struct evdev_device *device,
+			   uint64_t time, int is_press)
+{
+	if (is_press) {
+		libinput_timer_set(&device->scroll.timer,
+				time + DEFAULT_MIDDLE_BUTTON_SCROLL_TIMEOUT);
+	} else {
+		libinput_timer_cancel(&device->scroll.timer);
+		if (device->scroll.button_scroll_active) {
+			evdev_stop_scroll(device, time,
+					  LIBINPUT_POINTER_AXIS_SOURCE_CONTINUOUS);
+			device->scroll.button_scroll_active = false;
+		} else {
+			/* If the button is released quickly enough emit the
+			 * button press/release events. */
+			evdev_pointer_notify_button(device, time,
+					device->scroll.button,
+					LIBINPUT_BUTTON_STATE_PRESSED);
+			evdev_pointer_notify_button(device, time,
+					device->scroll.button,
+					LIBINPUT_BUTTON_STATE_RELEASED);
+		}
+	}
+}
+
+static void
 evdev_process_touch_button(struct evdev_device *device,
 			   uint64_t time, int value)
 {
@@ -385,12 +452,12 @@ evdev_process_key(struct evdev_device *device,
 			break;
 		case EVDEV_KEY_TYPE_KEY:
 		case EVDEV_KEY_TYPE_BUTTON:
-			if (!is_key_down(device, e->code))
+			if (!hw_is_key_down(device, e->code))
 				return;
 		}
 	}
 
-	set_key_down(device, e->code, e->value);
+	hw_set_key_down(device, e->code, e->value);
 
 	switch (type) {
 	case EVDEV_KEY_TYPE_NONE:
@@ -404,10 +471,15 @@ evdev_process_key(struct evdev_device *device,
 				   LIBINPUT_KEY_STATE_RELEASED);
 		break;
 	case EVDEV_KEY_TYPE_BUTTON:
+		if (device->scroll.method == LIBINPUT_CONFIG_SCROLL_ON_BUTTON_DOWN &&
+		    e->code == device->scroll.button) {
+			evdev_button_scroll_button(device, time, e->value);
+			break;
+		}
 		evdev_pointer_notify_button(
 			device,
 			time,
-			e->code,
+			evdev_to_left_handed(device, e->code),
 			e->value ? LIBINPUT_BUTTON_STATE_PRESSED :
 				   LIBINPUT_BUTTON_STATE_RELEASED);
 		break;
@@ -464,12 +536,33 @@ evdev_process_absolute_motion(struct evdev_device *device,
 	}
 }
 
+static void
+evdev_notify_axis(struct evdev_device *device,
+		  uint64_t time,
+		  uint32_t axes,
+		  enum libinput_pointer_axis_source source,
+		  double x, double y,
+		  double x_discrete, double y_discrete)
+{
+	if (device->scroll.natural_scrolling_enabled) {
+		x *= -1;
+		y *= -1;
+		x_discrete *= -1;
+		y_discrete *= -1;
+	}
+
+	pointer_notify_axis(&device->base,
+			    time,
+			    axes,
+			    source,
+			    x, y,
+			    x_discrete, y_discrete);
+}
+
 static inline void
 evdev_process_relative(struct evdev_device *device,
 		       struct input_event *e, uint64_t time)
 {
-	struct libinput_device *base = &device->base;
-
 	switch (e->code) {
 	case REL_X:
 		if (device->pending_event != EVDEV_RELATIVE_MOTION)
@@ -485,29 +578,28 @@ evdev_process_relative(struct evdev_device *device,
 		break;
 	case REL_WHEEL:
 		evdev_flush_pending_event(device, time);
-		pointer_notify_axis(
-			base,
+		evdev_notify_axis(
+			device,
 			time,
-			LIBINPUT_POINTER_AXIS_SCROLL_VERTICAL,
-			-1 * e->value * DEFAULT_AXIS_STEP_DISTANCE);
+			AS_MASK(LIBINPUT_POINTER_AXIS_SCROLL_VERTICAL),
+			LIBINPUT_POINTER_AXIS_SOURCE_WHEEL,
+			0.0,
+			-1 * e->value * device->scroll.wheel_click_angle,
+			0.0,
+			-1 * e->value);
 		break;
 	case REL_HWHEEL:
 		evdev_flush_pending_event(device, time);
-		switch (e->value) {
-		case -1:
-			/* Scroll left */
-		case 1:
-			/* Scroll right */
-			pointer_notify_axis(
-				base,
-				time,
-				LIBINPUT_POINTER_AXIS_SCROLL_HORIZONTAL,
-				e->value * DEFAULT_AXIS_STEP_DISTANCE);
-			break;
-		default:
-			break;
-
-		}
+		evdev_notify_axis(
+			device,
+			time,
+			AS_MASK(LIBINPUT_POINTER_AXIS_SCROLL_HORIZONTAL),
+			LIBINPUT_POINTER_AXIS_SOURCE_WHEEL,
+			e->value * device->scroll.wheel_click_angle,
+			0.0,
+			e->value,
+			0.0);
+		break;
 	}
 }
 
@@ -523,11 +615,24 @@ evdev_process_absolute(struct evdev_device *device,
 	}
 }
 
-static inline int
+static inline bool
+evdev_any_button_down(struct evdev_device *device)
+{
+	unsigned int button;
+
+	for (button = BTN_LEFT; button < BTN_JOYSTICK; button++) {
+		if (libevdev_has_event_code(device->evdev, EV_KEY, button) &&
+		    hw_is_key_down(device, button))
+			return true;
+	}
+	return false;
+}
+
+static inline bool
 evdev_need_touch_frame(struct evdev_device *device)
 {
 	if (!(device->seat_caps & EVDEV_DEVICE_TOUCH))
-		return 0;
+		return false;
 
 	switch (device->pending_event) {
 	case EVDEV_NONE:
@@ -539,10 +644,31 @@ evdev_need_touch_frame(struct evdev_device *device)
 	case EVDEV_ABSOLUTE_TOUCH_DOWN:
 	case EVDEV_ABSOLUTE_TOUCH_UP:
 	case EVDEV_ABSOLUTE_MOTION:
-		return 1;
+		return true;
 	}
 
-	return 0;
+	return false;
+}
+
+static void
+evdev_tag_external_mouse(struct evdev_device *device,
+			 struct udev_device *udev_device)
+{
+	int bustype;
+
+	bustype = libevdev_get_id_bustype(device->evdev);
+	if (bustype == BUS_USB || bustype == BUS_BLUETOOTH) {
+		if (device->seat_caps & EVDEV_DEVICE_POINTER)
+			device->tags |= EVDEV_TAG_EXTERNAL_MOUSE;
+	}
+}
+
+static void
+evdev_tag_trackpoint(struct evdev_device *device,
+		     struct udev_device *udev_device)
+{
+	if (libevdev_has_property(device->evdev, INPUT_PROP_POINTING_STICK))
+		device->tags |= EVDEV_TAG_TRACKPOINT;
 }
 
 static void
@@ -551,7 +677,7 @@ fallback_process(struct evdev_dispatch *dispatch,
 		 struct input_event *event,
 		 uint64_t time)
 {
-	int need_frame = 0;
+	bool need_frame = false;
 
 	switch (event->type) {
 	case EV_REL:
@@ -576,6 +702,14 @@ static void
 fallback_destroy(struct evdev_dispatch *dispatch)
 {
 	free(dispatch);
+}
+
+static void
+fallback_tag_device(struct evdev_device *device,
+		    struct udev_device *udev_device)
+{
+	evdev_tag_external_mouse(device, udev_device);
+	evdev_tag_trackpoint(device, udev_device);
 }
 
 static int
@@ -621,23 +755,334 @@ evdev_calibration_get_default_matrix(struct libinput_device *libinput_device,
 
 struct evdev_dispatch_interface fallback_interface = {
 	fallback_process,
-	fallback_destroy
+	NULL, /* remove */
+	fallback_destroy,
+	NULL, /* device_added */
+	NULL, /* device_removed */
+	NULL, /* device_suspended */
+	NULL, /* device_resumed */
+	fallback_tag_device,
 };
 
-static struct evdev_dispatch *
-fallback_dispatch_create(struct libinput_device *device)
+static uint32_t
+evdev_sendevents_get_modes(struct libinput_device *device)
 {
-	struct evdev_dispatch *dispatch = malloc(sizeof *dispatch);
-	if (dispatch == NULL)
-		return NULL;
+	return LIBINPUT_CONFIG_SEND_EVENTS_DISABLED;
+}
 
-	dispatch->interface = &fallback_interface;
-	device->config.calibration = &dispatch->calibration;
+static enum libinput_config_status
+evdev_sendevents_set_mode(struct libinput_device *device,
+			  enum libinput_config_send_events_mode mode)
+{
+	struct evdev_device *evdev = (struct evdev_device*)device;
+	struct evdev_dispatch *dispatch = evdev->dispatch;
+
+	if (mode == dispatch->sendevents.current_mode)
+		return LIBINPUT_CONFIG_STATUS_SUCCESS;
+
+	switch(mode) {
+	case LIBINPUT_CONFIG_SEND_EVENTS_ENABLED:
+		evdev_device_resume(evdev);
+		break;
+	case LIBINPUT_CONFIG_SEND_EVENTS_DISABLED:
+		evdev_device_suspend(evdev);
+		break;
+	default: /* no support for combined modes yet */
+		return LIBINPUT_CONFIG_STATUS_UNSUPPORTED;
+	}
+
+	dispatch->sendevents.current_mode = mode;
+
+	return LIBINPUT_CONFIG_STATUS_SUCCESS;
+}
+
+static enum libinput_config_send_events_mode
+evdev_sendevents_get_mode(struct libinput_device *device)
+{
+	struct evdev_device *evdev = (struct evdev_device*)device;
+	struct evdev_dispatch *dispatch = evdev->dispatch;
+
+	return dispatch->sendevents.current_mode;
+}
+
+static enum libinput_config_send_events_mode
+evdev_sendevents_get_default_mode(struct libinput_device *device)
+{
+	return LIBINPUT_CONFIG_SEND_EVENTS_ENABLED;
+}
+
+static int
+evdev_left_handed_has(struct libinput_device *device)
+{
+	/* This is only hooked up when we have left-handed configuration, so we
+	 * can hardcode 1 here */
+	return 1;
+}
+
+static void
+evdev_change_to_left_handed(struct evdev_device *device)
+{
+	if (device->left_handed.want_enabled == device->left_handed.enabled)
+		return;
+
+	if (evdev_any_button_down(device))
+		return;
+
+	device->left_handed.enabled = device->left_handed.want_enabled;
+}
+
+static enum libinput_config_status
+evdev_left_handed_set(struct libinput_device *device, int left_handed)
+{
+	struct evdev_device *evdev_device = (struct evdev_device *)device;
+
+	evdev_device->left_handed.want_enabled = left_handed ? true : false;
+
+	evdev_device->left_handed.change_to_enabled(evdev_device);
+
+	return LIBINPUT_CONFIG_STATUS_SUCCESS;
+}
+
+static int
+evdev_left_handed_get(struct libinput_device *device)
+{
+	struct evdev_device *evdev_device = (struct evdev_device *)device;
+
+	/* return the wanted configuration, even if it hasn't taken
+	 * effect yet! */
+	return evdev_device->left_handed.want_enabled;
+}
+
+static int
+evdev_left_handed_get_default(struct libinput_device *device)
+{
+	return 0;
+}
+
+int
+evdev_init_left_handed(struct evdev_device *device,
+		       void (*change_to_left_handed)(struct evdev_device *))
+{
+	device->left_handed.config.has = evdev_left_handed_has;
+	device->left_handed.config.set = evdev_left_handed_set;
+	device->left_handed.config.get = evdev_left_handed_get;
+	device->left_handed.config.get_default = evdev_left_handed_get_default;
+	device->base.config.left_handed = &device->left_handed.config;
+	device->left_handed.enabled = false;
+	device->left_handed.want_enabled = false;
+	device->left_handed.change_to_enabled = change_to_left_handed;
+
+	return 0;
+}
+
+static uint32_t
+evdev_scroll_get_methods(struct libinput_device *device)
+{
+	return LIBINPUT_CONFIG_SCROLL_ON_BUTTON_DOWN;
+}
+
+static void
+evdev_change_scroll_method(struct evdev_device *device)
+{
+	if (device->scroll.want_method == device->scroll.method &&
+	    device->scroll.want_button == device->scroll.button)
+		return;
+
+	if (evdev_any_button_down(device))
+		return;
+
+	device->scroll.method = device->scroll.want_method;
+	device->scroll.button = device->scroll.want_button;
+}
+
+static enum libinput_config_status
+evdev_scroll_set_method(struct libinput_device *device,
+			enum libinput_config_scroll_method method)
+{
+	struct evdev_device *evdev = (struct evdev_device*)device;
+
+	evdev->scroll.want_method = method;
+	evdev->scroll.change_scroll_method(evdev);
+
+	return LIBINPUT_CONFIG_STATUS_SUCCESS;
+}
+
+static enum libinput_config_scroll_method
+evdev_scroll_get_method(struct libinput_device *device)
+{
+	struct evdev_device *evdev = (struct evdev_device *)device;
+
+	/* return the wanted configuration, even if it hasn't taken
+	 * effect yet! */
+	return evdev->scroll.want_method;
+}
+
+static enum libinput_config_scroll_method
+evdev_scroll_get_default_method(struct libinput_device *device)
+{
+	struct evdev_device *evdev = (struct evdev_device *)device;
+
+	if (libevdev_has_property(evdev->evdev, INPUT_PROP_POINTING_STICK))
+		return LIBINPUT_CONFIG_SCROLL_ON_BUTTON_DOWN;
+	else
+		return LIBINPUT_CONFIG_SCROLL_NO_SCROLL;
+}
+
+static enum libinput_config_status
+evdev_scroll_set_button(struct libinput_device *device,
+			uint32_t button)
+{
+	struct evdev_device *evdev = (struct evdev_device*)device;
+
+	evdev->scroll.want_button = button;
+	evdev->scroll.change_scroll_method(evdev);
+
+	return LIBINPUT_CONFIG_STATUS_SUCCESS;
+}
+
+static uint32_t
+evdev_scroll_get_button(struct libinput_device *device)
+{
+	struct evdev_device *evdev = (struct evdev_device *)device;
+
+	/* return the wanted configuration, even if it hasn't taken
+	 * effect yet! */
+	return evdev->scroll.want_button;
+}
+
+static uint32_t
+evdev_scroll_get_default_button(struct libinput_device *device)
+{
+	struct evdev_device *evdev = (struct evdev_device *)device;
+
+	if (libevdev_has_property(evdev->evdev, INPUT_PROP_POINTING_STICK))
+		return BTN_MIDDLE;
+	else
+		return 0;
+}
+
+static int
+evdev_init_button_scroll(struct evdev_device *device,
+			 void (*change_scroll_method)(struct evdev_device *))
+{
+	libinput_timer_init(&device->scroll.timer, device->base.seat->libinput,
+			    evdev_button_scroll_timeout, device);
+	device->scroll.config.get_methods = evdev_scroll_get_methods;
+	device->scroll.config.set_method = evdev_scroll_set_method;
+	device->scroll.config.get_method = evdev_scroll_get_method;
+	device->scroll.config.get_default_method = evdev_scroll_get_default_method;
+	device->scroll.config.set_button = evdev_scroll_set_button;
+	device->scroll.config.get_button = evdev_scroll_get_button;
+	device->scroll.config.get_default_button = evdev_scroll_get_default_button;
+	device->base.config.scroll_method = &device->scroll.config;
+	device->scroll.method = evdev_scroll_get_default_method((struct libinput_device *)device);
+	device->scroll.want_method = device->scroll.method;
+	device->scroll.button = evdev_scroll_get_default_button((struct libinput_device *)device);
+	device->scroll.want_button = device->scroll.button;
+	device->scroll.change_scroll_method = change_scroll_method;
+
+	return 0;
+}
+
+static void
+evdev_init_calibration(struct evdev_device *device,
+		       struct evdev_dispatch *dispatch)
+{
+	device->base.config.calibration = &dispatch->calibration;
 
 	dispatch->calibration.has_matrix = evdev_calibration_has_matrix;
 	dispatch->calibration.set_matrix = evdev_calibration_set_matrix;
 	dispatch->calibration.get_matrix = evdev_calibration_get_matrix;
 	dispatch->calibration.get_default_matrix = evdev_calibration_get_default_matrix;
+}
+
+static void
+evdev_init_sendevents(struct evdev_device *device,
+		      struct evdev_dispatch *dispatch)
+{
+	device->base.config.sendevents = &dispatch->sendevents.config;
+
+	dispatch->sendevents.current_mode = LIBINPUT_CONFIG_SEND_EVENTS_ENABLED;
+	dispatch->sendevents.config.get_modes = evdev_sendevents_get_modes;
+	dispatch->sendevents.config.set_mode = evdev_sendevents_set_mode;
+	dispatch->sendevents.config.get_mode = evdev_sendevents_get_mode;
+	dispatch->sendevents.config.get_default_mode = evdev_sendevents_get_default_mode;
+}
+
+static int
+evdev_scroll_config_natural_has(struct libinput_device *device)
+{
+	return 1;
+}
+
+static enum libinput_config_status
+evdev_scroll_config_natural_set(struct libinput_device *device,
+				int enabled)
+{
+	struct evdev_device *dev = (struct evdev_device *)device;
+
+	dev->scroll.natural_scrolling_enabled = enabled ? true : false;
+
+	return LIBINPUT_CONFIG_STATUS_SUCCESS;
+}
+
+static int
+evdev_scroll_config_natural_get(struct libinput_device *device)
+{
+	struct evdev_device *dev = (struct evdev_device *)device;
+
+	return dev->scroll.natural_scrolling_enabled ? 1 : 0;
+}
+
+static int
+evdev_scroll_config_natural_get_default(struct libinput_device *device)
+{
+	/* could enable this on Apple touchpads. could do that, could
+	 * very well do that... */
+	return 0;
+}
+
+void
+evdev_init_natural_scroll(struct evdev_device *device)
+{
+	device->scroll.config_natural.has = evdev_scroll_config_natural_has;
+	device->scroll.config_natural.set_enabled = evdev_scroll_config_natural_set;
+	device->scroll.config_natural.get_enabled = evdev_scroll_config_natural_get;
+	device->scroll.config_natural.get_default_enabled = evdev_scroll_config_natural_get_default;
+	device->scroll.natural_scrolling_enabled = false;
+	device->base.config.natural_scroll = &device->scroll.config_natural;
+}
+
+static struct evdev_dispatch *
+fallback_dispatch_create(struct libinput_device *device)
+{
+	struct evdev_dispatch *dispatch = zalloc(sizeof *dispatch);
+	struct evdev_device *evdev_device = (struct evdev_device *)device;
+
+	if (dispatch == NULL)
+		return NULL;
+
+	dispatch->interface = &fallback_interface;
+
+	if (evdev_device->left_handed.want_enabled &&
+	    evdev_init_left_handed(evdev_device,
+				   evdev_change_to_left_handed) == -1) {
+		free(dispatch);
+		return NULL;
+	}
+
+	if (evdev_device->scroll.want_button &&
+	    evdev_init_button_scroll(evdev_device,
+				     evdev_change_scroll_method) == -1) {
+		free(dispatch);
+		return NULL;
+	}
+
+	if (evdev_device->scroll.natural_scrolling_enabled)
+		evdev_init_natural_scroll(evdev_device);
+
+	evdev_init_calibration(evdev_device, dispatch);
+	evdev_init_sendevents(evdev_device, dispatch);
 
 	return dispatch;
 }
@@ -701,6 +1146,21 @@ evdev_device_dispatch(void *data)
 		rc = libevdev_next_event(device->evdev,
 					 LIBEVDEV_READ_FLAG_NORMAL, &ev);
 		if (rc == LIBEVDEV_READ_STATUS_SYNC) {
+			switch (ratelimit_test(&device->syn_drop_limit)) {
+			case RATELIMIT_PASS:
+				log_info(libinput, "SYN_DROPPED event from "
+					 "\"%s\" - some input events have "
+					 "been lost.\n", device->devname);
+				break;
+			case RATELIMIT_THRESHOLD:
+				log_info(libinput, "SYN_DROPPED flood "
+					 "from \"%s\"\n",
+					 device->devname);
+				break;
+			case RATELIMIT_EXCEEDED:
+				break;
+			}
+
 			/* send one more sync event so we handle all
 			   currently pending events before we sync up
 			   to the current state */
@@ -722,15 +1182,139 @@ evdev_device_dispatch(void *data)
 }
 
 static int
-configure_pointer_acceleration(struct evdev_device *device)
+evdev_accel_config_available(struct libinput_device *device)
+{
+	/* this function is only called if we set up ptraccel, so we can
+	   reply with a resounding "Yes" */
+	return 1;
+}
+
+static enum libinput_config_status
+evdev_accel_config_set_speed(struct libinput_device *device, double speed)
+{
+	struct evdev_device *dev = (struct evdev_device *)device;
+
+	if (!filter_set_speed(dev->pointer.filter, speed))
+		return LIBINPUT_CONFIG_STATUS_INVALID;
+
+	return LIBINPUT_CONFIG_STATUS_SUCCESS;
+}
+
+static double
+evdev_accel_config_get_speed(struct libinput_device *device)
+{
+	struct evdev_device *dev = (struct evdev_device *)device;
+
+	return filter_get_speed(dev->pointer.filter);
+}
+
+static double
+evdev_accel_config_get_default_speed(struct libinput_device *device)
+{
+	return 0.0;
+}
+
+int
+evdev_device_init_pointer_acceleration(struct evdev_device *device)
 {
 	device->pointer.filter =
-		create_pointer_accelator_filter(
-			pointer_accel_profile_smooth_simple);
+		create_pointer_accelerator_filter(
+			pointer_accel_profile_linear);
 	if (!device->pointer.filter)
 		return -1;
 
+	device->pointer.config.available = evdev_accel_config_available;
+	device->pointer.config.set_speed = evdev_accel_config_set_speed;
+	device->pointer.config.get_speed = evdev_accel_config_get_speed;
+	device->pointer.config.get_default_speed = evdev_accel_config_get_default_speed;
+	device->base.config.accel = &device->pointer.config;
+
 	return 0;
+}
+
+
+static inline int
+evdev_need_mtdev(struct evdev_device *device)
+{
+	struct libevdev *evdev = device->evdev;
+
+	return (libevdev_has_event_code(evdev, EV_ABS, ABS_MT_POSITION_X) &&
+		libevdev_has_event_code(evdev, EV_ABS, ABS_MT_POSITION_Y) &&
+		!libevdev_has_event_code(evdev, EV_ABS, ABS_MT_SLOT));
+}
+
+static void
+evdev_tag_device(struct evdev_device *device)
+{
+	if (device->dispatch->interface->tag_device)
+		device->dispatch->interface->tag_device(device,
+							device->udev_device);
+}
+
+static inline int
+evdev_read_wheel_click_prop(struct evdev_device *device)
+{
+	struct libinput *libinput = device->base.seat->libinput;
+	const char *prop;
+	int angle = DEFAULT_WHEEL_CLICK_ANGLE;
+
+	prop = udev_device_get_property_value(device->udev_device,
+					      "MOUSE_WHEEL_CLICK_ANGLE");
+	if (prop) {
+		angle = parse_mouse_wheel_click_angle_property(prop);
+		if (!angle) {
+			log_error(libinput,
+				  "Mouse wheel click angle '%s' is present but invalid,"
+				  "using %d degrees instead\n",
+				  device->devname,
+				  DEFAULT_WHEEL_CLICK_ANGLE);
+			angle = DEFAULT_WHEEL_CLICK_ANGLE;
+		}
+	}
+
+	return angle;
+}
+static inline int
+evdev_read_dpi_prop(struct evdev_device *device)
+{
+	struct libinput *libinput = device->base.seat->libinput;
+	const char *mouse_dpi;
+	int dpi = DEFAULT_MOUSE_DPI;
+
+	mouse_dpi = udev_device_get_property_value(device->udev_device,
+						   "MOUSE_DPI");
+	if (mouse_dpi) {
+		dpi = parse_mouse_dpi_property(mouse_dpi);
+		if (!dpi) {
+			log_error(libinput, "Mouse DPI property for '%s' is "
+					    "present but invalid, using %d "
+					    "DPI instead\n",
+					    device->devname,
+					    DEFAULT_MOUSE_DPI);
+			dpi = DEFAULT_MOUSE_DPI;
+		}
+	}
+
+	return dpi;
+}
+
+static inline int
+evdev_fix_abs_resolution(struct libevdev *evdev,
+			 unsigned int code,
+			 const struct input_absinfo *absinfo)
+{
+	struct input_absinfo fixed;
+
+	if (absinfo->resolution == 0) {
+		fixed = *absinfo;
+		fixed.resolution = 1;
+		/* libevdev_set_abs_info() changes the absinfo we already
+		   have a pointer to, no need to fetch it again */
+		libevdev_set_abs_info(evdev, code, &fixed);
+		return 1;
+	} else {
+		return 0;
+	}
 }
 
 static int
@@ -739,7 +1323,6 @@ evdev_configure_device(struct evdev_device *device)
 	struct libinput *libinput = device->base.seat->libinput;
 	struct libevdev *evdev = device->evdev;
 	const struct input_absinfo *absinfo;
-	struct input_absinfo fixed;
 	int has_abs, has_rel, has_mt;
 	int has_button, has_keyboard, has_touch;
 	struct mt_slot *slots;
@@ -747,6 +1330,7 @@ evdev_configure_device(struct evdev_device *device)
 	int active_slot;
 	int slot;
 	unsigned int i;
+	const char *devnode = udev_device_get_devnode(device->udev_device);
 
 	has_rel = 0;
 	has_abs = 0;
@@ -755,59 +1339,64 @@ evdev_configure_device(struct evdev_device *device)
 	has_keyboard = 0;
 	has_touch = 0;
 
+        for (i = BTN_JOYSTICK; i < BTN_DIGI; i++) {
+                if (libevdev_has_event_code(evdev, EV_KEY, i)) {
+                        log_info(libinput,
+                                 "input device '%s', %s is a joystick, ignoring\n",
+                                 device->devname, devnode);
+                        return -1;
+                }
+        }
+
 	if (libevdev_has_event_type(evdev, EV_ABS)) {
 
 		if ((absinfo = libevdev_get_abs_info(evdev, ABS_X))) {
-			if (absinfo->resolution == 0) {
-				fixed = *absinfo;
-				fixed.resolution = 1;
-				libevdev_set_abs_info(evdev, ABS_X, &fixed);
+			if (evdev_fix_abs_resolution(evdev,
+						     ABS_X,
+						     absinfo))
 				device->abs.fake_resolution = 1;
-			}
 			device->abs.absinfo_x = absinfo;
 			has_abs = 1;
 		}
 		if ((absinfo = libevdev_get_abs_info(evdev, ABS_Y))) {
-			if (absinfo->resolution == 0) {
-				fixed = *absinfo;
-				fixed.resolution = 1;
-				libevdev_set_abs_info(evdev, ABS_Y, &fixed);
+			if (evdev_fix_abs_resolution(evdev,
+						     ABS_Y,
+						     absinfo))
 				device->abs.fake_resolution = 1;
-			}
 			device->abs.absinfo_y = absinfo;
 			has_abs = 1;
 		}
-                /* We only handle the slotted Protocol B in weston.
-                   Devices with ABS_MT_POSITION_* but not ABS_MT_SLOT
-                   require mtdev for conversion. */
-		if (libevdev_has_event_code(evdev, EV_ABS, ABS_MT_POSITION_X) &&
-		    libevdev_has_event_code(evdev, EV_ABS, ABS_MT_POSITION_Y)) {
+
+		/* Fake MT devices have the ABS_MT_SLOT bit set because of
+		   the limited ABS_* range - they aren't MT devices, they
+		   just have too many ABS_ axes */
+		if (libevdev_has_event_code(evdev, EV_ABS, ABS_MT_SLOT) &&
+		    libevdev_get_num_slots(evdev) == -1) {
+			has_mt = 0;
+			has_touch = 0;
+		} else if (libevdev_has_event_code(evdev, EV_ABS, ABS_MT_POSITION_X) &&
+			   libevdev_has_event_code(evdev, EV_ABS, ABS_MT_POSITION_Y)) {
 			absinfo = libevdev_get_abs_info(evdev, ABS_MT_POSITION_X);
-			if (absinfo->resolution == 0) {
-				fixed = *absinfo;
-				fixed.resolution = 1;
-				libevdev_set_abs_info(evdev,
-						      ABS_MT_POSITION_X,
-						      &fixed);
+			if (evdev_fix_abs_resolution(evdev,
+						     ABS_MT_POSITION_X,
+						     absinfo))
 				device->abs.fake_resolution = 1;
-			}
 			device->abs.absinfo_x = absinfo;
+
 			absinfo = libevdev_get_abs_info(evdev, ABS_MT_POSITION_Y);
-			if (absinfo->resolution == 0) {
-				fixed = *absinfo;
-				fixed.resolution = 1;
-				libevdev_set_abs_info(evdev,
-						      ABS_MT_POSITION_Y,
-						      &fixed);
+			if (evdev_fix_abs_resolution(evdev,
+						     ABS_MT_POSITION_Y,
+						     absinfo))
 				device->abs.fake_resolution = 1;
-			}
 			device->abs.absinfo_y = absinfo;
 			device->is_mt = 1;
 			has_touch = 1;
 			has_mt = 1;
 
-			if (!libevdev_has_event_code(evdev,
-						     EV_ABS, ABS_MT_SLOT)) {
+			/* We only handle the slotted Protocol B in libinput.
+			   Devices with ABS_MT_POSITION_* but not ABS_MT_SLOT
+			   require mtdev for conversion. */
+			if (evdev_need_mtdev(device)) {
 				device->mtdev = mtdev_new_open(device->fd);
 				if (!device->mtdev)
 					return -1;
@@ -836,6 +1425,7 @@ evdev_configure_device(struct evdev_device *device)
 			device->mt.slot = active_slot;
 		}
 	}
+
 	if (libevdev_has_event_code(evdev, EV_REL, REL_X) ||
 	    libevdev_has_event_code(evdev, EV_REL, REL_Y))
 		has_rel = 1;
@@ -848,7 +1438,7 @@ evdev_configure_device(struct evdev_device *device)
 			device->dispatch = evdev_mt_touchpad_create(device);
 			log_info(libinput,
 				 "input device '%s', %s is a touchpad\n",
-				 device->devname, device->devnode);
+				 device->devname, devnode);
 			return device->dispatch == NULL ? -1 : 0;
 		}
 
@@ -874,44 +1464,104 @@ evdev_configure_device(struct evdev_device *device)
 		has_keyboard = 1;
 
 	if ((has_abs || has_rel) && has_button) {
-		if (configure_pointer_acceleration(device) == -1)
+		if (evdev_device_init_pointer_acceleration(device) == -1)
 			return -1;
 
 		device->seat_caps |= EVDEV_DEVICE_POINTER;
 
 		log_info(libinput,
 			 "input device '%s', %s is a pointer caps =%s%s%s\n",
-			 device->devname, device->devnode,
+			 device->devname, devnode,
 			 has_abs ? " absolute-motion" : "",
 			 has_rel ? " relative-motion": "",
 			 has_button ? " button" : "");
+
+		/* want left-handed config option */
+		device->left_handed.want_enabled = true;
+		/* want natural-scroll config option */
+		device->scroll.natural_scrolling_enabled = true;
 	}
+
+	if (has_rel && has_button) {
+		/* want button scrolling config option */
+		device->scroll.want_button = 1;
+	}
+
 	if (has_keyboard) {
 		device->seat_caps |= EVDEV_DEVICE_KEYBOARD;
 		log_info(libinput,
 			 "input device '%s', %s is a keyboard\n",
-			 device->devname, device->devnode);
+			 device->devname, devnode);
 	}
 	if (has_touch && !has_button) {
 		device->seat_caps |= EVDEV_DEVICE_TOUCH;
 		log_info(libinput,
 			 "input device '%s', %s is a touch device\n",
-			 device->devname, device->devnode);
+			 device->devname, devnode);
 	}
 
 	return 0;
 }
 
+static void
+evdev_notify_added_device(struct evdev_device *device)
+{
+	struct libinput_device *dev;
+
+	list_for_each(dev, &device->base.seat->devices_list, link) {
+		struct evdev_device *d = (struct evdev_device*)dev;
+		if (dev == &device->base)
+			continue;
+
+		/* Notify existing device d about addition of device device */
+		if (d->dispatch->interface->device_added)
+			d->dispatch->interface->device_added(d, device);
+
+		/* Notify new device device about existing device d */
+		if (device->dispatch->interface->device_added)
+			device->dispatch->interface->device_added(device, d);
+
+		/* Notify new device device if existing device d is suspended */
+		if (d->suspended && device->dispatch->interface->device_suspended)
+			device->dispatch->interface->device_suspended(device, d);
+	}
+
+	notify_added_device(&device->base);
+}
+
+static int
+evdev_device_compare_syspath(struct udev_device *udev_device, int fd)
+{
+	struct udev *udev = udev_device_get_udev(udev_device);
+	struct udev_device *udev_device_new = NULL;
+	struct stat st;
+	int rc = 1;
+
+	if (fstat(fd, &st) < 0)
+		goto out;
+
+	udev_device_new = udev_device_new_from_devnum(udev, 'c', st.st_rdev);
+	if (!udev_device_new)
+		goto out;
+
+	rc = strcmp(udev_device_get_syspath(udev_device_new),
+		    udev_device_get_syspath(udev_device));
+out:
+	if (udev_device_new)
+		udev_device_unref(udev_device_new);
+	return rc;
+}
+
 struct evdev_device *
 evdev_device_create(struct libinput_seat *seat,
-		    const char *devnode,
-		    const char *sysname)
+		    struct udev_device *udev_device)
 {
 	struct libinput *libinput = seat->libinput;
-	struct evdev_device *device;
+	struct evdev_device *device = NULL;
 	int rc;
 	int fd;
 	int unhandled_device = 0;
+	const char *devnode = udev_device_get_devnode(udev_device);
 
 	/* Use non-blocking mode so that we can loop on read on
 	 * evdev_device_data() until all events on the fd are
@@ -924,9 +1574,12 @@ evdev_device_create(struct libinput_seat *seat,
 		return NULL;
 	}
 
+	if (evdev_device_compare_syspath(udev_device, fd) != 0)
+		goto err;
+
 	device = zalloc(sizeof *device);
 	if (device == NULL)
-		return NULL;
+		goto err;
 
 	libinput_device_init(&device->base, seat);
 	libinput_seat_ref(seat);
@@ -940,8 +1593,7 @@ evdev_device_create(struct libinput_seat *seat,
 	device->seat_caps = 0;
 	device->is_mt = 0;
 	device->mtdev = NULL;
-	device->devnode = strdup(devnode);
-	device->sysname = strdup(sysname);
+	device->udev_device = udev_device_ref(udev_device);
 	device->rel.dx = 0;
 	device->rel.dy = 0;
 	device->abs.seat_slot = -1;
@@ -949,6 +1601,13 @@ evdev_device_create(struct libinput_seat *seat,
 	device->fd = fd;
 	device->pending_event = EVDEV_NONE;
 	device->devname = libevdev_get_name(device->evdev);
+	device->scroll.threshold = 5.0; /* Default may be overridden */
+	device->scroll.direction = 0;
+	device->scroll.wheel_click_angle =
+		evdev_read_wheel_click_prop(device);
+	device->dpi = evdev_read_dpi_prop(device);
+	/* at most 5 SYN_DROPPED log-messages per 30s */
+	ratelimit_init(&device->syn_drop_limit, 30ULL * 1000, 5);
 
 	matrix_init_identity(&device->abs.calibration);
 	matrix_init_identity(&device->abs.usermatrix);
@@ -974,23 +1633,19 @@ evdev_device_create(struct libinput_seat *seat,
 		goto err;
 
 	list_insert(seat->devices_list.prev, &device->base.link);
-	notify_added_device(&device->base);
+
+	evdev_tag_device(device);
+	evdev_notify_added_device(device);
 
 	return device;
 
 err:
 	if (fd >= 0)
 		close_restricted(libinput, fd);
-	evdev_device_destroy(device);
+	if (device)
+		evdev_device_destroy(device);
 
 	return unhandled_device ? EVDEV_UNHANDLED_DEVICE :  NULL;
-}
-
-int
-evdev_device_get_keys(struct evdev_device *device, char *keys, size_t size)
-{
-	memset(keys, 0, size);
-	return 0;
 }
 
 const char *
@@ -1002,7 +1657,7 @@ evdev_device_get_output(struct evdev_device *device)
 const char *
 evdev_device_get_sysname(struct evdev_device *device)
 {
-	return device->sysname;
+	return udev_device_get_sysname(device->udev_device);
 }
 
 const char *
@@ -1021,6 +1676,12 @@ unsigned int
 evdev_device_get_id_vendor(struct evdev_device *device)
 {
 	return libevdev_get_id_vendor(device->evdev);
+}
+
+struct udev_device *
+evdev_device_get_udev_device(struct evdev_device *device)
+{
+	return udev_device_ref(device->udev_device);
 }
 
 void
@@ -1131,38 +1792,154 @@ evdev_device_get_size(struct evdev_device *device,
 	return 0;
 }
 
+int
+evdev_device_has_button(struct evdev_device *device, uint32_t code)
+{
+	if (!(device->seat_caps & EVDEV_DEVICE_POINTER))
+		return -1;
+
+	return libevdev_has_event_code(device->evdev, EV_KEY, code);
+}
+
+static inline bool
+evdev_is_scrolling(const struct evdev_device *device,
+		   enum libinput_pointer_axis axis)
+{
+	assert(axis == LIBINPUT_POINTER_AXIS_SCROLL_HORIZONTAL ||
+	       axis == LIBINPUT_POINTER_AXIS_SCROLL_VERTICAL);
+
+	return (device->scroll.direction & AS_MASK(axis)) != 0;
+}
+
+static inline void
+evdev_start_scrolling(struct evdev_device *device,
+		      enum libinput_pointer_axis axis)
+{
+	assert(axis == LIBINPUT_POINTER_AXIS_SCROLL_HORIZONTAL ||
+	       axis == LIBINPUT_POINTER_AXIS_SCROLL_VERTICAL);
+
+	device->scroll.direction |= AS_MASK(axis);
+}
+
+void
+evdev_post_scroll(struct evdev_device *device,
+		  uint64_t time,
+		  enum libinput_pointer_axis_source source,
+		  double dx,
+		  double dy)
+{
+	double trigger_horiz, trigger_vert;
+
+	if (!evdev_is_scrolling(device,
+				LIBINPUT_POINTER_AXIS_SCROLL_VERTICAL))
+		device->scroll.buildup_vertical += dy;
+	if (!evdev_is_scrolling(device,
+				LIBINPUT_POINTER_AXIS_SCROLL_HORIZONTAL))
+		device->scroll.buildup_horizontal += dx;
+
+	trigger_vert = device->scroll.buildup_vertical;
+	trigger_horiz = device->scroll.buildup_horizontal;
+
+	/* If we're not scrolling yet, use a distance trigger: moving
+	   past a certain distance starts scrolling */
+	if (!evdev_is_scrolling(device,
+				LIBINPUT_POINTER_AXIS_SCROLL_HORIZONTAL) &&
+	    !evdev_is_scrolling(device,
+				LIBINPUT_POINTER_AXIS_SCROLL_VERTICAL)) {
+		if (fabs(trigger_vert) >= device->scroll.threshold)
+			evdev_start_scrolling(device,
+					      LIBINPUT_POINTER_AXIS_SCROLL_VERTICAL);
+		if (fabs(trigger_horiz) >= device->scroll.threshold)
+			evdev_start_scrolling(device,
+					      LIBINPUT_POINTER_AXIS_SCROLL_HORIZONTAL);
+	/* We're already scrolling in one direction. Require some
+	   trigger speed to start scrolling in the other direction */
+	} else if (!evdev_is_scrolling(device,
+			       LIBINPUT_POINTER_AXIS_SCROLL_VERTICAL)) {
+		if (fabs(dy) >= device->scroll.threshold)
+			evdev_start_scrolling(device,
+				      LIBINPUT_POINTER_AXIS_SCROLL_VERTICAL);
+	} else if (!evdev_is_scrolling(device,
+				LIBINPUT_POINTER_AXIS_SCROLL_HORIZONTAL)) {
+		if (fabs(dx) >= device->scroll.threshold)
+			evdev_start_scrolling(device,
+				      LIBINPUT_POINTER_AXIS_SCROLL_HORIZONTAL);
+	}
+
+	/* We use the trigger to enable, but the delta from this event for
+	 * the actual scroll movement. Otherwise we get a jump once
+	 * scrolling engages */
+	if (!evdev_is_scrolling(device,
+			       LIBINPUT_POINTER_AXIS_SCROLL_VERTICAL))
+		dy = 0.0;
+	if (!evdev_is_scrolling(device,
+			       LIBINPUT_POINTER_AXIS_SCROLL_HORIZONTAL))
+		dx = 0.0;
+
+	if (dx != 0.0 || dy != 0.0)
+		evdev_notify_axis(device,
+				  time,
+				  device->scroll.direction,
+				  source,
+				  dx, dy,
+				  0.0, 0.0);
+}
+
+void
+evdev_stop_scroll(struct evdev_device *device,
+		  uint64_t time,
+		  enum libinput_pointer_axis_source source)
+{
+	/* terminate scrolling with a zero scroll event */
+	if (device->scroll.direction != 0)
+		pointer_notify_axis(&device->base,
+				    time,
+				    device->scroll.direction,
+				    source,
+				    0.0, 0.0,
+				    0.0, 0.0);
+
+	device->scroll.buildup_horizontal = 0;
+	device->scroll.buildup_vertical = 0;
+	device->scroll.direction = 0;
+}
+
 static void
 release_pressed_keys(struct evdev_device *device)
 {
 	struct libinput *libinput = device->base.seat->libinput;
-	struct timespec ts;
 	uint64_t time;
 	int code;
 
-	if (clock_gettime(CLOCK_MONOTONIC, &ts) != 0) {
-		log_bug_libinput(libinput, "clock_gettime: %s\n", strerror(errno));
+	if ((time = libinput_now(libinput)) == 0)
 		return;
-	}
-
-	time = ts.tv_sec * 1000ULL + ts.tv_nsec / 1000000;
 
 	for (code = 0; code < KEY_CNT; code++) {
-		if (get_key_down_count(device, code) > 0) {
+		int count = get_key_down_count(device, code);
+
+		if (count > 1) {
+			log_bug_libinput(libinput,
+					 "Key %d is down %d times.\n",
+					 code,
+					 count);
+		}
+
+		while (get_key_down_count(device, code) > 0) {
 			switch (get_key_type(code)) {
 			case EVDEV_KEY_TYPE_NONE:
 				break;
 			case EVDEV_KEY_TYPE_KEY:
-				keyboard_notify_key(
-					&device->base,
+				evdev_keyboard_notify_key(
+					device,
 					time,
 					code,
 					LIBINPUT_KEY_STATE_RELEASED);
 				break;
 			case EVDEV_KEY_TYPE_BUTTON:
-				pointer_notify_button(
-					&device->base,
+				evdev_pointer_notify_button(
+					device,
 					time,
-					code,
+					evdev_to_left_handed(device, code),
 					LIBINPUT_BUTTON_STATE_RELEASED);
 				break;
 			}
@@ -1171,18 +1948,156 @@ release_pressed_keys(struct evdev_device *device)
 }
 
 void
-evdev_device_remove(struct evdev_device *device)
+evdev_notify_suspended_device(struct evdev_device *device)
 {
-	if (device->source)
+	struct libinput_device *it;
+
+	if (device->suspended)
+		return;
+
+	list_for_each(it, &device->base.seat->devices_list, link) {
+		struct evdev_device *d = (struct evdev_device*)it;
+		if (it == &device->base)
+			continue;
+
+		if (d->dispatch->interface->device_suspended)
+			d->dispatch->interface->device_suspended(d, device);
+	}
+
+	device->suspended = 1;
+}
+
+void
+evdev_notify_resumed_device(struct evdev_device *device)
+{
+	struct libinput_device *it;
+
+	if (!device->suspended)
+		return;
+
+	list_for_each(it, &device->base.seat->devices_list, link) {
+		struct evdev_device *d = (struct evdev_device*)it;
+		if (it == &device->base)
+			continue;
+
+		if (d->dispatch->interface->device_resumed)
+			d->dispatch->interface->device_resumed(d, device);
+	}
+
+	device->suspended = 0;
+}
+
+int
+evdev_device_suspend(struct evdev_device *device)
+{
+	evdev_notify_suspended_device(device);
+
+	if (device->source) {
 		libinput_remove_source(device->base.seat->libinput,
 				       device->source);
+		device->source = NULL;
+	}
 
 	release_pressed_keys(device);
 
-	if (device->mtdev)
+	if (device->mtdev) {
 		mtdev_close_delete(device->mtdev);
-	close_restricted(device->base.seat->libinput, device->fd);
-	device->fd = -1;
+		device->mtdev = NULL;
+	}
+
+	if (device->fd != -1) {
+		close_restricted(device->base.seat->libinput, device->fd);
+		device->fd = -1;
+	}
+
+	return 0;
+}
+
+int
+evdev_device_resume(struct evdev_device *device)
+{
+	struct libinput *libinput = device->base.seat->libinput;
+	int fd;
+	const char *devnode;
+	struct input_event ev;
+	enum libevdev_read_status status;
+
+	if (device->fd != -1)
+		return 0;
+
+	if (device->was_removed)
+		return -ENODEV;
+
+	devnode = udev_device_get_devnode(device->udev_device);
+	fd = open_restricted(libinput, devnode, O_RDWR | O_NONBLOCK);
+
+	if (fd < 0)
+		return -errno;
+
+	if (evdev_device_compare_syspath(device->udev_device, fd)) {
+		close_restricted(libinput, fd);
+		return -ENODEV;
+	}
+
+	device->fd = fd;
+
+	if (evdev_need_mtdev(device)) {
+		device->mtdev = mtdev_new_open(device->fd);
+		if (!device->mtdev)
+			return -ENODEV;
+	}
+
+	libevdev_change_fd(device->evdev, fd);
+	libevdev_set_clock_id(device->evdev, CLOCK_MONOTONIC);
+
+	/* re-sync libevdev's view of the device, but discard the actual
+	   events. Our device is in a neutral state already */
+	libevdev_next_event(device->evdev,
+			    LIBEVDEV_READ_FLAG_FORCE_SYNC,
+			    &ev);
+	do {
+		status = libevdev_next_event(device->evdev,
+					     LIBEVDEV_READ_FLAG_SYNC,
+					     &ev);
+	} while (status == LIBEVDEV_READ_STATUS_SYNC);
+
+	device->source =
+		libinput_add_fd(libinput, fd, evdev_device_dispatch, device);
+	if (!device->source) {
+		mtdev_close_delete(device->mtdev);
+		return -ENOMEM;
+	}
+
+	memset(device->hw_key_mask, 0, sizeof(device->hw_key_mask));
+
+	evdev_notify_resumed_device(device);
+
+	return 0;
+}
+
+void
+evdev_device_remove(struct evdev_device *device)
+{
+	struct libinput_device *dev;
+
+	list_for_each(dev, &device->base.seat->devices_list, link) {
+		struct evdev_device *d = (struct evdev_device*)dev;
+		if (dev == &device->base)
+			continue;
+
+		if (d->dispatch->interface->device_removed)
+			d->dispatch->interface->device_removed(d, device);
+	}
+
+	evdev_device_suspend(device);
+
+	if (device->dispatch->interface->remove)
+		device->dispatch->interface->remove(device->dispatch);
+
+	/* A device may be removed while suspended, mark it to
+	 * skip re-opening a different device with the same node */
+	device->was_removed = true;
+
 	list_remove(&device->base.link);
 
 	notify_removed_device(&device->base);
@@ -1201,8 +2116,7 @@ evdev_device_destroy(struct evdev_device *device)
 	filter_destroy(device->pointer.filter);
 	libinput_seat_unref(device->base.seat);
 	libevdev_free(device->evdev);
+	udev_device_unref(device->udev_device);
 	free(device->mt.slots);
-	free(device->devnode);
-	free(device->sysname);
 	free(device);
 }

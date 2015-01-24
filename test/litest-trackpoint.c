@@ -33,10 +33,6 @@ static void litest_trackpoint_setup(void)
 	litest_set_current_device(d);
 }
 
-static struct litest_device_interface interface = {
-	NULL
-};
-
 static struct input_id input_id = {
 	.bustype = 0x11,
 	.vendor = 0x2,
@@ -49,15 +45,17 @@ static int events[] = {
 	EV_KEY, BTN_MIDDLE,
 	EV_REL, REL_X,
 	EV_REL, REL_Y,
+	INPUT_PROP_MAX, INPUT_PROP_POINTER,
+	INPUT_PROP_MAX, INPUT_PROP_POINTING_STICK,
 	-1, -1,
 };
 
 struct litest_test_device litest_trackpoint_device = {
 	.type = LITEST_TRACKPOINT,
-	.features = LITEST_POINTER | LITEST_BUTTON,
+	.features = LITEST_RELATIVE | LITEST_BUTTON | LITEST_POINTINGSTICK,
 	.shortname = "trackpoint",
 	.setup = litest_trackpoint_setup,
-	.interface = &interface,
+	.interface = NULL,
 
 	.name = "TPPS/2 IBM TrackPoint",
 	.id = &input_id,
