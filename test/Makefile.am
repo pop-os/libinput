@@ -21,8 +21,10 @@ liblitest_la_SOURCES = \
 	litest-ms-surface-cover.c \
 	litest-qemu-usb-tablet.c \
 	litest-synaptics.c \
+	litest-synaptics-hover.c \
 	litest-synaptics-st.c \
 	litest-synaptics-t440.c \
+	litest-synaptics-x1-carbon-3rd.c \
 	litest-trackpoint.c \
 	litest-wacom-touch.c \
 	litest-xen-virtual-pointer.c \

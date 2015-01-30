@@ -1,6 +1,7 @@
 libinput.so.7 libinput7 #MINVER#
 * Build-Depends-Package: libinput-dev
  LIBINPUT_0.8.0@LIBINPUT_0.8.0 0.8.0
+ LIBINPUT_0.9.0@LIBINPUT_0.9.0 0.9.0
 #MISSING: 0.8.0# libinput_config_status_to_str@Base 0.5.0
  libinput_config_status_to_str@LIBINPUT_0.8.0 0.8.0
 #MISSING: 0.8.0# libinput_device_calibrate@Base 0.1.0
@@ -16,6 +17,10 @@ libinput.so.7 libinput7 #MINVER#
  libinput_device_config_calibration_has_matrix@LIBINPUT_0.8.0 0.8.0
 #MISSING: 0.8.0# libinput_device_config_calibration_set_matrix@Base 0.6.0
  libinput_device_config_calibration_set_matrix@LIBINPUT_0.8.0 0.8.0
+ libinput_device_config_click_get_default_method@LIBINPUT_0.9.0 0.9.0
+ libinput_device_config_click_get_method@LIBINPUT_0.9.0 0.9.0
+ libinput_device_config_click_get_methods@LIBINPUT_0.9.0 0.9.0
+ libinput_device_config_click_set_method@LIBINPUT_0.9.0 0.9.0
  libinput_device_config_left_handed_get@LIBINPUT_0.8.0 0.8.0
  libinput_device_config_left_handed_get_default@LIBINPUT_0.8.0 0.8.0
  libinput_device_config_left_handed_is_available@LIBINPUT_0.8.0 0.8.0

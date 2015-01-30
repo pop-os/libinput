@@ -1,3 +1,17 @@
+libinput (0.9.0+dfsg-1) experimental; urgency=medium
+
+  * New upstream release.
+    - Support for hovering fingers on touchpads. Some touchpads detect fingers
+      before actually touching the surface causing unexpected motion
+      events. libinput now handles such touchpads.
+    - Click methods are now configurable, see below for more details.
+    - Support for the Lenovo X1 Carbon 3rd was added. Note that this requires
+      kernel patches and a udev hwdb addition, see this post for more details:
+  http://who-t.blogspot.com.au/2015/01/lenovos-x1-carbon-3rd-touchpad-woes.html
+  * d/libinput7.symbols: update 
+
+ -- Hector Oron <zumbi@debian.org>  Fri, 30 Jan 2015 13:21:30 +0100
+
 libinput (0.8.0+dfsg-1) experimental; urgency=medium
 
   * New upstream release.
