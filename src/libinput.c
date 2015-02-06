@@ -510,7 +510,7 @@ libinput_add_fd(struct libinput *libinput,
 	struct libinput_source *source;
 	struct epoll_event ep;
 
-	source = malloc(sizeof *source);
+	source = zalloc(sizeof *source);
 	if (!source)
 		return NULL;
 
@@ -1534,7 +1534,8 @@ LIBINPUT_EXPORT enum libinput_config_status
 libinput_device_config_accel_set_speed(struct libinput_device *device,
 				       double speed)
 {
-	if (speed < -1.0 || speed > 1.0)
+	/* Need the negation in case speed is NaN */
+	if (!(speed >= -1.0 && speed <= 1.0))
 		return LIBINPUT_CONFIG_STATUS_INVALID;
 
 	if (!libinput_device_config_accel_is_available(device))
