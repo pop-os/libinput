@@ -1364,7 +1364,7 @@ libinput_device_ref(struct libinput_device *device);
  * the device correctly to avoid dangling pointers.
  *
  * @param device A previously obtained device
- * @return NULL if device was destroyed, otherwise the passed device
+ * @return NULL if the device was destroyed, otherwise the passed device
  */
 struct libinput_device *
 libinput_device_unref(struct libinput_device *device);
@@ -1515,6 +1515,8 @@ libinput_device_set_seat_logical_name(struct libinput_device *device,
 				      const char *name);
 
 /**
+ * @ingroup device
+ *
  * Return a udev handle to the device that is this libinput device, if any.
  * The returned handle has a refcount of at least 1, the caller must call
  * udev_device_unref() once to release the associated resources.

@@ -1229,9 +1229,11 @@ evdev_device_init_pointer_acceleration(struct evdev_device *device)
 	device->pointer.config.get_default_speed = evdev_accel_config_get_default_speed;
 	device->base.config.accel = &device->pointer.config;
 
+	evdev_accel_config_set_speed(&device->base,
+		     evdev_accel_config_get_default_speed(&device->base));
+
 	return 0;
 }
-
 
 static inline int
 evdev_need_mtdev(struct evdev_device *device)
@@ -1471,7 +1473,8 @@ evdev_configure_device(struct evdev_device *device)
 		has_keyboard = 1;
 
 	if ((has_abs || has_rel) && has_button) {
-		if (evdev_device_init_pointer_acceleration(device) == -1)
+		if (has_rel &&
+		    evdev_device_init_pointer_acceleration(device) == -1)
 			return -1;
 
 		device->seat_caps |= EVDEV_DEVICE_POINTER;
