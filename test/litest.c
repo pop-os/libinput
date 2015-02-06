@@ -87,6 +87,9 @@ extern struct litest_test_device litest_mouse_device;
 extern struct litest_test_device litest_wacom_touch_device;
 extern struct litest_test_device litest_alps_device;
 extern struct litest_test_device litest_generic_singletouch_device;
+extern struct litest_test_device litest_qemu_tablet_device;
+extern struct litest_test_device litest_xen_virtual_pointer_device;
+extern struct litest_test_device litest_vmware_virtmouse_device;
 
 struct litest_test_device* devices[] = {
 	&litest_synaptics_clickpad_device,
@@ -99,6 +102,9 @@ struct litest_test_device* devices[] = {
 	&litest_wacom_touch_device,
 	&litest_alps_device,
 	&litest_generic_singletouch_device,
+	&litest_qemu_tablet_device,
+	&litest_xen_virtual_pointer_device,
+	&litest_vmware_virtmouse_device,
 	NULL,
 };
 
@@ -158,6 +164,9 @@ litest_add_tcase(struct suite *suite, void *func,
 		 enum litest_device_feature excluded)
 {
 	struct litest_test_device **dev = devices;
+
+	assert(required >= LITEST_DISABLE_DEVICE);
+	assert(excluded >= LITEST_DISABLE_DEVICE);
 
 	if (required == LITEST_DISABLE_DEVICE &&
 	    excluded == LITEST_DISABLE_DEVICE) {
@@ -222,6 +231,8 @@ litest_add_for_device(const char *name,
 {
 	struct suite *s;
 	struct litest_test_device **dev = devices;
+
+	assert(type < LITEST_NO_DEVICE);
 
 	s = get_suite(name);
 	while (*dev) {
@@ -559,6 +570,18 @@ litest_add_device_with_overrides(struct libinput *libinput,
 }
 
 struct litest_device *
+litest_add_device(struct libinput *libinput,
+		  enum litest_device_type which)
+{
+	return litest_add_device_with_overrides(libinput,
+						which,
+						NULL,
+						NULL,
+						NULL,
+						NULL);
+}
+
+struct litest_device *
 litest_create_device_with_overrides(enum litest_device_type which,
 				    const char *name_override,
 				    struct input_id *id_override,
@@ -617,7 +640,12 @@ void
 litest_event(struct litest_device *d, unsigned int type,
 	     unsigned int code, int value)
 {
-	int ret = libevdev_uinput_write_event(d->uinput, type, code, value);
+	int ret;
+
+	if (d->skip_ev_syn && type == EV_SYN && code == SYN_REPORT)
+		return;
+
+	ret = libevdev_uinput_write_event(d->uinput, type, code, value);
 	ck_assert_int_eq(ret, 0);
 }
 
@@ -740,12 +768,18 @@ litest_touch_move_to(struct litest_device *d,
 		     unsigned int slot,
 		     double x_from, double y_from,
 		     double x_to, double y_to,
-		     int steps)
+		     int steps, int sleep_ms)
 {
-	for (int i = 0; i < steps - 1; i++)
+	for (int i = 0; i < steps - 1; i++) {
 		litest_touch_move(d, slot,
 				  x_from + (x_to - x_from)/steps * i,
 				  y_from + (y_to - y_from)/steps * i);
+		if (sleep_ms) {
+			libinput_dispatch(d->libinput);
+			msleep(sleep_ms);
+			libinput_dispatch(d->libinput);
+		}
+	}
 	litest_touch_move(d, slot, x_to, y_to);
 }
 
@@ -761,6 +795,28 @@ litest_button_click(struct litest_device *d, unsigned int button, bool is_press)
 
 	ARRAY_FOR_EACH(click, ev)
 		litest_event(d, ev->type, ev->code, ev->value);
+}
+
+void
+litest_button_scroll(struct litest_device *dev,
+		     unsigned int button,
+		     double dx, double dy)
+{
+	struct libinput *li = dev->libinput;
+
+	litest_button_click(dev, button, 1);
+
+	libinput_dispatch(li);
+	litest_timeout_buttonscroll();
+	libinput_dispatch(li);
+
+	litest_event(dev, EV_REL, REL_X, dx);
+	litest_event(dev, EV_REL, REL_Y, dy);
+	litest_event(dev, EV_SYN, SYN_REPORT, 0);
+
+	litest_button_click(dev, button, 0);
+
+	libinput_dispatch(li);
 }
 
 void
@@ -841,6 +897,54 @@ litest_drain_events(struct libinput *li)
 	}
 }
 
+static const char *
+litest_event_type_str(struct libinput_event *event)
+{
+	const char *str = NULL;
+
+	switch (libinput_event_get_type(event)) {
+	case LIBINPUT_EVENT_NONE:
+		abort();
+	case LIBINPUT_EVENT_DEVICE_ADDED:
+		str = "ADDED";
+		break;
+	case LIBINPUT_EVENT_DEVICE_REMOVED:
+		str = "REMOVED";
+		break;
+	case LIBINPUT_EVENT_KEYBOARD_KEY:
+		str = "KEY";
+		break;
+	case LIBINPUT_EVENT_POINTER_MOTION:
+		str = "MOTION";
+		break;
+	case LIBINPUT_EVENT_POINTER_MOTION_ABSOLUTE:
+		str = "ABSOLUTE";
+		break;
+	case LIBINPUT_EVENT_POINTER_BUTTON:
+		str = "BUTTON";
+		break;
+	case LIBINPUT_EVENT_POINTER_AXIS:
+		str = "AXIS";
+		break;
+	case LIBINPUT_EVENT_TOUCH_DOWN:
+		str = "TOUCH DOWN";
+		break;
+	case LIBINPUT_EVENT_TOUCH_UP:
+		str = "TOUCH UP";
+		break;
+	case LIBINPUT_EVENT_TOUCH_MOTION:
+		str = "TOUCH MOTION";
+		break;
+	case LIBINPUT_EVENT_TOUCH_CANCEL:
+		str = "TOUCH CANCEL";
+		break;
+	case LIBINPUT_EVENT_TOUCH_FRAME:
+		str = "TOUCH FRAME";
+		break;
+	}
+	return str;
+}
+
 static void
 litest_print_event(struct libinput_event *event)
 {
@@ -853,28 +957,37 @@ litest_print_event(struct libinput_event *event)
 	type = libinput_event_get_type(event);
 
 	fprintf(stderr,
-		"device %s type %d ",
+		"device %s type %s ",
 		libinput_device_get_sysname(dev),
-		type);
+		litest_event_type_str(event));
 	switch (type) {
 	case LIBINPUT_EVENT_POINTER_MOTION:
 		p = libinput_event_get_pointer_event(event);
 		x = libinput_event_pointer_get_dx(p);
 		y = libinput_event_pointer_get_dy(p);
-		fprintf(stderr, "motion: %.2f/%.2f", x, y);
+		fprintf(stderr, "%.2f/%.2f", x, y);
 		break;
 	case LIBINPUT_EVENT_POINTER_MOTION_ABSOLUTE:
 		p = libinput_event_get_pointer_event(event);
 		x = libinput_event_pointer_get_absolute_x(p);
 		y = libinput_event_pointer_get_absolute_y(p);
-		fprintf(stderr, "motion: %.2f/%.2f", x, y);
+		fprintf(stderr, "%.2f/%.2f", x, y);
 		break;
 	case LIBINPUT_EVENT_POINTER_BUTTON:
 		p = libinput_event_get_pointer_event(event);
 		fprintf(stderr,
-			"button: %d state %d",
+			"button %d state %d",
 			libinput_event_pointer_get_button(p),
 			libinput_event_pointer_get_button_state(p));
+		break;
+	case LIBINPUT_EVENT_POINTER_AXIS:
+		p = libinput_event_get_pointer_event(event);
+		fprintf(stderr,
+			"vert %.f horiz %.2f",
+			libinput_event_pointer_get_axis_value(p,
+				LIBINPUT_POINTER_AXIS_SCROLL_VERTICAL),
+			libinput_event_pointer_get_axis_value(p,
+				LIBINPUT_POINTER_AXIS_SCROLL_HORIZONTAL));
 		break;
 	default:
 		break;
@@ -958,7 +1071,11 @@ litest_create_uinput_device_from_description(const char *name,
 	rc = libevdev_uinput_create_from_device(dev,
 					        LIBEVDEV_UINPUT_OPEN_MANAGED,
 						&uinput);
-	ck_assert_int_eq(rc, 0);
+	/* workaround for a bug in libevdev pre-1.3
+	   http://cgit.freedesktop.org/libevdev/commit/?id=debe9b030c8069cdf78307888ef3b65830b25122 */
+	if (rc == -EBADF)
+		rc = -EACCES;
+	ck_assert_msg(rc == 0, "Failed to create uinput device: %s", strerror(-rc));
 
 	libevdev_free(dev);
 
@@ -1041,4 +1158,122 @@ litest_create_uinput_device(const char *name, struct input_id *id, ...)
 	va_end(args);
 
 	return uinput;
+}
+
+void
+litest_assert_button_event(struct libinput *li, unsigned int button,
+			   enum libinput_button_state state)
+{
+	struct libinput_event *event;
+	struct libinput_event_pointer *ptrev;
+
+	litest_wait_for_event(li);
+	event = libinput_get_event(li);
+
+	ck_assert(event != NULL);
+	ck_assert_int_eq(libinput_event_get_type(event),
+			 LIBINPUT_EVENT_POINTER_BUTTON);
+	ptrev = libinput_event_get_pointer_event(event);
+	ck_assert_int_eq(libinput_event_pointer_get_button(ptrev),
+			 button);
+	ck_assert_int_eq(libinput_event_pointer_get_button_state(ptrev),
+			 state);
+	libinput_event_destroy(event);
+}
+
+void
+litest_assert_scroll(struct libinput *li,
+		     enum libinput_pointer_axis axis,
+		     int minimum_movement)
+{
+	struct libinput_event *event, *next_event;
+	struct libinput_event_pointer *ptrev;
+
+	event = libinput_get_event(li);
+	next_event = libinput_get_event(li);
+	ck_assert(next_event != NULL); /* At least 1 scroll + stop scroll */
+
+	while (event) {
+		ck_assert_int_eq(libinput_event_get_type(event),
+				 LIBINPUT_EVENT_POINTER_AXIS);
+		ptrev = libinput_event_get_pointer_event(event);
+		ck_assert(ptrev != NULL);
+
+		if (next_event) {
+			/* Normal scroll event, check dir */
+			if (minimum_movement > 0) {
+				ck_assert_int_ge(
+					libinput_event_pointer_get_axis_value(ptrev,
+									      axis),
+					minimum_movement);
+			} else {
+				ck_assert_int_le(
+					libinput_event_pointer_get_axis_value(ptrev,
+									      axis),
+					minimum_movement);
+			}
+		} else {
+			/* Last scroll event, must be 0 */
+			ck_assert_int_eq(
+				libinput_event_pointer_get_axis_value(ptrev, axis),
+				0);
+		}
+		libinput_event_destroy(event);
+		event = next_event;
+		next_event = libinput_get_event(li);
+	}
+}
+
+void
+litest_assert_only_typed_events(struct libinput *li,
+				enum libinput_event_type type)
+{
+	struct libinput_event *event;
+
+	assert(type != LIBINPUT_EVENT_NONE);
+
+	libinput_dispatch(li);
+	event = libinput_get_event(li);
+	ck_assert_notnull(event);
+
+	while (event) {
+		ck_assert_int_eq(libinput_event_get_type(event),
+				 type);
+		libinput_event_destroy(event);
+		libinput_dispatch(li);
+		event = libinput_get_event(li);
+	}
+}
+
+void
+litest_timeout_tap(void)
+{
+	msleep(200);
+}
+
+void
+litest_timeout_softbuttons(void)
+{
+	msleep(300);
+}
+
+void
+litest_timeout_buttonscroll(void)
+{
+	msleep(300);
+}
+
+void
+litest_push_event_frame(struct litest_device *dev)
+{
+	assert(!dev->skip_ev_syn);
+	dev->skip_ev_syn = true;
+}
+
+void
+litest_pop_event_frame(struct litest_device *dev)
+{
+	assert(dev->skip_ev_syn);
+	dev->skip_ev_syn = false;
+	litest_event(dev, EV_SYN, SYN_REPORT, 0);
 }

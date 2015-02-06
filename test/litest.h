@@ -35,16 +35,20 @@
 
 enum litest_device_type {
 	LITEST_NO_DEVICE = -1,
-	LITEST_SYNAPTICS_CLICKPAD,
-	LITEST_SYNAPTICS_TOUCHPAD,
-	LITEST_SYNAPTICS_TOPBUTTONPAD,
-	LITEST_BCM5974,
-	LITEST_KEYBOARD,
-	LITEST_TRACKPOINT,
-	LITEST_MOUSE,
-	LITEST_WACOM_TOUCH,
-	LITEST_ALPS_SEMI_MT,
-	LITEST_GENERIC_SINGLETOUCH,
+	LITEST_SYNAPTICS_CLICKPAD = -2,
+	LITEST_SYNAPTICS_TOUCHPAD = -3,
+	LITEST_SYNAPTICS_TOPBUTTONPAD = -4,
+	LITEST_BCM5974 = -5,
+	LITEST_KEYBOARD = -6,
+	LITEST_TRACKPOINT = -7,
+	LITEST_MOUSE = -8,
+	LITEST_WACOM_TOUCH = -9,
+	LITEST_ALPS_SEMI_MT = -10,
+	LITEST_GENERIC_SINGLETOUCH = -11,
+	LITEST_MS_SURFACE_COVER = -12,
+	LITEST_QEMU_TABLET = -13,
+	LITEST_XEN_VIRTUAL_POINTER = -14,
+	LITEST_VMWARE_VIRTMOUSE = -15,
 };
 
 enum litest_device_feature {
@@ -54,13 +58,16 @@ enum litest_device_feature {
 	LITEST_CLICKPAD = 1 << 1,
 	LITEST_BUTTON = 1 << 2,
 	LITEST_KEYS = 1 << 3,
-	LITEST_POINTER = 1 << 4,
+	LITEST_RELATIVE = 1 << 4,
 	LITEST_WHEEL = 1 << 5,
 	LITEST_TOUCH = 1 << 6,
 	LITEST_SINGLE_TOUCH = 1 << 7,
 	LITEST_APPLE_CLICKPAD = 1 << 8,
 	LITEST_TOPBUTTONPAD = 1 << 9,
 	LITEST_SEMI_MT = 1 << 10,
+	LITEST_POINTINGSTICK = 1 << 11,
+	LITEST_FAKE_MT = 1 << 12,
+	LITEST_ABSOLUTE = 1 << 13,
 };
 
 struct litest_device {
@@ -72,6 +79,8 @@ struct litest_device {
 	struct litest_device_interface *interface;
 
 	int ntouches_down;
+	bool skip_ev_syn;
+
 	void *private; /* device-specific data */
 };
 
@@ -88,6 +97,8 @@ void litest_add_no_device(const char *name, void *func);
 
 int litest_run(int argc, char **argv);
 struct litest_device * litest_create_device(enum litest_device_type which);
+struct litest_device * litest_add_device(struct libinput *libinput,
+					 enum litest_device_type which);
 struct libevdev_uinput *
 litest_create_uinput_device_from_description(const char *name,
 					     const struct input_id *id,
@@ -131,10 +142,13 @@ void litest_touch_move_to(struct litest_device *d,
 			  unsigned int slot,
 			  double x_from, double y_from,
 			  double x_to, double y_to,
-			  int steps);
+			  int steps, int sleep_ms);
 void litest_button_click(struct litest_device *d,
 			 unsigned int button,
 			 bool is_press);
+void litest_button_scroll(struct litest_device *d,
+			 unsigned int button,
+			 double dx, double dy);
 void litest_keyboard_key(struct litest_device *d,
 			 unsigned int key,
 			 bool is_press);
@@ -142,6 +156,14 @@ void litest_wait_for_event(struct libinput *li);
 void litest_wait_for_event_of_type(struct libinput *li, ...);
 void litest_drain_events(struct libinput *li);
 void litest_assert_empty_queue(struct libinput *li);
+void litest_assert_button_event(struct libinput *li,
+				unsigned int button,
+				enum libinput_button_state state);
+void litest_assert_scroll(struct libinput *li,
+			  enum libinput_pointer_axis axis,
+			  int minimum_movement);
+void litest_assert_only_typed_events(struct libinput *li,
+				     enum libinput_event_type type);
 
 struct libevdev_uinput * litest_create_uinput_device(const char *name,
 						     struct input_id *id,
@@ -150,6 +172,13 @@ struct libevdev_uinput * litest_create_uinput_abs_device(const char *name,
 							 struct input_id *id,
 							 const struct input_absinfo *abs,
 							 ...);
+
+void litest_timeout_tap(void);
+void litest_timeout_softbuttons(void);
+void litest_timeout_buttonscroll(void);
+
+void litest_push_event_frame(struct litest_device *dev);
+void litest_pop_event_frame(struct litest_device *dev);
 
 #ifndef ck_assert_notnull
 #define ck_assert_notnull(ptr) ck_assert_ptr_ne(ptr, NULL)

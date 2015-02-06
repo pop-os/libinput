@@ -28,12 +28,13 @@
 
 struct path_input {
 	struct libinput base;
+	struct udev *udev;
 	struct list path_list;
 };
 
 struct path_device {
 	struct list link;
-	char *path;
+	struct udev_device *udev_device;
 };
 
 struct path_seat {
