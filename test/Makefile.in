@@ -102,8 +102,9 @@ am__liblitest_la_SOURCES_DIST = litest.h litest-int.h \
 	litest-alps-semi-mt.c litest-bcm5974.c \
 	litest-generic-singletouch.c litest-keyboard.c litest-mouse.c \
 	litest-ms-surface-cover.c litest-qemu-usb-tablet.c \
-	litest-synaptics.c litest-synaptics-st.c \
-	litest-synaptics-t440.c litest-trackpoint.c \
+	litest-synaptics.c litest-synaptics-hover.c \
+	litest-synaptics-st.c litest-synaptics-t440.c \
+	litest-synaptics-x1-carbon-3rd.c litest-trackpoint.c \
 	litest-wacom-touch.c litest-xen-virtual-pointer.c \
 	litest-vmware-virtual-usb-mouse.c litest.c
 @BUILD_TESTS_TRUE@am_liblitest_la_OBJECTS = litest-alps-semi-mt.lo \
@@ -112,8 +113,11 @@ am__liblitest_la_SOURCES_DIST = litest.h litest-int.h \
 @BUILD_TESTS_TRUE@	litest-keyboard.lo litest-mouse.lo \
 @BUILD_TESTS_TRUE@	litest-ms-surface-cover.lo \
 @BUILD_TESTS_TRUE@	litest-qemu-usb-tablet.lo \
-@BUILD_TESTS_TRUE@	litest-synaptics.lo litest-synaptics-st.lo \
+@BUILD_TESTS_TRUE@	litest-synaptics.lo \
+@BUILD_TESTS_TRUE@	litest-synaptics-hover.lo \
+@BUILD_TESTS_TRUE@	litest-synaptics-st.lo \
 @BUILD_TESTS_TRUE@	litest-synaptics-t440.lo \
+@BUILD_TESTS_TRUE@	litest-synaptics-x1-carbon-3rd.lo \
 @BUILD_TESTS_TRUE@	litest-trackpoint.lo litest-wacom-touch.lo \
 @BUILD_TESTS_TRUE@	litest-xen-virtual-pointer.lo \
 @BUILD_TESTS_TRUE@	litest-vmware-virtual-usb-mouse.lo litest.lo
@@ -715,8 +719,10 @@ top_srcdir = @top_srcdir@
 @BUILD_TESTS_TRUE@	litest-ms-surface-cover.c \
 @BUILD_TESTS_TRUE@	litest-qemu-usb-tablet.c \
 @BUILD_TESTS_TRUE@	litest-synaptics.c \
+@BUILD_TESTS_TRUE@	litest-synaptics-hover.c \
 @BUILD_TESTS_TRUE@	litest-synaptics-st.c \
 @BUILD_TESTS_TRUE@	litest-synaptics-t440.c \
+@BUILD_TESTS_TRUE@	litest-synaptics-x1-carbon-3rd.c \
 @BUILD_TESTS_TRUE@	litest-trackpoint.c \
 @BUILD_TESTS_TRUE@	litest-wacom-touch.c \
 @BUILD_TESTS_TRUE@	litest-xen-virtual-pointer.c \
@@ -922,8 +928,10 @@ distclean-compile:
 @AMDEP_TRUE@@am__include@ @am__quote@./$(DEPDIR)/litest-mouse.Plo@am__quote@
 @AMDEP_TRUE@@am__include@ @am__quote@./$(DEPDIR)/litest-ms-surface-cover.Plo@am__quote@
 @AMDEP_TRUE@@am__include@ @am__quote@./$(DEPDIR)/litest-qemu-usb-tablet.Plo@am__quote@
+@AMDEP_TRUE@@am__include@ @am__quote@./$(DEPDIR)/litest-synaptics-hover.Plo@am__quote@
 @AMDEP_TRUE@@am__include@ @am__quote@./$(DEPDIR)/litest-synaptics-st.Plo@am__quote@
 @AMDEP_TRUE@@am__include@ @am__quote@./$(DEPDIR)/litest-synaptics-t440.Plo@am__quote@
+@AMDEP_TRUE@@am__include@ @am__quote@./$(DEPDIR)/litest-synaptics-x1-carbon-3rd.Plo@am__quote@
 @AMDEP_TRUE@@am__include@ @am__quote@./$(DEPDIR)/litest-synaptics.Plo@am__quote@
 @AMDEP_TRUE@@am__include@ @am__quote@./$(DEPDIR)/litest-trackpoint.Plo@am__quote@
 @AMDEP_TRUE@@am__include@ @am__quote@./$(DEPDIR)/litest-vmware-virtual-usb-mouse.Plo@am__quote@
