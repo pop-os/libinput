@@ -17,8 +17,12 @@ liblitest_la_SOURCES = \
 	litest-bcm5974.c \
 	litest-generic-singletouch.c \
 	litest-keyboard.c \
+	litest-keyboard-razer-blackwidow.c \
+	litest-logitech-trackball.c \
 	litest-mouse.c \
+	litest-mouse-roccat.c \
 	litest-ms-surface-cover.c \
+	litest-protocol-a-touch-screen.c \
 	litest-qemu-usb-tablet.c \
 	litest-synaptics.c \
 	litest-synaptics-hover.c \
@@ -27,6 +31,8 @@ liblitest_la_SOURCES = \
 	litest-synaptics-x1-carbon-3rd.c \
 	litest-trackpoint.c \
 	litest-wacom-touch.c \
+	litest-wacom-intuos-finger.c \
+	litest-wheel-only.c \
 	litest-xen-virtual-pointer.c \
 	litest-vmware-virtual-usb-mouse.c \
 	litest.c
@@ -50,7 +56,8 @@ build_tests = \
 	test-build-std-gnuc90
 
 noinst_PROGRAMS = $(build_tests) $(run_tests)
-TESTS = $(run_tests)
+noinst_SCRIPTS = symbols-leak-test
+TESTS = $(run_tests) symbols-leak-test
 
 .NOTPARALLEL:
 

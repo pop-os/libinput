@@ -62,8 +62,8 @@ struct window {
 	int absx, absy;
 
 	/* scroll bar positions */
-	int vx, vy;
-	int hx, hy;
+	double vx, vy;
+	double hx, hy;
 
 	/* touch positions */
 	struct touch touches[32];
@@ -172,6 +172,8 @@ static void
 map_event_cb(GtkWidget *widget, GdkEvent *event, gpointer data)
 {
 	struct window *w = data;
+	GdkDisplay *display;
+	GdkWindow *window;
 
 	gtk_window_get_size(GTK_WINDOW(widget), &w->width, &w->height);
 
@@ -185,8 +187,12 @@ map_event_cb(GtkWidget *widget, GdkEvent *event, gpointer data)
 
 	g_signal_connect(G_OBJECT(w->area), "draw", G_CALLBACK(draw), w);
 
+	window = gdk_event_get_window(event);
+	display = gdk_window_get_display(window);
+
 	gdk_window_set_cursor(gtk_widget_get_window(w->win),
-			      gdk_cursor_new(GDK_BLANK_CURSOR));
+			      gdk_cursor_new_for_display(display,
+							 GDK_BLANK_CURSOR));
 }
 
 static void
@@ -254,7 +260,6 @@ change_ptraccel(struct window *w, double amount)
 	}
 }
 
-
 static void
 handle_event_device_notify(struct libinput_event *ev)
 {
@@ -274,14 +279,8 @@ handle_event_device_notify(struct libinput_event *ev)
 	    libinput_device_get_name(dev),
 	    type);
 
-	if (libinput_device_config_tap_get_finger_count(dev) > 0) {
-		enum libinput_config_status status;
-		status = libinput_device_config_tap_set_enabled(dev,
-								LIBINPUT_CONFIG_TAP_ENABLED);
-		if (status != LIBINPUT_CONFIG_STATUS_SUCCESS)
-			error("%s: Failed to enable tapping\n",
-			      libinput_device_get_sysname(dev));
-	}
+	tools_device_apply_config(libinput_event_get_device(ev),
+				  &options);
 
 	li = libinput_event_get_context(ev);
 	w = libinput_get_user_data(li);
@@ -364,7 +363,7 @@ handle_event_axis(struct libinput_event *ev, struct window *w)
 			LIBINPUT_POINTER_AXIS_SCROLL_VERTICAL)) {
 		value = libinput_event_pointer_get_axis_value(p,
 				LIBINPUT_POINTER_AXIS_SCROLL_VERTICAL);
-		w->vy += (int)value;
+		w->vy += value;
 		w->vy = clip(w->vy, 0, w->height);
 	}
 
@@ -372,7 +371,7 @@ handle_event_axis(struct libinput_event *ev, struct window *w)
 			LIBINPUT_POINTER_AXIS_SCROLL_HORIZONTAL)) {
 		value = libinput_event_pointer_get_axis_value(p,
 				LIBINPUT_POINTER_AXIS_SCROLL_HORIZONTAL);
-		w->hx += (int)value;
+		w->hx += value;
 		w->hx = clip(w->hx, 0, w->width);
 	}
 }

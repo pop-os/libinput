@@ -122,13 +122,24 @@ print_device_notify(struct libinput_event *ev)
 {
 	struct libinput_device *dev = libinput_event_get_device(ev);
 	struct libinput_seat *seat = libinput_device_get_seat(dev);
+	struct libinput_device_group *group;
 	double w, h;
-	uint32_t scroll_methods;
+	uint32_t scroll_methods, click_methods;
+	static int next_group_id = 0;
+	intptr_t group_id;
 
-	printf("%-33s %5s %7s",
+	group = libinput_device_get_device_group(dev);
+	group_id = (intptr_t)libinput_device_group_get_user_data(group);
+	if (!group_id) {
+		group_id = ++next_group_id;
+		libinput_device_group_set_user_data(group, (void*)group_id);
+	}
+
+	printf("%-33s %5s %7s group%d",
 	       libinput_device_get_name(dev),
 	       libinput_seat_get_physical_name(seat),
-	       libinput_seat_get_logical_name(seat));
+	       libinput_seat_get_logical_name(seat),
+	       (int)group_id);
 
 	printf(" cap:");
 	if (libinput_device_has_capability(dev,
@@ -162,6 +173,15 @@ print_device_notify(struct libinput_event *ev)
 			printf("-edge");
 		if (scroll_methods & LIBINPUT_CONFIG_SCROLL_ON_BUTTON_DOWN)
 			printf("-button");
+	}
+
+	click_methods = libinput_device_config_click_get_methods(dev);
+	if (click_methods != LIBINPUT_CONFIG_CLICK_METHOD_NONE) {
+		printf(" click");
+		if (click_methods & LIBINPUT_CONFIG_CLICK_METHOD_BUTTON_AREAS)
+			printf("-buttonareas");
+		if (click_methods & LIBINPUT_CONFIG_CLICK_METHOD_CLICKFINGER)
+			printf("-clickfinger");
 	}
 
 	printf("\n");

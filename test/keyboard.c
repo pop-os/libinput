@@ -36,7 +36,7 @@ START_TEST(keyboard_seat_key_count)
 	struct libinput_event *ev;
 	struct libinput_event_keyboard *kev;
 	int i;
-	int seat_key_count;
+	int seat_key_count = 0;
 	int expected_key_button_count = 0;
 	char device_name[255];
 
@@ -290,12 +290,51 @@ START_TEST(keyboard_key_auto_release)
 }
 END_TEST
 
+START_TEST(keyboard_has_key)
+{
+	struct litest_device *dev = litest_current_device();
+	struct libinput_device *device = dev->libinput_device;
+	unsigned int code;
+	int evdev_has, libinput_has;
+
+	ck_assert(libinput_device_has_capability(
+					 device,
+					 LIBINPUT_DEVICE_CAP_KEYBOARD));
+
+	for (code = 0; code < KEY_CNT; code++) {
+		evdev_has = libevdev_has_event_code(dev->evdev, EV_KEY, code);
+		libinput_has = libinput_device_keyboard_has_key(device, code);
+		ck_assert_int_eq(evdev_has, libinput_has);
+	}
+}
+END_TEST
+
+START_TEST(keyboard_keys_bad_device)
+{
+	struct litest_device *dev = litest_current_device();
+	struct libinput_device *device = dev->libinput_device;
+	unsigned int code;
+	int has_key;
+
+	if (libinput_device_has_capability(device,
+					   LIBINPUT_DEVICE_CAP_KEYBOARD))
+		return;
+
+	for (code = 0; code < KEY_CNT; code++) {
+		has_key = libinput_device_keyboard_has_key(device, code);
+		ck_assert_int_eq(has_key, -1);
+	}
+}
+END_TEST
+
 int
 main(int argc, char **argv)
 {
 	litest_add_no_device("keyboard:seat key count", keyboard_seat_key_count);
 	litest_add_no_device("keyboard:key counting", keyboard_ignore_no_pressed_release);
 	litest_add_no_device("keyboard:key counting", keyboard_key_auto_release);
+	litest_add("keyboard:keys", keyboard_has_key, LITEST_KEYS, LITEST_ANY);
+	litest_add("keyboard:keys", keyboard_keys_bad_device, LITEST_ANY, LITEST_ANY);
 
 	return litest_run(argc, argv);
 }

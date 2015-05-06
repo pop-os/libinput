@@ -35,6 +35,42 @@
 #include "evdev.h"
 #include "timer.h"
 
+#define require_event_type(li_, type_, retval_, ...)	\
+	if (type_ == LIBINPUT_EVENT_NONE) abort(); \
+	if (!check_event_type(li_, __func__, type_, __VA_ARGS__, -1)) \
+		return retval_; \
+
+static inline bool
+check_event_type(struct libinput *libinput,
+		 const char *function_name,
+		 enum libinput_event_type type_in,
+		 ...)
+{
+	bool rc = false;
+	va_list args;
+	unsigned int type_permitted;
+
+	va_start(args, type_in);
+	type_permitted = va_arg(args, unsigned int);
+
+	while (type_permitted != (unsigned int)-1) {
+		if (type_permitted == type_in) {
+			rc = true;
+			break;
+		}
+		type_permitted = va_arg(args, unsigned int);
+	}
+
+	va_end(args);
+
+	if (!rc)
+		log_bug_client(libinput,
+			       "Invalid event type %d passed to %s()\n",
+			       type_in, function_name);
+
+	return rc;
+}
+
 struct libinput_source {
 	libinput_source_dispatch_t dispatch;
 	void *user_data;
@@ -57,12 +93,10 @@ struct libinput_event_keyboard {
 struct libinput_event_pointer {
 	struct libinput_event base;
 	uint32_t time;
-	double x;
-	double y;
-	double x_discrete;
-	double y_discrete;
-	double dx_unaccel;
-	double dy_unaccel;
+	struct normalized_coords delta;
+	struct normalized_coords delta_unaccel;
+	struct device_coords absolute;
+	struct discrete_coords discrete;
 	uint32_t button;
 	uint32_t seat_button_count;
 	enum libinput_button_state state;
@@ -75,8 +109,7 @@ struct libinput_event_touch {
 	uint32_t time;
 	int32_t slot;
 	int32_t seat_slot;
-	double x;
-	double y;
+	struct device_coords point;
 };
 
 static void
@@ -165,120 +198,85 @@ libinput_event_get_device(struct libinput_event *event)
 LIBINPUT_EXPORT struct libinput_event_pointer *
 libinput_event_get_pointer_event(struct libinput_event *event)
 {
-	switch (event->type) {
-	case LIBINPUT_EVENT_NONE:
-		abort(); /* not used as actual event type */
-	case LIBINPUT_EVENT_DEVICE_ADDED:
-	case LIBINPUT_EVENT_DEVICE_REMOVED:
-	case LIBINPUT_EVENT_KEYBOARD_KEY:
-		break;
-	case LIBINPUT_EVENT_POINTER_MOTION:
-	case LIBINPUT_EVENT_POINTER_MOTION_ABSOLUTE:
-	case LIBINPUT_EVENT_POINTER_BUTTON:
-	case LIBINPUT_EVENT_POINTER_AXIS:
-		return (struct libinput_event_pointer *) event;
-	case LIBINPUT_EVENT_TOUCH_DOWN:
-	case LIBINPUT_EVENT_TOUCH_UP:
-	case LIBINPUT_EVENT_TOUCH_MOTION:
-	case LIBINPUT_EVENT_TOUCH_CANCEL:
-	case LIBINPUT_EVENT_TOUCH_FRAME:
-		break;
-	}
+	require_event_type(libinput_event_get_context(event),
+			   event->type,
+			   NULL,
+			   LIBINPUT_EVENT_POINTER_MOTION,
+			   LIBINPUT_EVENT_POINTER_MOTION_ABSOLUTE,
+			   LIBINPUT_EVENT_POINTER_BUTTON,
+			   LIBINPUT_EVENT_POINTER_AXIS);
 
-	return NULL;
+	return (struct libinput_event_pointer *) event;
 }
 
 LIBINPUT_EXPORT struct libinput_event_keyboard *
 libinput_event_get_keyboard_event(struct libinput_event *event)
 {
-	switch (event->type) {
-	case LIBINPUT_EVENT_NONE:
-		abort(); /* not used as actual event type */
-	case LIBINPUT_EVENT_DEVICE_ADDED:
-	case LIBINPUT_EVENT_DEVICE_REMOVED:
-		break;
-	case LIBINPUT_EVENT_KEYBOARD_KEY:
-		return (struct libinput_event_keyboard *) event;
-	case LIBINPUT_EVENT_POINTER_MOTION:
-	case LIBINPUT_EVENT_POINTER_MOTION_ABSOLUTE:
-	case LIBINPUT_EVENT_POINTER_BUTTON:
-	case LIBINPUT_EVENT_POINTER_AXIS:
-	case LIBINPUT_EVENT_TOUCH_DOWN:
-	case LIBINPUT_EVENT_TOUCH_UP:
-	case LIBINPUT_EVENT_TOUCH_MOTION:
-	case LIBINPUT_EVENT_TOUCH_CANCEL:
-	case LIBINPUT_EVENT_TOUCH_FRAME:
-		break;
-	}
+	require_event_type(libinput_event_get_context(event),
+			   event->type,
+			   NULL,
+			   LIBINPUT_EVENT_KEYBOARD_KEY);
 
-	return NULL;
+	return (struct libinput_event_keyboard *) event;
 }
 
 LIBINPUT_EXPORT struct libinput_event_touch *
 libinput_event_get_touch_event(struct libinput_event *event)
 {
-	switch (event->type) {
-	case LIBINPUT_EVENT_NONE:
-		abort(); /* not used as actual event type */
-	case LIBINPUT_EVENT_DEVICE_ADDED:
-	case LIBINPUT_EVENT_DEVICE_REMOVED:
-	case LIBINPUT_EVENT_KEYBOARD_KEY:
-	case LIBINPUT_EVENT_POINTER_MOTION:
-	case LIBINPUT_EVENT_POINTER_MOTION_ABSOLUTE:
-	case LIBINPUT_EVENT_POINTER_BUTTON:
-	case LIBINPUT_EVENT_POINTER_AXIS:
-		break;
-	case LIBINPUT_EVENT_TOUCH_DOWN:
-	case LIBINPUT_EVENT_TOUCH_UP:
-	case LIBINPUT_EVENT_TOUCH_MOTION:
-	case LIBINPUT_EVENT_TOUCH_CANCEL:
-	case LIBINPUT_EVENT_TOUCH_FRAME:
-		return (struct libinput_event_touch *) event;
-	}
+	require_event_type(libinput_event_get_context(event),
+			   event->type,
+			   NULL,
+			   LIBINPUT_EVENT_TOUCH_DOWN,
+			   LIBINPUT_EVENT_TOUCH_UP,
+			   LIBINPUT_EVENT_TOUCH_MOTION,
+			   LIBINPUT_EVENT_TOUCH_CANCEL,
+			   LIBINPUT_EVENT_TOUCH_FRAME);
 
-	return NULL;
+	return (struct libinput_event_touch *) event;
 }
 
 LIBINPUT_EXPORT struct libinput_event_device_notify *
 libinput_event_get_device_notify_event(struct libinput_event *event)
 {
-	switch (event->type) {
-	case LIBINPUT_EVENT_NONE:
-		abort(); /* not used as actual event type */
-	case LIBINPUT_EVENT_DEVICE_ADDED:
-	case LIBINPUT_EVENT_DEVICE_REMOVED:
-		return (struct libinput_event_device_notify *) event;
-	case LIBINPUT_EVENT_KEYBOARD_KEY:
-	case LIBINPUT_EVENT_POINTER_MOTION:
-	case LIBINPUT_EVENT_POINTER_MOTION_ABSOLUTE:
-	case LIBINPUT_EVENT_POINTER_BUTTON:
-	case LIBINPUT_EVENT_POINTER_AXIS:
-	case LIBINPUT_EVENT_TOUCH_DOWN:
-	case LIBINPUT_EVENT_TOUCH_UP:
-	case LIBINPUT_EVENT_TOUCH_MOTION:
-	case LIBINPUT_EVENT_TOUCH_CANCEL:
-	case LIBINPUT_EVENT_TOUCH_FRAME:
-		break;
-	}
+	require_event_type(libinput_event_get_context(event),
+			   event->type,
+			   NULL,
+			   LIBINPUT_EVENT_DEVICE_ADDED,
+			   LIBINPUT_EVENT_DEVICE_REMOVED);
 
-	return NULL;
+	return (struct libinput_event_device_notify *) event;
 }
 
 LIBINPUT_EXPORT uint32_t
 libinput_event_keyboard_get_time(struct libinput_event_keyboard *event)
 {
+	require_event_type(libinput_event_get_context(&event->base),
+			   event->base.type,
+			   0,
+			   LIBINPUT_EVENT_KEYBOARD_KEY);
+
 	return event->time;
 }
 
 LIBINPUT_EXPORT uint32_t
 libinput_event_keyboard_get_key(struct libinput_event_keyboard *event)
 {
+	require_event_type(libinput_event_get_context(&event->base),
+			   event->base.type,
+			   0,
+			   LIBINPUT_EVENT_KEYBOARD_KEY);
+
 	return event->key;
 }
 
 LIBINPUT_EXPORT enum libinput_key_state
 libinput_event_keyboard_get_key_state(struct libinput_event_keyboard *event)
 {
+	require_event_type(libinput_event_get_context(&event->base),
+			   event->base.type,
+			   0,
+			   LIBINPUT_EVENT_KEYBOARD_KEY);
+
 	return event->state;
 }
 
@@ -286,39 +284,72 @@ LIBINPUT_EXPORT uint32_t
 libinput_event_keyboard_get_seat_key_count(
 	struct libinput_event_keyboard *event)
 {
+	require_event_type(libinput_event_get_context(&event->base),
+			   event->base.type,
+			   0,
+			   LIBINPUT_EVENT_KEYBOARD_KEY);
+
 	return event->seat_key_count;
 }
 
 LIBINPUT_EXPORT uint32_t
 libinput_event_pointer_get_time(struct libinput_event_pointer *event)
 {
+	require_event_type(libinput_event_get_context(&event->base),
+			   event->base.type,
+			   0,
+			   LIBINPUT_EVENT_POINTER_MOTION,
+			   LIBINPUT_EVENT_POINTER_MOTION_ABSOLUTE,
+			   LIBINPUT_EVENT_POINTER_BUTTON,
+			   LIBINPUT_EVENT_POINTER_AXIS);
+
 	return event->time;
 }
 
 LIBINPUT_EXPORT double
 libinput_event_pointer_get_dx(struct libinput_event_pointer *event)
 {
-	return event->x;
+	require_event_type(libinput_event_get_context(&event->base),
+			   event->base.type,
+			   0,
+			   LIBINPUT_EVENT_POINTER_MOTION);
+
+	return event->delta.x;
 }
 
 LIBINPUT_EXPORT double
 libinput_event_pointer_get_dy(struct libinput_event_pointer *event)
 {
-	return event->y;
+	require_event_type(libinput_event_get_context(&event->base),
+			   event->base.type,
+			   0,
+			   LIBINPUT_EVENT_POINTER_MOTION);
+
+	return event->delta.y;
 }
 
 LIBINPUT_EXPORT double
 libinput_event_pointer_get_dx_unaccelerated(
 	struct libinput_event_pointer *event)
 {
-	return event->dx_unaccel;
+	require_event_type(libinput_event_get_context(&event->base),
+			   event->base.type,
+			   0,
+			   LIBINPUT_EVENT_POINTER_MOTION);
+
+	return event->delta_unaccel.x;
 }
 
 LIBINPUT_EXPORT double
 libinput_event_pointer_get_dy_unaccelerated(
 	struct libinput_event_pointer *event)
 {
-	return event->dy_unaccel;
+	require_event_type(libinput_event_get_context(&event->base),
+			   event->base.type,
+			   0,
+			   LIBINPUT_EVENT_POINTER_MOTION);
+
+	return event->delta_unaccel.y;
 }
 
 LIBINPUT_EXPORT double
@@ -327,7 +358,12 @@ libinput_event_pointer_get_absolute_x(struct libinput_event_pointer *event)
 	struct evdev_device *device =
 		(struct evdev_device *) event->base.device;
 
-	return evdev_convert_to_mm(device->abs.absinfo_x, event->x);
+	require_event_type(libinput_event_get_context(&event->base),
+			   event->base.type,
+			   0,
+			   LIBINPUT_EVENT_POINTER_MOTION_ABSOLUTE);
+
+	return evdev_convert_to_mm(device->abs.absinfo_x, event->absolute.x);
 }
 
 LIBINPUT_EXPORT double
@@ -336,7 +372,12 @@ libinput_event_pointer_get_absolute_y(struct libinput_event_pointer *event)
 	struct evdev_device *device =
 		(struct evdev_device *) event->base.device;
 
-	return evdev_convert_to_mm(device->abs.absinfo_y, event->y);
+	require_event_type(libinput_event_get_context(&event->base),
+			   event->base.type,
+			   0,
+			   LIBINPUT_EVENT_POINTER_MOTION_ABSOLUTE);
+
+	return evdev_convert_to_mm(device->abs.absinfo_y, event->absolute.y);
 }
 
 LIBINPUT_EXPORT double
@@ -347,7 +388,12 @@ libinput_event_pointer_get_absolute_x_transformed(
 	struct evdev_device *device =
 		(struct evdev_device *) event->base.device;
 
-	return evdev_device_transform_x(device, event->x, width);
+	require_event_type(libinput_event_get_context(&event->base),
+			   event->base.type,
+			   0,
+			   LIBINPUT_EVENT_POINTER_MOTION_ABSOLUTE);
+
+	return evdev_device_transform_x(device, event->absolute.x, width);
 }
 
 LIBINPUT_EXPORT double
@@ -358,18 +404,33 @@ libinput_event_pointer_get_absolute_y_transformed(
 	struct evdev_device *device =
 		(struct evdev_device *) event->base.device;
 
-	return evdev_device_transform_y(device, event->y, height);
+	require_event_type(libinput_event_get_context(&event->base),
+			   event->base.type,
+			   0,
+			   LIBINPUT_EVENT_POINTER_MOTION_ABSOLUTE);
+
+	return evdev_device_transform_y(device, event->absolute.y, height);
 }
 
 LIBINPUT_EXPORT uint32_t
 libinput_event_pointer_get_button(struct libinput_event_pointer *event)
 {
+	require_event_type(libinput_event_get_context(&event->base),
+			   event->base.type,
+			   0,
+			   LIBINPUT_EVENT_POINTER_BUTTON);
+
 	return event->button;
 }
 
 LIBINPUT_EXPORT enum libinput_button_state
 libinput_event_pointer_get_button_state(struct libinput_event_pointer *event)
 {
+	require_event_type(libinput_event_get_context(&event->base),
+			   event->base.type,
+			   0,
+			   LIBINPUT_EVENT_POINTER_BUTTON);
+
 	return event->state;
 }
 
@@ -377,6 +438,11 @@ LIBINPUT_EXPORT uint32_t
 libinput_event_pointer_get_seat_button_count(
 	struct libinput_event_pointer *event)
 {
+	require_event_type(libinput_event_get_context(&event->base),
+			   event->base.type,
+			   0,
+			   LIBINPUT_EVENT_POINTER_BUTTON);
+
 	return event->seat_button_count;
 }
 
@@ -384,13 +450,17 @@ LIBINPUT_EXPORT int
 libinput_event_pointer_has_axis(struct libinput_event_pointer *event,
 				enum libinput_pointer_axis axis)
 {
-	if (event->base.type == LIBINPUT_EVENT_POINTER_AXIS) {
-		switch (axis) {
-		case LIBINPUT_POINTER_AXIS_SCROLL_HORIZONTAL:
-		case LIBINPUT_POINTER_AXIS_SCROLL_VERTICAL:
-			return !!(event->axes & AS_MASK(axis));
-		}
+	require_event_type(libinput_event_get_context(&event->base),
+			   event->base.type,
+			   0,
+			   LIBINPUT_EVENT_POINTER_AXIS);
+
+	switch (axis) {
+	case LIBINPUT_POINTER_AXIS_SCROLL_HORIZONTAL:
+	case LIBINPUT_POINTER_AXIS_SCROLL_VERTICAL:
+		return !!(event->axes & AS_MASK(axis));
 	}
+
 	return 0;
 }
 
@@ -401,15 +471,20 @@ libinput_event_pointer_get_axis_value(struct libinput_event_pointer *event,
 	struct libinput *libinput = event->base.device->seat->libinput;
 	double value = 0;
 
+	require_event_type(libinput_event_get_context(&event->base),
+			   event->base.type,
+			   0.0,
+			   LIBINPUT_EVENT_POINTER_AXIS);
+
 	if (!libinput_event_pointer_has_axis(event, axis)) {
 		log_bug_client(libinput, "value requested for unset axis\n");
 	} else {
 		switch (axis) {
 		case LIBINPUT_POINTER_AXIS_SCROLL_HORIZONTAL:
-			value = event->x;
+			value = event->delta.x;
 			break;
 		case LIBINPUT_POINTER_AXIS_SCROLL_VERTICAL:
-			value = event->y;
+			value = event->delta.y;
 			break;
 		}
 	}
@@ -424,15 +499,20 @@ libinput_event_pointer_get_axis_value_discrete(struct libinput_event_pointer *ev
 	struct libinput *libinput = event->base.device->seat->libinput;
 	double value = 0;
 
+	require_event_type(libinput_event_get_context(&event->base),
+			   event->base.type,
+			   0.0,
+			   LIBINPUT_EVENT_POINTER_AXIS);
+
 	if (!libinput_event_pointer_has_axis(event, axis)) {
 		log_bug_client(libinput, "value requested for unset axis\n");
 	} else {
 		switch (axis) {
 		case LIBINPUT_POINTER_AXIS_SCROLL_HORIZONTAL:
-			value = event->x_discrete;
+			value = event->discrete.x;
 			break;
 		case LIBINPUT_POINTER_AXIS_SCROLL_VERTICAL:
-			value = event->y_discrete;
+			value = event->discrete.y;
 			break;
 		}
 	}
@@ -442,24 +522,54 @@ libinput_event_pointer_get_axis_value_discrete(struct libinput_event_pointer *ev
 LIBINPUT_EXPORT enum libinput_pointer_axis_source
 libinput_event_pointer_get_axis_source(struct libinput_event_pointer *event)
 {
+	require_event_type(libinput_event_get_context(&event->base),
+			   event->base.type,
+			   0,
+			   LIBINPUT_EVENT_POINTER_AXIS);
+
 	return event->source;
 }
 
 LIBINPUT_EXPORT uint32_t
 libinput_event_touch_get_time(struct libinput_event_touch *event)
 {
+	require_event_type(libinput_event_get_context(&event->base),
+			   event->base.type,
+			   0,
+			   LIBINPUT_EVENT_TOUCH_DOWN,
+			   LIBINPUT_EVENT_TOUCH_UP,
+			   LIBINPUT_EVENT_TOUCH_MOTION,
+			   LIBINPUT_EVENT_TOUCH_CANCEL,
+			   LIBINPUT_EVENT_TOUCH_FRAME);
+
 	return event->time;
 }
 
 LIBINPUT_EXPORT int32_t
 libinput_event_touch_get_slot(struct libinput_event_touch *event)
 {
+	require_event_type(libinput_event_get_context(&event->base),
+			   event->base.type,
+			   0,
+			   LIBINPUT_EVENT_TOUCH_DOWN,
+			   LIBINPUT_EVENT_TOUCH_UP,
+			   LIBINPUT_EVENT_TOUCH_MOTION,
+			   LIBINPUT_EVENT_TOUCH_CANCEL);
+
 	return event->slot;
 }
 
 LIBINPUT_EXPORT int32_t
 libinput_event_touch_get_seat_slot(struct libinput_event_touch *event)
 {
+	require_event_type(libinput_event_get_context(&event->base),
+			   event->base.type,
+			   0,
+			   LIBINPUT_EVENT_TOUCH_DOWN,
+			   LIBINPUT_EVENT_TOUCH_UP,
+			   LIBINPUT_EVENT_TOUCH_MOTION,
+			   LIBINPUT_EVENT_TOUCH_CANCEL);
+
 	return event->seat_slot;
 }
 
@@ -469,7 +579,13 @@ libinput_event_touch_get_x(struct libinput_event_touch *event)
 	struct evdev_device *device =
 		(struct evdev_device *) event->base.device;
 
-	return evdev_convert_to_mm(device->abs.absinfo_x, event->x);
+	require_event_type(libinput_event_get_context(&event->base),
+			   event->base.type,
+			   0,
+			   LIBINPUT_EVENT_TOUCH_DOWN,
+			   LIBINPUT_EVENT_TOUCH_MOTION);
+
+	return evdev_convert_to_mm(device->abs.absinfo_x, event->point.x);
 }
 
 LIBINPUT_EXPORT double
@@ -479,7 +595,13 @@ libinput_event_touch_get_x_transformed(struct libinput_event_touch *event,
 	struct evdev_device *device =
 		(struct evdev_device *) event->base.device;
 
-	return evdev_device_transform_x(device, event->x, width);
+	require_event_type(libinput_event_get_context(&event->base),
+			   event->base.type,
+			   0,
+			   LIBINPUT_EVENT_TOUCH_DOWN,
+			   LIBINPUT_EVENT_TOUCH_MOTION);
+
+	return evdev_device_transform_x(device, event->point.x, width);
 }
 
 LIBINPUT_EXPORT double
@@ -489,7 +611,13 @@ libinput_event_touch_get_y_transformed(struct libinput_event_touch *event,
 	struct evdev_device *device =
 		(struct evdev_device *) event->base.device;
 
-	return evdev_device_transform_y(device, event->y, height);
+	require_event_type(libinput_event_get_context(&event->base),
+			   event->base.type,
+			   0,
+			   LIBINPUT_EVENT_TOUCH_DOWN,
+			   LIBINPUT_EVENT_TOUCH_MOTION);
+
+	return evdev_device_transform_y(device, event->point.y, height);
 }
 
 LIBINPUT_EXPORT double
@@ -498,7 +626,13 @@ libinput_event_touch_get_y(struct libinput_event_touch *event)
 	struct evdev_device *device =
 		(struct evdev_device *) event->base.device;
 
-	return evdev_convert_to_mm(device->abs.absinfo_y, event->y);
+	require_event_type(libinput_event_get_context(&event->base),
+			   event->base.type,
+			   0,
+			   LIBINPUT_EVENT_TOUCH_DOWN,
+			   LIBINPUT_EVENT_TOUCH_MOTION);
+
+	return evdev_convert_to_mm(device->abs.absinfo_y, event->point.y);
 }
 
 struct libinput_source *
@@ -931,6 +1065,35 @@ notify_removed_device(struct libinput_device *device)
 			&removed_device_event->base);
 }
 
+static inline bool
+device_has_cap(struct libinput_device *device,
+	       enum libinput_device_capability cap)
+{
+	const char *capability;
+
+	if (libinput_device_has_capability(device, cap))
+		return true;
+
+	switch (cap) {
+	case LIBINPUT_DEVICE_CAP_POINTER:
+		capability = "CAP_POINTER";
+		break;
+	case LIBINPUT_DEVICE_CAP_KEYBOARD:
+		capability = "CAP_KEYBOARD";
+		break;
+	case LIBINPUT_DEVICE_CAP_TOUCH:
+		capability = "CAP_TOUCH";
+		break;
+	}
+
+	log_bug_libinput(device->seat->libinput,
+			 "Event for missing capability %s on device \"%s\"\n",
+			 capability,
+			 libinput_device_get_name(device));
+
+	return false;
+}
+
 void
 keyboard_notify_key(struct libinput_device *device,
 		    uint64_t time,
@@ -939,6 +1102,9 @@ keyboard_notify_key(struct libinput_device *device,
 {
 	struct libinput_event_keyboard *key_event;
 	uint32_t seat_key_count;
+
+	if (!device_has_cap(device, LIBINPUT_DEVICE_CAP_KEYBOARD))
+		return;
 
 	key_event = zalloc(sizeof *key_event);
 	if (!key_event)
@@ -961,12 +1127,13 @@ keyboard_notify_key(struct libinput_device *device,
 void
 pointer_notify_motion(struct libinput_device *device,
 		      uint64_t time,
-		      double dx,
-		      double dy,
-		      double dx_unaccel,
-		      double dy_unaccel)
+		      const struct normalized_coords *delta,
+		      const struct normalized_coords *unaccel)
 {
 	struct libinput_event_pointer *motion_event;
+
+	if (!device_has_cap(device, LIBINPUT_DEVICE_CAP_POINTER))
+		return;
 
 	motion_event = zalloc(sizeof *motion_event);
 	if (!motion_event)
@@ -974,10 +1141,8 @@ pointer_notify_motion(struct libinput_device *device,
 
 	*motion_event = (struct libinput_event_pointer) {
 		.time = time,
-		.x = dx,
-		.y = dy,
-		.dx_unaccel = dx_unaccel,
-		.dy_unaccel = dy_unaccel,
+		.delta = *delta,
+		.delta_unaccel = *unaccel,
 	};
 
 	post_device_event(device, time,
@@ -988,10 +1153,12 @@ pointer_notify_motion(struct libinput_device *device,
 void
 pointer_notify_motion_absolute(struct libinput_device *device,
 			       uint64_t time,
-			       double x,
-			       double y)
+			       const struct device_coords *point)
 {
 	struct libinput_event_pointer *motion_absolute_event;
+
+	if (!device_has_cap(device, LIBINPUT_DEVICE_CAP_POINTER))
+		return;
 
 	motion_absolute_event = zalloc(sizeof *motion_absolute_event);
 	if (!motion_absolute_event)
@@ -999,8 +1166,7 @@ pointer_notify_motion_absolute(struct libinput_device *device,
 
 	*motion_absolute_event = (struct libinput_event_pointer) {
 		.time = time,
-		.x = x,
-		.y = y,
+		.absolute = *point,
 	};
 
 	post_device_event(device, time,
@@ -1016,6 +1182,9 @@ pointer_notify_button(struct libinput_device *device,
 {
 	struct libinput_event_pointer *button_event;
 	int32_t seat_button_count;
+
+	if (!device_has_cap(device, LIBINPUT_DEVICE_CAP_POINTER))
+		return;
 
 	button_event = zalloc(sizeof *button_event);
 	if (!button_event)
@@ -1042,10 +1211,13 @@ pointer_notify_axis(struct libinput_device *device,
 		    uint64_t time,
 		    uint32_t axes,
 		    enum libinput_pointer_axis_source source,
-		    double x, double y,
-		    double x_discrete, double y_discrete)
+		    const struct normalized_coords *delta,
+		    const struct discrete_coords *discrete)
 {
 	struct libinput_event_pointer *axis_event;
+
+	if (!device_has_cap(device, LIBINPUT_DEVICE_CAP_POINTER))
+		return;
 
 	axis_event = zalloc(sizeof *axis_event);
 	if (!axis_event)
@@ -1053,12 +1225,10 @@ pointer_notify_axis(struct libinput_device *device,
 
 	*axis_event = (struct libinput_event_pointer) {
 		.time = time,
-		.x = x,
-		.y = y,
+		.delta = *delta,
 		.source = source,
 		.axes = axes,
-		.x_discrete = x_discrete,
-		.y_discrete = y_discrete,
+		.discrete = *discrete,
 	};
 
 	post_device_event(device, time,
@@ -1071,10 +1241,12 @@ touch_notify_touch_down(struct libinput_device *device,
 			uint64_t time,
 			int32_t slot,
 			int32_t seat_slot,
-			double x,
-			double y)
+			const struct device_coords *point)
 {
 	struct libinput_event_touch *touch_event;
+
+	if (!device_has_cap(device, LIBINPUT_DEVICE_CAP_TOUCH))
+		return;
 
 	touch_event = zalloc(sizeof *touch_event);
 	if (!touch_event)
@@ -1084,8 +1256,7 @@ touch_notify_touch_down(struct libinput_device *device,
 		.time = time,
 		.slot = slot,
 		.seat_slot = seat_slot,
-		.x = x,
-		.y = y,
+		.point = *point,
 	};
 
 	post_device_event(device, time,
@@ -1098,10 +1269,12 @@ touch_notify_touch_motion(struct libinput_device *device,
 			  uint64_t time,
 			  int32_t slot,
 			  int32_t seat_slot,
-			  double x,
-			  double y)
+			  const struct device_coords *point)
 {
 	struct libinput_event_touch *touch_event;
+
+	if (!device_has_cap(device, LIBINPUT_DEVICE_CAP_TOUCH))
+		return;
 
 	touch_event = zalloc(sizeof *touch_event);
 	if (!touch_event)
@@ -1111,8 +1284,7 @@ touch_notify_touch_motion(struct libinput_device *device,
 		.time = time,
 		.slot = slot,
 		.seat_slot = seat_slot,
-		.x = x,
-		.y = y,
+		.point = *point,
 	};
 
 	post_device_event(device, time,
@@ -1127,6 +1299,9 @@ touch_notify_touch_up(struct libinput_device *device,
 		      int32_t seat_slot)
 {
 	struct libinput_event_touch *touch_event;
+
+	if (!device_has_cap(device, LIBINPUT_DEVICE_CAP_TOUCH))
+		return;
 
 	touch_event = zalloc(sizeof *touch_event);
 	if (!touch_event)
@@ -1148,6 +1323,9 @@ touch_notify_frame(struct libinput_device *device,
 		   uint64_t time)
 {
 	struct libinput_event_touch *touch_event;
+
+	if (!device_has_cap(device, LIBINPUT_DEVICE_CAP_TOUCH))
+		return;
 
 	touch_event = zalloc(sizeof *touch_event);
 	if (!touch_event)
@@ -1277,6 +1455,12 @@ libinput_device_get_context(struct libinput_device *device)
 	return libinput_seat_get_context(device->seat);
 }
 
+LIBINPUT_EXPORT struct libinput_device_group *
+libinput_device_get_device_group(struct libinput_device *device)
+{
+	return device->group;
+}
+
 LIBINPUT_EXPORT const char *
 libinput_device_get_sysname(struct libinput_device *device)
 {
@@ -1358,33 +1542,136 @@ libinput_device_get_size(struct libinput_device *device,
 }
 
 LIBINPUT_EXPORT int
-libinput_device_has_button(struct libinput_device *device, uint32_t code)
+libinput_device_pointer_has_button(struct libinput_device *device, uint32_t code)
 {
 	return evdev_device_has_button((struct evdev_device *)device, code);
+}
+
+LIBINPUT_EXPORT int
+libinput_device_keyboard_has_key(struct libinput_device *device, uint32_t code)
+{
+	return evdev_device_has_key((struct evdev_device *)device, code);
 }
 
 LIBINPUT_EXPORT struct libinput_event *
 libinput_event_device_notify_get_base_event(struct libinput_event_device_notify *event)
 {
+	require_event_type(libinput_event_get_context(&event->base),
+			   event->base.type,
+			   NULL,
+			   LIBINPUT_EVENT_DEVICE_ADDED,
+			   LIBINPUT_EVENT_DEVICE_REMOVED);
+
 	return &event->base;
 }
 
 LIBINPUT_EXPORT struct libinput_event *
 libinput_event_keyboard_get_base_event(struct libinput_event_keyboard *event)
 {
+	require_event_type(libinput_event_get_context(&event->base),
+			   event->base.type,
+			   NULL,
+			   LIBINPUT_EVENT_KEYBOARD_KEY);
+
 	return &event->base;
 }
 
 LIBINPUT_EXPORT struct libinput_event *
 libinput_event_pointer_get_base_event(struct libinput_event_pointer *event)
 {
+	require_event_type(libinput_event_get_context(&event->base),
+			   event->base.type,
+			   NULL,
+			   LIBINPUT_EVENT_POINTER_MOTION,
+			   LIBINPUT_EVENT_POINTER_MOTION_ABSOLUTE,
+			   LIBINPUT_EVENT_POINTER_BUTTON,
+			   LIBINPUT_EVENT_POINTER_AXIS);
+
 	return &event->base;
 }
 
 LIBINPUT_EXPORT struct libinput_event *
 libinput_event_touch_get_base_event(struct libinput_event_touch *event)
 {
+	require_event_type(libinput_event_get_context(&event->base),
+			   event->base.type,
+			   NULL,
+			   LIBINPUT_EVENT_TOUCH_DOWN,
+			   LIBINPUT_EVENT_TOUCH_UP,
+			   LIBINPUT_EVENT_TOUCH_MOTION,
+			   LIBINPUT_EVENT_TOUCH_CANCEL,
+			   LIBINPUT_EVENT_TOUCH_FRAME);
+
 	return &event->base;
+}
+
+LIBINPUT_EXPORT struct libinput_device_group *
+libinput_device_group_ref(struct libinput_device_group *group)
+{
+	group->refcount++;
+	return group;
+}
+
+struct libinput_device_group *
+libinput_device_group_create(const char *identifier)
+{
+	struct libinput_device_group *group;
+
+	group = zalloc(sizeof *group);
+	if (!group)
+		return NULL;
+
+	group->refcount = 1;
+	if (identifier) {
+		group->identifier = strdup(identifier);
+		if (!group->identifier) {
+			free(group);
+			group = NULL;
+		}
+	}
+
+	return group;
+}
+
+void
+libinput_device_set_device_group(struct libinput_device *device,
+				 struct libinput_device_group *group)
+{
+	device->group = group;
+	libinput_device_group_ref(group);
+}
+
+static void
+libinput_device_group_destroy(struct libinput_device_group *group)
+{
+	free(group->identifier);
+	free(group);
+}
+
+LIBINPUT_EXPORT struct libinput_device_group *
+libinput_device_group_unref(struct libinput_device_group *group)
+{
+	assert(group->refcount > 0);
+	group->refcount--;
+	if (group->refcount == 0) {
+		libinput_device_group_destroy(group);
+		return NULL;
+	} else {
+		return group;
+	}
+}
+
+LIBINPUT_EXPORT void
+libinput_device_group_set_user_data(struct libinput_device_group *group,
+				    void *user_data)
+{
+	group->user_data = user_data;
+}
+
+LIBINPUT_EXPORT void *
+libinput_device_group_get_user_data(struct libinput_device_group *group)
+{
+	return group->user_data;
 }
 
 LIBINPUT_EXPORT const char *
@@ -1522,7 +1809,6 @@ libinput_device_config_send_events_get_default_mode(struct libinput_device *devi
 	return LIBINPUT_CONFIG_SEND_EVENTS_ENABLED;
 }
 
-
 LIBINPUT_EXPORT int
 libinput_device_config_accel_is_available(struct libinput_device *device)
 {
@@ -1649,9 +1935,6 @@ LIBINPUT_EXPORT enum libinput_config_status
 libinput_device_config_click_set_method(struct libinput_device *device,
 					enum libinput_config_click_method method)
 {
-	if ((libinput_device_config_click_get_methods(device) & method) != method)
-		return LIBINPUT_CONFIG_STATUS_UNSUPPORTED;
-
 	/* Check method is a single valid method */
 	switch (method) {
 	case LIBINPUT_CONFIG_CLICK_METHOD_NONE:
@@ -1661,6 +1944,9 @@ libinput_device_config_click_set_method(struct libinput_device *device,
 	default:
 		return LIBINPUT_CONFIG_STATUS_INVALID;
 	}
+
+	if ((libinput_device_config_click_get_methods(device) & method) != method)
+		return LIBINPUT_CONFIG_STATUS_UNSUPPORTED;
 
 	if (device->config.click_method)
 		return device->config.click_method->set_method(device, method);
@@ -1684,6 +1970,55 @@ libinput_device_config_click_get_default_method(struct libinput_device *device)
 		return device->config.click_method->get_default_method(device);
 	else
 		return LIBINPUT_CONFIG_CLICK_METHOD_NONE;
+}
+
+LIBINPUT_EXPORT int
+libinput_device_config_middle_emulation_is_available(
+		struct libinput_device *device)
+{
+	if (device->config.middle_emulation)
+		return device->config.middle_emulation->available(device);
+	else
+		return LIBINPUT_CONFIG_MIDDLE_EMULATION_DISABLED;
+}
+
+LIBINPUT_EXPORT enum libinput_config_status
+libinput_device_config_middle_emulation_set_enabled(
+		struct libinput_device *device,
+		enum libinput_config_middle_emulation_state enable)
+{
+	switch (enable) {
+	case LIBINPUT_CONFIG_MIDDLE_EMULATION_DISABLED:
+	case LIBINPUT_CONFIG_MIDDLE_EMULATION_ENABLED:
+		break;
+	default:
+		return LIBINPUT_CONFIG_STATUS_INVALID;
+	}
+
+	if (!libinput_device_config_middle_emulation_is_available(device))
+		return LIBINPUT_CONFIG_STATUS_UNSUPPORTED;
+
+	return device->config.middle_emulation->set(device, enable);
+}
+
+LIBINPUT_EXPORT enum libinput_config_middle_emulation_state
+libinput_device_config_middle_emulation_get_enabled(
+		struct libinput_device *device)
+{
+	if (!libinput_device_config_middle_emulation_is_available(device))
+		return LIBINPUT_CONFIG_MIDDLE_EMULATION_DISABLED;
+
+	return device->config.middle_emulation->get(device);
+}
+
+LIBINPUT_EXPORT enum libinput_config_middle_emulation_state
+libinput_device_config_middle_emulation_get_default_enabled(
+		struct libinput_device *device)
+{
+	if (!libinput_device_config_middle_emulation_is_available(device))
+		return LIBINPUT_CONFIG_MIDDLE_EMULATION_DISABLED;
+
+	return device->config.middle_emulation->get_default(device);
 }
 
 LIBINPUT_EXPORT uint32_t
@@ -1741,7 +2076,7 @@ LIBINPUT_EXPORT enum libinput_config_status
 libinput_device_config_scroll_set_button(struct libinput_device *device,
 					 uint32_t button)
 {
-	if (button && !libinput_device_has_button(device, button))
+	if (button && !libinput_device_pointer_has_button(device, button))
 		return LIBINPUT_CONFIG_STATUS_INVALID;
 
 	if ((libinput_device_config_scroll_get_methods(device) &
