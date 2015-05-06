@@ -20,7 +20,6 @@
  * CONNECTION WITH THE USE OR PERFORMANCE OF THIS SOFTWARE.
  */
 
-
 #ifndef EVDEV_MT_TOUCHPAD_H
 #define EVDEV_MT_TOUCHPAD_H
 
@@ -34,6 +33,9 @@
 #define TOUCHPAD_MIN_SAMPLES 4
 
 #define VENDOR_ID_APPLE 0x5ac
+
+/* Convert mm to a distance normalized to DEFAULT_MOUSE_DPI */
+#define TP_MM_TO_DPI_NORMALIZED(mm) (DEFAULT_MOUSE_DPI/25.4 * mm)
 
 enum touchpad_event {
 	TOUCHPAD_EVENT_NONE		= 0,
@@ -95,6 +97,8 @@ enum tp_tap_state {
 	TAP_STATE_DRAGGING,
 	TAP_STATE_DRAGGING_WAIT,
 	TAP_STATE_DRAGGING_2,
+	TAP_STATE_MULTITAP,
+	TAP_STATE_MULTITAP_DOWN,
 	TAP_STATE_DEAD, /**< finger count exceeded */
 };
 
@@ -118,36 +122,21 @@ enum tp_edge_scroll_touch_state {
 	EDGE_SCROLL_TOUCH_STATE_AREA,
 };
 
-enum tp_twofinger_scroll_state {
-	TWOFINGER_SCROLL_STATE_NONE,
-	TWOFINGER_SCROLL_STATE_ACTIVE,
-};
-
-struct tp_motion {
-	int32_t x;
-	int32_t y;
-};
-
 struct tp_touch {
 	struct tp_dispatch *tp;
 	enum touch_state state;
 	bool has_ended;				/* TRACKING_ID == -1 */
 	bool dirty;
-	bool is_pointer;			/* the pointer-controlling touch */
-	int32_t x;
-	int32_t y;
+	struct device_coords point;
 	uint64_t millis;
 
 	struct {
-		struct tp_motion samples[TOUCHPAD_HISTORY_LENGTH];
+		struct device_coords samples[TOUCHPAD_HISTORY_LENGTH];
 		unsigned int index;
 		unsigned int count;
 	} history;
 
-	struct {
-		int32_t center_x;
-		int32_t center_y;
-	} hysteresis;
+	struct device_coords hysteresis_center;
 
 	/* A pinned touchpoint is the one that pressed the physical button
 	 * on a clickpad. After the release, it won't move until the center
@@ -155,8 +144,7 @@ struct tp_touch {
 	 */
 	struct {
 		bool is_pinned;
-		int32_t center_x;
-		int32_t center_y;
+		struct device_coords center;
 	} pinned;
 
 	/* Software-button state and timeout if applicable */
@@ -169,19 +157,20 @@ struct tp_touch {
 
 	struct {
 		enum tp_tap_touch_state state;
+		struct device_coords initial;
 	} tap;
 
 	struct {
 		enum tp_edge_scroll_touch_state edge_state;
 		uint32_t edge;
 		int direction;
-		double threshold;
 		struct libinput_timer timer;
+		struct device_coords initial;
 	} scroll;
 
 	struct {
 		bool is_palm;
-		int32_t x, y;  /* first coordinates if is_palm == true */
+		struct device_coords first; /* first coordinates if is_palm == true */
 		uint32_t time; /* first timestamp if is_palm == true */
 	} palm;
 };
@@ -196,7 +185,7 @@ struct tp_dispatch {
 	bool semi_mt;
 	enum touchpad_model model;
 
-	unsigned int real_touches;		/* number of slots */
+	unsigned int num_slots;			/* number of slots */
 	unsigned int ntouches;			/* no slots inc. fakes */
 	struct tp_touch *touches;		/* len == ntouches */
 	/* bit 0: BTN_TOUCH
@@ -206,15 +195,19 @@ struct tp_dispatch {
 	 */
 	unsigned int fake_touches;
 
-	struct {
-		int32_t margin_x;
-		int32_t margin_y;
-	} hysteresis;
+	struct device_coords hysteresis_margin;
 
 	struct {
 		double x_scale_coeff;
 		double y_scale_coeff;
 	} accel;
+
+	struct {
+		bool started;
+		unsigned int finger_count;
+		unsigned int finger_count_pending;
+		struct libinput_timer finger_count_switch_timer;
+	} gesture;
 
 	struct {
 		bool is_clickpad;		/* true for clickpads */
@@ -232,14 +225,14 @@ struct tp_dispatch {
 		 * The buttons are split according to the edge settings.
 		 */
 		struct {
-			int32_t top_edge;
-			int32_t rightbutton_left_edge;
+			int32_t top_edge;	/* in device coordinates */
+			int32_t rightbutton_left_edge; /* in device coordinates */
 		} bottom_area;
 
 		struct {
-			int32_t bottom_edge;
-			int32_t rightbutton_left_edge;
-			int32_t leftbutton_right_edge;
+			int32_t bottom_edge;	/* in device coordinates */
+			int32_t rightbutton_left_edge; /* in device coordinates */
+			int32_t leftbutton_right_edge; /* in device coordinates */
 		} top_area;
 
 		struct evdev_device *trackpoint;
@@ -251,9 +244,8 @@ struct tp_dispatch {
 	struct {
 		struct libinput_device_config_scroll_method config_method;
 		enum libinput_config_scroll_method method;
-		int32_t right_edge;
-		int32_t bottom_edge;
-		enum tp_twofinger_scroll_state twofinger_state;
+		int32_t right_edge;		/* in device coordinates */
+		int32_t bottom_edge;		/* in device coordinates */
 	} scroll;
 
 	enum touchpad_event queued;
@@ -265,11 +257,13 @@ struct tp_dispatch {
 		struct libinput_timer timer;
 		enum tp_tap_state state;
 		uint32_t buttons_pressed;
+		uint64_t multitap_last_time;
 	} tap;
 
 	struct {
-		int32_t right_edge;
-		int32_t left_edge;
+		int32_t right_edge;		/* in device coordinates */
+		int32_t left_edge;		/* in device coordinates */
+		int32_t vert_center;		/* in device coordinates */
 	} palm;
 
 	struct {
@@ -284,17 +278,27 @@ struct tp_dispatch {
 #define tp_for_each_touch(_tp, _t) \
 	for (unsigned int _i = 0; _i < (_tp)->ntouches && (_t = &(_tp)->touches[_i]); _i++)
 
-void
-tp_get_delta(struct tp_touch *t, double *dx, double *dy);
+static inline struct normalized_coords
+tp_normalize_delta(struct tp_dispatch *tp, struct device_float_coords delta)
+{
+	struct normalized_coords normalized;
 
-void
-tp_set_pointer(struct tp_dispatch *tp, struct tp_touch *t);
+	normalized.x = delta.x * tp->accel.x_scale_coeff;
+	normalized.y = delta.y * tp->accel.y_scale_coeff;
 
-void
+	return normalized;
+}
+
+struct normalized_coords
+tp_get_delta(struct tp_touch *t);
+
+struct normalized_coords
 tp_filter_motion(struct tp_dispatch *tp,
-	         double *dx, double *dy,
-	         double *dx_unaccel, double *dy_unaccel,
+		 const struct normalized_coords *unaccelerated,
 		 uint64_t time);
+
+int
+tp_touch_active(struct tp_dispatch *tp, struct tp_touch *t);
 
 int
 tp_tap_handle_state(struct tp_dispatch *tp, uint64_t time);
@@ -367,5 +371,26 @@ tp_edge_scroll_stop_events(struct tp_dispatch *tp, uint64_t time);
 
 int
 tp_edge_scroll_touch_active(struct tp_dispatch *tp, struct tp_touch *t);
+
+int
+tp_init_gesture(struct tp_dispatch *tp);
+
+void
+tp_remove_gesture(struct tp_dispatch *tp);
+
+void
+tp_gesture_stop(struct tp_dispatch *tp, uint64_t time);
+
+void
+tp_gesture_handle_state(struct tp_dispatch *tp, uint64_t time);
+
+void
+tp_gesture_post_events(struct tp_dispatch *tp, uint64_t time);
+
+void
+tp_gesture_stop_twofinger_scroll(struct tp_dispatch *tp, uint64_t time);
+
+bool
+tp_palm_tap_is_palm(struct tp_dispatch *tp, struct tp_touch *t);
 
 #endif

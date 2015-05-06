@@ -24,6 +24,7 @@
 #define LIBINPUT_PRIVATE_H
 
 #include <errno.h>
+#include <math.h>
 
 #include "linux/input.h"
 
@@ -31,6 +32,29 @@
 #include "libinput-util.h"
 
 struct libinput_source;
+
+/* A coordinate pair in device coordinates */
+struct device_coords {
+	int x, y;
+};
+
+/*
+ * A coordinate pair in device coordinates, capable of holding non discrete
+ * values, this is necessary e.g. when device coordinates get averaged.
+ */
+struct device_float_coords {
+	double x, y;
+};
+
+/* A dpi-normalized coordinate pair */
+struct normalized_coords {
+	double x, y;
+};
+
+/* A discrete step pair (mouse wheels) */
+struct discrete_coords {
+	int x, y;
+};
 
 struct libinput_interface_backend {
 	int (*resume)(struct libinput *libinput);
@@ -154,6 +178,17 @@ struct libinput_device_config_click_method {
 	enum libinput_config_click_method (*get_default_method)(struct libinput_device *device);
 };
 
+struct libinput_device_config_middle_emulation {
+	int (*available)(struct libinput_device *device);
+	enum libinput_config_status (*set)(
+			 struct libinput_device *device,
+			 enum libinput_config_middle_emulation_state);
+	enum libinput_config_middle_emulation_state (*get)(
+			 struct libinput_device *device);
+	enum libinput_config_middle_emulation_state (*get_default)(
+			 struct libinput_device *device);
+};
+
 struct libinput_device_config {
 	struct libinput_device_config_tap *tap;
 	struct libinput_device_config_calibration *calibration;
@@ -163,10 +198,18 @@ struct libinput_device_config {
 	struct libinput_device_config_left_handed *left_handed;
 	struct libinput_device_config_scroll_method *scroll_method;
 	struct libinput_device_config_click_method *click_method;
+	struct libinput_device_config_middle_emulation *middle_emulation;
+};
+
+struct libinput_device_group {
+	int refcount;
+	void *user_data;
+	char *identifier; /* unique identifier or NULL for singletons */
 };
 
 struct libinput_device {
 	struct libinput_seat *seat;
+	struct libinput_device_group *group;
 	struct list link;
 	struct list event_listeners;
 	void *user_data;
@@ -186,7 +229,6 @@ struct libinput_event_listener {
 };
 
 typedef void (*libinput_source_dispatch_t)(void *data);
-
 
 #define log_debug(li_, ...) log_msg((li_), LIBINPUT_LOG_PRIORITY_DEBUG, __VA_ARGS__)
 #define log_info(li_, ...) log_msg((li_), LIBINPUT_LOG_PRIORITY_INFO, __VA_ARGS__)
@@ -240,6 +282,13 @@ void
 libinput_device_init(struct libinput_device *device,
 		     struct libinput_seat *seat);
 
+struct libinput_device_group *
+libinput_device_group_create(const char *identifier);
+
+void
+libinput_device_set_device_group(struct libinput_device *device,
+				 struct libinput_device_group *group);
+
 void
 libinput_device_add_event_listener(struct libinput_device *device,
 				   struct libinput_event_listener *listener,
@@ -267,16 +316,13 @@ keyboard_notify_key(struct libinput_device *device,
 void
 pointer_notify_motion(struct libinput_device *device,
 		      uint64_t time,
-		      double dx,
-		      double dy,
-		      double dx_noaccel,
-		      double dy_noaccel);
+		      const struct normalized_coords *delta,
+		      const struct normalized_coords *unaccel);
 
 void
 pointer_notify_motion_absolute(struct libinput_device *device,
 			       uint64_t time,
-			       double x,
-			       double y);
+			       const struct device_coords *point);
 
 void
 pointer_notify_button(struct libinput_device *device,
@@ -289,26 +335,22 @@ pointer_notify_axis(struct libinput_device *device,
 		    uint64_t time,
 		    uint32_t axes,
 		    enum libinput_pointer_axis_source source,
-		    double x,
-		    double y,
-		    double x_discrete,
-		    double y_discrete);
+		    const struct normalized_coords *delta,
+		    const struct discrete_coords *discrete);
 
 void
 touch_notify_touch_down(struct libinput_device *device,
 			uint64_t time,
 			int32_t slot,
 			int32_t seat_slot,
-			double x,
-			double y);
+			const struct device_coords *point);
 
 void
 touch_notify_touch_motion(struct libinput_device *device,
 			  uint64_t time,
 			  int32_t slot,
 			  int32_t seat_slot,
-			  double x,
-			  double y);
+			  const struct device_coords *point);
 
 void
 touch_notify_touch_up(struct libinput_device *device,
@@ -332,4 +374,85 @@ libinput_now(struct libinput *libinput)
 
 	return ts.tv_sec * 1000ULL + ts.tv_nsec / 1000000;
 }
+
+static inline struct device_float_coords
+device_delta(struct device_coords a, struct device_coords b)
+{
+	struct device_float_coords delta;
+
+	delta.x = a.x - b.x;
+	delta.y = a.y - b.y;
+
+	return delta;
+}
+
+static inline double
+normalized_length(struct normalized_coords norm)
+{
+	return hypot(norm.x, norm.y);
+}
+
+static inline int
+normalized_is_zero(struct normalized_coords norm)
+{
+	return norm.x == 0.0 && norm.y == 0.0;
+}
+
+enum directions {
+	N  = 1 << 0,
+	NE = 1 << 1,
+	E  = 1 << 2,
+	SE = 1 << 3,
+	S  = 1 << 4,
+	SW = 1 << 5,
+	W  = 1 << 6,
+	NW = 1 << 7,
+	UNDEFINED_DIRECTION = 0xff
+};
+
+static inline int
+normalized_get_direction(struct normalized_coords norm)
+{
+	int dir = UNDEFINED_DIRECTION;
+	int d1, d2;
+	double r;
+
+	if (fabs(norm.x) < 2.0 && fabs(norm.y) < 2.0) {
+		if (norm.x > 0.0 && norm.y > 0.0)
+			dir = S | SE | E;
+		else if (norm.x > 0.0 && norm.y < 0.0)
+			dir = N | NE | E;
+		else if (norm.x < 0.0 && norm.y > 0.0)
+			dir = S | SW | W;
+		else if (norm.x < 0.0 && norm.y < 0.0)
+			dir = N | NW | W;
+		else if (norm.x > 0.0)
+			dir = NE | E | SE;
+		else if (norm.x < 0.0)
+			dir = NW | W | SW;
+		else if (norm.y > 0.0)
+			dir = SE | S | SW;
+		else if (norm.y < 0.0)
+			dir = NE | N | NW;
+	} else {
+		/* Calculate r within the interval  [0 to 8)
+		 *
+		 * r = [0 .. 2π] where 0 is North
+		 * d_f = r / 2π  ([0 .. 1))
+		 * d_8 = 8 * d_f
+		 */
+		r = atan2(norm.y, norm.x);
+		r = fmod(r + 2.5*M_PI, 2*M_PI);
+		r *= 4*M_1_PI;
+
+		/* Mark one or two close enough octants */
+		d1 = (int)(r + 0.9) % 8;
+		d2 = (int)(r + 0.1) % 8;
+
+		dir = (1 << d1) | (1 << d2);
+	}
+
+	return dir;
+}
+
 #endif /* LIBINPUT_PRIVATE_H */

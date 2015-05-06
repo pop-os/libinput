@@ -51,6 +51,12 @@ enum litest_device_type {
 	LITEST_VMWARE_VIRTMOUSE = -15,
 	LITEST_SYNAPTICS_HOVER_SEMI_MT = -16,
 	LITEST_SYNAPTICS_TRACKPOINT_BUTTONS = -17,
+	LITEST_PROTOCOL_A_SCREEN = -18,
+	LITEST_WACOM_FINGER = -19,
+	LITEST_KEYBOARD_BLACKWIDOW = -20,
+	LITEST_WHEEL_ONLY = -21,
+	LITEST_MOUSE_ROCCAT = -22,
+	LITEST_LOGITECH_TRACKBALL = -23,
 };
 
 enum litest_device_feature {
@@ -70,6 +76,7 @@ enum litest_device_feature {
 	LITEST_POINTINGSTICK = 1 << 11,
 	LITEST_FAKE_MT = 1 << 12,
 	LITEST_ABSOLUTE = 1 << 13,
+	LITEST_PROTOCOL_A = 1 << 14,
 };
 
 struct litest_device {
@@ -89,6 +96,8 @@ struct litest_device {
 };
 
 struct libinput *litest_create_context(void);
+void litest_disable_log_handler(struct libinput *libinput);
+void litest_restore_log_handler(struct libinput *libinput);
 
 void litest_add(const char *name, void *func,
 		enum litest_device_feature required_feature,
@@ -147,6 +156,11 @@ void litest_touch_move_to(struct litest_device *d,
 			  double x_from, double y_from,
 			  double x_to, double y_to,
 			  int steps, int sleep_ms);
+void litest_touch_move_two_touches(struct litest_device *d,
+				   double x0, double y0,
+				   double x1, double y1,
+				   double dx, double dy,
+				   int steps, int sleep_ms);
 void litest_button_click(struct litest_device *d,
 			 unsigned int button,
 			 bool is_press);
@@ -160,6 +174,10 @@ void litest_wait_for_event(struct libinput *li);
 void litest_wait_for_event_of_type(struct libinput *li, ...);
 void litest_drain_events(struct libinput *li);
 void litest_assert_empty_queue(struct libinput *li);
+struct libinput_event_pointer * litest_is_button_event(
+		       struct libinput_event *event,
+		       int button,
+		       enum libinput_button_state state);
 void litest_assert_button_event(struct libinput *li,
 				unsigned int button,
 				enum libinput_button_state state);
@@ -178,8 +196,12 @@ struct libevdev_uinput * litest_create_uinput_abs_device(const char *name,
 							 ...);
 
 void litest_timeout_tap(void);
+void litest_timeout_tapndrag(void);
 void litest_timeout_softbuttons(void);
 void litest_timeout_buttonscroll(void);
+void litest_timeout_edgescroll(void);
+void litest_timeout_finger_switch(void);
+void litest_timeout_middlebutton(void);
 
 void litest_push_event_frame(struct litest_device *dev);
 void litest_pop_event_frame(struct litest_device *dev);

@@ -80,14 +80,14 @@ button_event_to_str(enum button_event event) {
 static inline bool
 is_inside_bottom_button_area(struct tp_dispatch *tp, struct tp_touch *t)
 {
-	return t->y >= tp->buttons.bottom_area.top_edge;
+	return t->point.y >= tp->buttons.bottom_area.top_edge;
 }
 
 static inline bool
 is_inside_bottom_right_area(struct tp_dispatch *tp, struct tp_touch *t)
 {
 	return is_inside_bottom_button_area(tp, t) &&
-	       t->x > tp->buttons.bottom_area.rightbutton_left_edge;
+	       t->point.x > tp->buttons.bottom_area.rightbutton_left_edge;
 }
 
 static inline bool
@@ -100,29 +100,29 @@ is_inside_bottom_left_area(struct tp_dispatch *tp, struct tp_touch *t)
 static inline bool
 is_inside_top_button_area(struct tp_dispatch *tp, struct tp_touch *t)
 {
-	return t->y <= tp->buttons.top_area.bottom_edge;
+	return t->point.y <= tp->buttons.top_area.bottom_edge;
 }
 
 static inline bool
 is_inside_top_right_area(struct tp_dispatch *tp, struct tp_touch *t)
 {
 	return is_inside_top_button_area(tp, t) &&
-	       t->x > tp->buttons.top_area.rightbutton_left_edge;
+	       t->point.x > tp->buttons.top_area.rightbutton_left_edge;
 }
 
 static inline bool
 is_inside_top_left_area(struct tp_dispatch *tp, struct tp_touch *t)
 {
 	return is_inside_top_button_area(tp, t) &&
-	       t->x < tp->buttons.top_area.leftbutton_right_edge;
+	       t->point.x < tp->buttons.top_area.leftbutton_right_edge;
 }
 
 static inline bool
 is_inside_top_middle_area(struct tp_dispatch *tp, struct tp_touch *t)
 {
 	return is_inside_top_button_area(tp, t) &&
-	       t->x >= tp->buttons.top_area.leftbutton_right_edge &&
-	       t->x <= tp->buttons.top_area.rightbutton_left_edge;
+	       t->point.x >= tp->buttons.top_area.leftbutton_right_edge &&
+	       t->point.x <= tp->buttons.top_area.rightbutton_left_edge;
 }
 
 static void
@@ -144,19 +144,21 @@ tp_button_set_leave_timer(struct tp_dispatch *tp, struct tp_touch *t)
  * as described in the state machine diagram.
  */
 static void
-tp_button_set_state(struct tp_dispatch *tp, struct tp_touch *t,
-		    enum button_state new_state, enum button_event event)
+tp_button_set_state(struct tp_dispatch *tp,
+		    struct tp_touch *t,
+		    enum button_state new_state,
+		    enum button_event event)
 {
 	libinput_timer_cancel(&t->button.timer);
 
 	t->button.state = new_state;
+
 	switch (t->button.state) {
 	case BUTTON_STATE_NONE:
 		t->button.curr = 0;
 		break;
 	case BUTTON_STATE_AREA:
 		t->button.curr = BUTTON_EVENT_IN_AREA;
-		tp_set_pointer(tp, t);
 		break;
 	case BUTTON_STATE_BOTTOM:
 		t->button.curr = event;
@@ -236,7 +238,9 @@ tp_button_bottom_handle_event(struct tp_dispatch *tp,
 	case BUTTON_EVENT_IN_BOTTOM_R:
 	case BUTTON_EVENT_IN_BOTTOM_L:
 		if (event != t->button.curr)
-			tp_button_set_state(tp, t, BUTTON_STATE_BOTTOM,
+			tp_button_set_state(tp,
+					    t,
+					    BUTTON_STATE_BOTTOM,
 					    event);
 		break;
 	case BUTTON_EVENT_IN_TOP_R:
@@ -257,8 +261,8 @@ tp_button_bottom_handle_event(struct tp_dispatch *tp,
 
 static void
 tp_button_top_handle_event(struct tp_dispatch *tp,
-			    struct tp_touch *t,
-			    enum button_event event)
+			   struct tp_touch *t,
+			   enum button_event event)
 {
 	switch (event) {
 	case BUTTON_EVENT_IN_BOTTOM_R:
@@ -269,7 +273,9 @@ tp_button_top_handle_event(struct tp_dispatch *tp,
 	case BUTTON_EVENT_IN_TOP_M:
 	case BUTTON_EVENT_IN_TOP_L:
 		if (event != t->button.curr)
-			tp_button_set_state(tp, t, BUTTON_STATE_TOP_NEW,
+			tp_button_set_state(tp,
+					    t,
+					    BUTTON_STATE_TOP_NEW,
 					    event);
 		break;
 	case BUTTON_EVENT_IN_AREA:
@@ -287,8 +293,8 @@ tp_button_top_handle_event(struct tp_dispatch *tp,
 
 static void
 tp_button_top_new_handle_event(struct tp_dispatch *tp,
-				struct tp_touch *t,
-				enum button_event event)
+			       struct tp_touch *t,
+			       enum button_event event)
 {
 	switch(event) {
 	case BUTTON_EVENT_IN_BOTTOM_R:
@@ -299,7 +305,9 @@ tp_button_top_new_handle_event(struct tp_dispatch *tp,
 	case BUTTON_EVENT_IN_TOP_M:
 	case BUTTON_EVENT_IN_TOP_L:
 		if (event != t->button.curr)
-			tp_button_set_state(tp, t, BUTTON_STATE_TOP_NEW,
+			tp_button_set_state(tp,
+					    t,
+					    BUTTON_STATE_TOP_NEW,
 					    event);
 		break;
 	case BUTTON_EVENT_IN_AREA:
@@ -321,18 +329,22 @@ tp_button_top_new_handle_event(struct tp_dispatch *tp,
 
 static void
 tp_button_top_to_ignore_handle_event(struct tp_dispatch *tp,
-				      struct tp_touch *t,
-				      enum button_event event)
+				     struct tp_touch *t,
+				     enum button_event event)
 {
 	switch(event) {
 	case BUTTON_EVENT_IN_TOP_R:
 	case BUTTON_EVENT_IN_TOP_M:
 	case BUTTON_EVENT_IN_TOP_L:
 		if (event == t->button.curr)
-			tp_button_set_state(tp, t, BUTTON_STATE_TOP,
+			tp_button_set_state(tp,
+					    t,
+					    BUTTON_STATE_TOP,
 					    event);
 		else
-			tp_button_set_state(tp, t, BUTTON_STATE_TOP_NEW,
+			tp_button_set_state(tp,
+					    t,
+					    BUTTON_STATE_TOP_NEW,
 					    event);
 		break;
 	case BUTTON_EVENT_IN_BOTTOM_R:
@@ -353,8 +365,8 @@ tp_button_top_to_ignore_handle_event(struct tp_dispatch *tp,
 
 static void
 tp_button_ignore_handle_event(struct tp_dispatch *tp,
-			    struct tp_touch *t,
-			    enum button_event event)
+			      struct tp_touch *t,
+			      enum button_event event)
 {
 	switch (event) {
 	case BUTTON_EVENT_IN_BOTTOM_R:
@@ -427,18 +439,22 @@ tp_button_handle_state(struct tp_dispatch *tp, uint64_t time)
 		if (t->state == TOUCH_END) {
 			tp_button_handle_event(tp, t, BUTTON_EVENT_UP, time);
 		} else if (t->dirty) {
+			enum button_event event;
+
 			if (is_inside_bottom_right_area(tp, t))
-				tp_button_handle_event(tp, t, BUTTON_EVENT_IN_BOTTOM_R, time);
+				event = BUTTON_EVENT_IN_BOTTOM_R;
 			else if (is_inside_bottom_left_area(tp, t))
-				tp_button_handle_event(tp, t, BUTTON_EVENT_IN_BOTTOM_L, time);
+				event = BUTTON_EVENT_IN_BOTTOM_L;
 			else if (is_inside_top_right_area(tp, t))
-				tp_button_handle_event(tp, t, BUTTON_EVENT_IN_TOP_R, time);
+				event = BUTTON_EVENT_IN_TOP_R;
 			else if (is_inside_top_middle_area(tp, t))
-				tp_button_handle_event(tp, t, BUTTON_EVENT_IN_TOP_M, time);
+				event = BUTTON_EVENT_IN_TOP_M;
 			else if (is_inside_top_left_area(tp, t))
-				tp_button_handle_event(tp, t, BUTTON_EVENT_IN_TOP_L, time);
+				event = BUTTON_EVENT_IN_TOP_L;
 			else
-				tp_button_handle_event(tp, t, BUTTON_EVENT_IN_AREA, time);
+				event = BUTTON_EVENT_IN_AREA;
+
+			tp_button_handle_event(tp, t, event, time);
 		}
 		if (tp->queued & TOUCHPAD_EVENT_BUTTON_RELEASE)
 			tp_button_handle_event(tp, t, BUTTON_EVENT_RELEASE, time);
@@ -514,7 +530,7 @@ tp_init_softbuttons(struct tp_dispatch *tp,
 
 	/* button height: 10mm or 15% of the touchpad height,
 	   whichever is smaller */
-	if (yres > 1 && (height * 0.15/yres) > 10) {
+	if (!device->abs.fake_resolution && (height * 0.15/yres) > 10) {
 		tp->buttons.bottom_area.top_edge =
 		absinfo_y->maximum - 10 * yres;
 	} else {
@@ -551,7 +567,7 @@ tp_init_top_softbuttons(struct tp_dispatch *tp,
 		double topsize_mm = 10 * topbutton_size_mult;
 		double topsize_pct = .15 * topbutton_size_mult;
 
-		if (yres > 1) {
+		if (!device->abs.fake_resolution) {
 			tp->buttons.top_area.bottom_edge =
 			yoffset + topsize_mm * yres;
 		} else {
@@ -630,12 +646,25 @@ tp_button_config_click_get_method(struct libinput_device *device)
 static enum libinput_config_click_method
 tp_click_get_default_method(struct tp_dispatch *tp)
 {
+	struct evdev_device *device = tp->device;
+
 	if (!tp->buttons.is_clickpad)
 		return LIBINPUT_CONFIG_CLICK_METHOD_NONE;
 	else if (libevdev_get_id_vendor(tp->device->evdev) == VENDOR_ID_APPLE)
 		return LIBINPUT_CONFIG_CLICK_METHOD_CLICKFINGER;
-	else
-		return LIBINPUT_CONFIG_CLICK_METHOD_BUTTON_AREAS;
+
+	switch (device->model) {
+	case EVDEV_MODEL_CHROMEBOOK:
+	case EVDEV_MODEL_SYSTEM76_BONOBO:
+	case EVDEV_MODEL_SYSTEM76_CLEVO:
+	case EVDEV_MODEL_SYSTEM76_GALAGO:
+	case EVDEV_MODEL_SYSTEM76_KUDU:
+		return LIBINPUT_CONFIG_CLICK_METHOD_CLICKFINGER;
+	default:
+		break;
+	}
+
+	return LIBINPUT_CONFIG_CLICK_METHOD_BUTTON_AREAS;
 }
 
 static enum libinput_config_click_method
@@ -668,8 +697,8 @@ tp_init_buttons(struct tp_dispatch *tp,
 			log_bug_kernel(libinput,
 				       "%s: clickpad advertising right button\n",
 				       device->devname);
-	} else {
-		if (!tp->buttons.is_clickpad)
+	} else if (libevdev_has_event_code(device->evdev, EV_KEY, BTN_LEFT) &&
+		   !tp->buttons.is_clickpad) {
 			log_bug_kernel(libinput,
 				       "%s: non clickpad without right button?\n",
 				       device->devname);
@@ -694,6 +723,10 @@ tp_init_buttons(struct tp_dispatch *tp,
 	tp_switch_click_method(tp);
 
 	tp_init_top_softbuttons(tp, device, 1.0);
+
+	if (!tp->buttons.is_clickpad &&
+	    !libevdev_has_event_code(device->evdev, EV_KEY, BTN_MIDDLE))
+		evdev_init_middlebutton(tp->device, true, false);
 
 	tp_for_each_touch(tp, t) {
 		t->button.state = BUTTON_STATE_NONE;
@@ -735,10 +768,10 @@ tp_post_physical_buttons(struct tp_dispatch *tp, uint64_t time)
 				state = LIBINPUT_BUTTON_STATE_RELEASED;
 
 			b = evdev_to_left_handed(tp->device, button);
-			evdev_pointer_notify_button(tp->device,
-						    time,
-						    b,
-						    state);
+			evdev_pointer_notify_physical_button(tp->device,
+							     time,
+							     b,
+							     state);
 		}
 
 		button++;
@@ -766,8 +799,10 @@ tp_notify_clickpadbutton(struct tp_dispatch *tp,
 		event.type = EV_KEY;
 		event.code = button;
 		event.value = (state == LIBINPUT_BUTTON_STATE_PRESSED) ? 1 : 0;
-		dispatch->interface->process(dispatch, tp->buttons.trackpoint,
-					     &event, time);
+		dispatch->interface->process(dispatch,
+					     tp->buttons.trackpoint,
+					     &event,
+					     time);
 		return 1;
 	}
 
@@ -780,8 +815,9 @@ tp_notify_clickpadbutton(struct tp_dispatch *tp,
 	 * by the softbutton code with one based on the number of fingers.
 	 */
 	if (tp->buttons.click_method == LIBINPUT_CONFIG_CLICK_METHOD_CLICKFINGER &&
-			state == LIBINPUT_BUTTON_STATE_PRESSED) {
+	    state == LIBINPUT_BUTTON_STATE_PRESSED) {
 		switch (tp->nfingers_down) {
+		case 0:
 		case 1: button = BTN_LEFT; break;
 		case 2: button = BTN_RIGHT; break;
 		case 3: button = BTN_MIDDLE; break;
@@ -815,46 +851,48 @@ tp_post_clickpadbutton_buttons(struct tp_dispatch *tp, uint64_t time)
 
 	if (current) {
 		struct tp_touch *t;
+		uint32_t area = 0;
 
 		tp_for_each_touch(tp, t) {
 			switch (t->button.curr) {
 			case BUTTON_EVENT_IN_AREA:
-				button |= AREA;
+				area |= AREA;
 				break;
 			case BUTTON_EVENT_IN_TOP_L:
 				is_top = 1;
 				/* fallthrough */
 			case BUTTON_EVENT_IN_BOTTOM_L:
-				button |= LEFT;
+				area |= LEFT;
 				break;
 			case BUTTON_EVENT_IN_TOP_M:
 				is_top = 1;
-				button |= MIDDLE;
+				area |= MIDDLE;
 				break;
 			case BUTTON_EVENT_IN_TOP_R:
 				is_top = 1;
 				/* fallthrough */
 			case BUTTON_EVENT_IN_BOTTOM_R:
-				button |= RIGHT;
+				area |= RIGHT;
 				break;
 			default:
 				break;
 			}
 		}
 
-		if (button == 0) {
+		if (area == 0 &&
+		    tp->buttons.click_method != LIBINPUT_CONFIG_CLICK_METHOD_CLICKFINGER) {
 			/* No touches, wait for a touch before processing */
 			tp->buttons.click_pending = true;
 			return 0;
 		}
 
-		if ((button & MIDDLE) || ((button & LEFT) && (button & RIGHT)))
+		if ((area & MIDDLE) || ((area & LEFT) && (area & RIGHT)))
 			button = evdev_to_left_handed(tp->device, BTN_MIDDLE);
-		else if (button & RIGHT)
+		else if (area & RIGHT)
 			button = evdev_to_left_handed(tp->device, BTN_RIGHT);
-		else if (button & LEFT)
+		else if (area & LEFT)
 			button = evdev_to_left_handed(tp->device, BTN_LEFT);
-		else /* main area is always BTN_LEFT */
+		else /* main or no area (for clickfinger) is always BTN_LEFT */
 			button = BTN_LEFT;
 
 		tp->buttons.active = button;
@@ -871,8 +909,11 @@ tp_post_clickpadbutton_buttons(struct tp_dispatch *tp, uint64_t time)
 	tp->buttons.click_pending = false;
 
 	if (button)
-		return tp_notify_clickpadbutton(tp, time, button, is_top, state);
-
+		return tp_notify_clickpadbutton(tp,
+						time,
+						button,
+						is_top,
+						state);
 	return 0;
 }
 
@@ -894,5 +935,6 @@ tp_button_touch_active(struct tp_dispatch *tp, struct tp_touch *t)
 bool
 tp_button_is_inside_softbutton_area(struct tp_dispatch *tp, struct tp_touch *t)
 {
-	return is_inside_top_button_area(tp, t) || is_inside_bottom_button_area(tp, t);
+	return is_inside_top_button_area(tp, t) ||
+	       is_inside_bottom_button_area(tp, t);
 }

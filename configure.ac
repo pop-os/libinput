@@ -1,7 +1,7 @@
 AC_PREREQ([2.64])
 
 m4_define([libinput_major_version], [0])
-m4_define([libinput_minor_version], [10])
+m4_define([libinput_minor_version], [15])
 m4_define([libinput_micro_version], [0])
 m4_define([libinput_version],
           [libinput_major_version.libinput_minor_version.libinput_micro_version])
@@ -25,12 +25,13 @@ AM_INIT_AUTOMAKE([1.11 foreign no-dist-gzip dist-xz])
 # Before making a release, the LIBINPUT_LT_VERSION string should be
 # modified.
 # The string is of the form C:R:A.
-# - If interfaces have been changed or added, but binary compatibility has
-#   been preserved, change to C+1:0:A+1
-# - If binary compatibility has been broken (eg removed or changed interfaces)
-#   change to C+1:0:0
-# - If the interface is the same as the previous version, change to C:R+1:A
-LIBINPUT_LT_VERSION=8:1:1
+# a) If binary compatibility has been broken (eg removed or changed interfaces)
+#    change to C+1:0:0. DO NOT DO THIS! Use symbol versioning instead and
+#    do b) instead.
+# b) If interfaces have been changed or added, but binary compatibility has
+#    been preserved, change to C+1:0:A+1
+# c) If the interface is the same as the previous version, change to C:R+1:A
+LIBINPUT_LT_VERSION=12:0:2
 AC_SUBST(LIBINPUT_LT_VERSION)
 
 AM_SILENT_RULES([yes])
@@ -68,6 +69,19 @@ if test "x$GCC" = "xyes"; then
 fi
 AC_SUBST(GCC_CFLAGS)
 AC_SUBST(GCC_CXXFLAGS)
+
+udev_dir_default="$libdir/udev"
+AC_ARG_WITH(udev-dir,
+            AS_HELP_STRING([--with-udev-dir=DIR],
+                           [udev base directory [[default=$udev_dir_default]]]),
+            [],
+            [with_udev_dir="yes"])
+AS_CASE($with_udev_dir,
+	[no|""], [AC_MSG_ERROR([You must define a udev base directory])],
+	[yes], [udevdir="$udev_dir_default"],
+	[udevdir="$with_udev_dir"])
+UDEV_DIR=${udevdir}
+AC_SUBST(UDEV_DIR)
 
 AC_ARG_ENABLE([documentation],
 	      [AC_HELP_STRING([--enable-documentation],
@@ -163,11 +177,15 @@ AC_CONFIG_FILES([Makefile
 		 src/libinput.pc
 		 src/libinput-version.h
 		 test/Makefile
-		 tools/Makefile])
+		 tools/Makefile
+		 udev/Makefile])
+AC_CONFIG_FILES([test/symbols-leak-test],
+		[chmod +x test/symbols-leak-test])
 AC_OUTPUT
 
 AC_MSG_RESULT([
 	Prefix			${prefix}
+	udev base dir		${UDEV_DIR}
 
 	Build documentation	${build_documentation}
 	Build tests		${build_tests}

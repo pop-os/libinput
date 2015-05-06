@@ -96,6 +96,13 @@ extern struct litest_test_device litest_xen_virtual_pointer_device;
 extern struct litest_test_device litest_vmware_virtmouse_device;
 extern struct litest_test_device litest_synaptics_hover_device;
 extern struct litest_test_device litest_synaptics_carbon3rd_device;
+extern struct litest_test_device litest_protocol_a_screen;
+extern struct litest_test_device litest_wacom_finger_device;
+extern struct litest_test_device litest_keyboard_blackwidow_device;
+extern struct litest_test_device litest_wheel_only_device;
+extern struct litest_test_device litest_mouse_roccat_device;
+extern struct litest_test_device litest_ms_surface_cover_device;
+extern struct litest_test_device litest_logitech_trackball_device;
 
 struct litest_test_device* devices[] = {
 	&litest_synaptics_clickpad_device,
@@ -113,6 +120,13 @@ struct litest_test_device* devices[] = {
 	&litest_vmware_virtmouse_device,
 	&litest_synaptics_hover_device,
 	&litest_synaptics_carbon3rd_device,
+	&litest_protocol_a_screen,
+	&litest_wacom_finger_device,
+	&litest_keyboard_blackwidow_device,
+	&litest_wheel_only_device,
+	&litest_mouse_roccat_device,
+	&litest_ms_surface_cover_device,
+	&litest_logitech_trackball_device,
 	NULL,
 };
 
@@ -184,6 +198,7 @@ litest_add_tcase_for_device(struct suite *suite,
 	}
 
 	t = zalloc(sizeof(*t));
+	assert(t != NULL);
 	t->name = strdup(test_name);
 	t->tc = tcase_create(test_name);
 	list_insert(&suite->tests, &t->node);
@@ -215,6 +230,7 @@ litest_add_tcase_no_device(struct suite *suite, void *func)
 	}
 
 	t = zalloc(sizeof(*t));
+	assert(t != NULL);
 	t->name = strdup(test_name);
 	t->tc = tcase_create(test_name);
 	list_insert(&suite->tests, &t->node);
@@ -270,6 +286,7 @@ get_suite(const char *name)
 	}
 
 	s = zalloc(sizeof(*s));
+	assert(s != NULL);
 	s->name = strdup(name);
 	s->suite = suite_create(s->name);
 
@@ -365,6 +382,8 @@ litest_log_handler(struct libinput *libinput,
 	case LIBINPUT_LOG_PRIORITY_INFO: priority = "info"; break;
 	case LIBINPUT_LOG_PRIORITY_ERROR: priority = "error"; break;
 	case LIBINPUT_LOG_PRIORITY_DEBUG: priority = "debug"; break;
+	default:
+		  abort();
 	}
 
 	fprintf(stderr, "litest %s: ", priority);
@@ -633,6 +652,18 @@ litest_create_context(void)
 	return libinput;
 }
 
+void
+litest_disable_log_handler(struct libinput *libinput)
+{
+	libinput_log_set_handler(libinput, NULL);
+}
+
+void
+litest_restore_log_handler(struct libinput *libinput)
+{
+	libinput_log_set_handler(libinput, litest_log_handler);
+}
+
 struct litest_device *
 litest_add_device_with_overrides(struct libinput *libinput,
 				 enum litest_device_type which,
@@ -808,7 +839,8 @@ litest_touch_down(struct litest_device *d, unsigned int slot,
 {
 	struct input_event *ev;
 
-	assert(++d->ntouches_down > 0);
+	assert(d->ntouches_down >= 0);
+	d->ntouches_down++;
 
 	send_btntool(d);
 
@@ -836,7 +868,8 @@ litest_touch_up(struct litest_device *d, unsigned int slot)
 		{ .type = -1, .code = -1 }
 	};
 
-	assert(--d->ntouches_down >= 0);
+	assert(d->ntouches_down > 0);
+	d->ntouches_down--;
 
 	send_btntool(d);
 
@@ -892,6 +925,28 @@ litest_touch_move_to(struct litest_device *d,
 		}
 	}
 	litest_touch_move(d, slot, x_to, y_to);
+}
+
+void
+litest_touch_move_two_touches(struct litest_device *d,
+			      double x0, double y0,
+			      double x1, double y1,
+			      double dx, double dy,
+			      int steps, int sleep_ms)
+{
+	for (int i = 0; i < steps - 1; i++) {
+		litest_touch_move(d, 0, x0 + dx / steps * i,
+					y0 + dy / steps * i);
+		litest_touch_move(d, 1, x1 + dx / steps * i,
+					y1 + dy / steps * i);
+		if (sleep_ms) {
+			libinput_dispatch(d->libinput);
+			msleep(sleep_ms);
+			libinput_dispatch(d->libinput);
+		}
+	}
+	litest_touch_move(d, 0, x0 + dx, y0 + dy);
+	litest_touch_move(d, 1, x1 + dx, y1 + dy);
 }
 
 void
@@ -1272,15 +1327,12 @@ litest_create_uinput_device(const char *name, struct input_id *id, ...)
 	return uinput;
 }
 
-void
-litest_assert_button_event(struct libinput *li, unsigned int button,
-			   enum libinput_button_state state)
+struct libinput_event_pointer*
+litest_is_button_event(struct libinput_event *event,
+		       int button,
+		       enum libinput_button_state state)
 {
-	struct libinput_event *event;
 	struct libinput_event_pointer *ptrev;
-
-	litest_wait_for_event(li);
-	event = libinput_get_event(li);
 
 	ck_assert(event != NULL);
 	ck_assert_int_eq(libinput_event_get_type(event),
@@ -1290,6 +1342,21 @@ litest_assert_button_event(struct libinput *li, unsigned int button,
 			 button);
 	ck_assert_int_eq(libinput_event_pointer_get_button_state(ptrev),
 			 state);
+
+	return ptrev;
+}
+
+void
+litest_assert_button_event(struct libinput *li, unsigned int button,
+			   enum libinput_button_state state)
+{
+	struct libinput_event *event;
+
+	litest_wait_for_event(li);
+	event = libinput_get_event(li);
+
+	litest_is_button_event(event, button, state);
+
 	libinput_event_destroy(event);
 }
 
@@ -1364,6 +1431,12 @@ litest_timeout_tap(void)
 }
 
 void
+litest_timeout_tapndrag(void)
+{
+	msleep(520);
+}
+
+void
 litest_timeout_softbuttons(void)
 {
 	msleep(300);
@@ -1373,6 +1446,24 @@ void
 litest_timeout_buttonscroll(void)
 {
 	msleep(300);
+}
+
+void
+litest_timeout_finger_switch(void)
+{
+	msleep(120);
+}
+
+void
+litest_timeout_edgescroll(void)
+{
+	msleep(300);
+}
+
+void
+litest_timeout_middlebutton(void)
+{
+	msleep(70);
 }
 
 void

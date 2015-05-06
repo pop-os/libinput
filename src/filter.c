@@ -33,12 +33,12 @@
 #include "libinput-util.h"
 #include "filter-private.h"
 
-void
+struct normalized_coords
 filter_dispatch(struct motion_filter *filter,
-		struct motion_params *motion,
+		const struct normalized_coords *unaccelerated,
 		void *data, uint64_t time)
 {
-	filter->interface->filter(filter, motion, data, time);
+	return filter->interface->filter(filter, unaccelerated, data, time);
 }
 
 void
@@ -80,8 +80,7 @@ filter_get_speed(struct motion_filter *filter)
 #define NUM_POINTER_TRACKERS	16
 
 struct pointer_tracker {
-	double dx;	/* delta to most recent event, in device units */
-	double dy;	/* delta to most recent event, in device units */
+	struct normalized_coords delta; /* delta to most recent event */
 	uint64_t time;  /* ms */
 	int dir;
 };
@@ -94,8 +93,7 @@ struct pointer_accelerator {
 
 	double velocity;	/* units/ms */
 	double last_velocity;	/* units/ms */
-	int last_dx;		/* device units */
-	int last_dy;		/* device units */
+	struct normalized_coords last;
 
 	struct pointer_tracker *trackers;
 	int cur_tracker;
@@ -107,24 +105,24 @@ struct pointer_accelerator {
 
 static void
 feed_trackers(struct pointer_accelerator *accel,
-	      double dx, double dy,
+	      const struct normalized_coords *delta,
 	      uint64_t time)
 {
 	int i, current;
 	struct pointer_tracker *trackers = accel->trackers;
 
 	for (i = 0; i < NUM_POINTER_TRACKERS; i++) {
-		trackers[i].dx += dx;
-		trackers[i].dy += dy;
+		trackers[i].delta.x += delta->x;
+		trackers[i].delta.y += delta->y;
 	}
 
 	current = (accel->cur_tracker + 1) % NUM_POINTER_TRACKERS;
 	accel->cur_tracker = current;
 
-	trackers[current].dx = 0.0;
-	trackers[current].dy = 0.0;
+	trackers[current].delta.x = 0.0;
+	trackers[current].delta.y = 0.0;
 	trackers[current].time = time;
-	trackers[current].dir = vector_get_direction(dx, dy);
+	trackers[current].dir = normalized_get_direction(*delta);
 }
 
 static struct pointer_tracker *
@@ -139,14 +137,9 @@ tracker_by_offset(struct pointer_accelerator *accel, unsigned int offset)
 static double
 calculate_tracker_velocity(struct pointer_tracker *tracker, uint64_t time)
 {
-	double dx;
-	double dy;
-	double distance;
+	double tdelta = time - tracker->time + 1;
 
-	dx = tracker->dx;
-	dy = tracker->dy;
-	distance = sqrt(dx*dx + dy*dy);
-	return distance / (double)(time - tracker->time); /* units/ms */
+	return normalized_length(tracker->delta) / tdelta; /* units/ms */
 }
 
 static double
@@ -220,27 +213,29 @@ calculate_acceleration(struct pointer_accelerator *accel,
 	return factor; /* unitless factor */
 }
 
-static void
+static struct normalized_coords
 accelerator_filter(struct motion_filter *filter,
-		   struct motion_params *motion,
+		   const struct normalized_coords *unaccelerated,
 		   void *data, uint64_t time)
 {
 	struct pointer_accelerator *accel =
 		(struct pointer_accelerator *) filter;
 	double velocity; /* units/ms */
 	double accel_value; /* unitless factor */
+	struct normalized_coords accelerated;
 
-	feed_trackers(accel, motion->dx, motion->dy, time);
+	feed_trackers(accel, unaccelerated, time);
 	velocity = calculate_velocity(accel, time);
 	accel_value = calculate_acceleration(accel, data, velocity, time);
 
-	motion->dx = accel_value * motion->dx;
-	motion->dy = accel_value * motion->dy;
+	accelerated.x = accel_value * unaccelerated->x;
+	accelerated.y = accel_value * unaccelerated->y;
 
-	accel->last_dx = motion->dx;
-	accel->last_dy = motion->dy;
+	accel->last = *unaccelerated;
 
 	accel->last_velocity = velocity;
+
+	return accelerated;
 }
 
 static void
@@ -263,13 +258,15 @@ accelerator_set_speed(struct motion_filter *filter,
 	assert(speed >= -1.0 && speed <= 1.0);
 
 	/* delay when accel kicks in */
-	accel_filter->threshold = DEFAULT_THRESHOLD - speed/6.0;
+	accel_filter->threshold = DEFAULT_THRESHOLD - speed / 4.0;
+	if (accel_filter->threshold < 0.2)
+		accel_filter->threshold = 0.2;
 
 	/* adjust max accel factor */
-	accel_filter->accel = DEFAULT_ACCELERATION + speed;
+	accel_filter->accel = DEFAULT_ACCELERATION + speed * 1.5;
 
 	/* higher speed -> faster to reach max */
-	accel_filter->incline = DEFAULT_INCLINE + speed/2.0;
+	accel_filter->incline = DEFAULT_INCLINE + speed * 0.75;
 
 	filter->speed = speed;
 	return true;
@@ -294,8 +291,8 @@ create_pointer_accelerator_filter(accel_profile_func_t profile)
 
 	filter->profile = profile;
 	filter->last_velocity = 0.0;
-	filter->last_dx = 0;
-	filter->last_dy = 0;
+	filter->last.x = 0;
+	filter->last.y = 0;
 
 	filter->trackers =
 		calloc(NUM_POINTER_TRACKERS, sizeof *filter->trackers);
@@ -326,4 +323,62 @@ pointer_accel_profile_linear(struct motion_filter *filter,
 	s2 = 1 + (speed_in - threshold) * incline;
 
 	return min(max_accel, s2 > 1 ? s2 : s1);
+}
+
+double
+touchpad_accel_profile_linear(struct motion_filter *filter,
+                              void *data,
+                              double speed_in,
+                              uint64_t time)
+{
+	/* Once normalized, touchpads see the same
+	   acceleration as mice. that is technically correct but
+	   subjectively wrong, we expect a touchpad to be a lot
+	   slower than a mouse. Apply a magic factor here and proceed
+	   as normal.  */
+	const double TP_MAGIC_SLOWDOWN = 0.4;
+	double speed_out;
+
+	speed_in *= TP_MAGIC_SLOWDOWN;
+
+	speed_out = pointer_accel_profile_linear(filter, data, speed_in, time);
+
+	return speed_out * TP_MAGIC_SLOWDOWN;
+}
+
+double
+touchpad_lenovo_x230_accel_profile(struct motion_filter *filter,
+				      void *data,
+				      double speed_in,
+				      uint64_t time)
+{
+	/* Keep the magic factor from touchpad_accel_profile_linear.  */
+	const double TP_MAGIC_SLOWDOWN = 0.4;
+
+	/* Those touchpads presents an actual lower resolution that what is
+	 * advertised. We see some jumps from the cursor due to the big steps
+	 * in X and Y when we are receiving data.
+	 * Apply a factor to minimize those jumps at low speed, and try
+	 * keeping the same feeling as regular touchpads at high speed.
+	 * It still feels slower but it is usable at least */
+	const double TP_MAGIC_LOW_RES_FACTOR = 4.0;
+	double speed_out;
+	struct pointer_accelerator *accel_filter =
+		(struct pointer_accelerator *)filter;
+
+	double s1, s2;
+	const double max_accel = accel_filter->accel *
+				  TP_MAGIC_LOW_RES_FACTOR; /* unitless factor */
+	const double threshold = accel_filter->threshold /
+				  TP_MAGIC_LOW_RES_FACTOR; /* units/ms */
+	const double incline = accel_filter->incline * TP_MAGIC_LOW_RES_FACTOR;
+
+	speed_in *= TP_MAGIC_SLOWDOWN / TP_MAGIC_LOW_RES_FACTOR;
+
+	s1 = min(1, speed_in * 5);
+	s2 = 1 + (speed_in - threshold) * incline;
+
+	speed_out = min(max_accel, s2 > 1 ? s2 : s1);
+
+	return speed_out * TP_MAGIC_SLOWDOWN / TP_MAGIC_LOW_RES_FACTOR;
 }

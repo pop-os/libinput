@@ -28,9 +28,10 @@
 #include "filter.h"
 
 struct motion_filter_interface {
-	void (*filter)(struct motion_filter *filter,
-		       struct motion_params *motion,
-		       void *data, uint64_t time);
+	struct normalized_coords (*filter)(
+			   struct motion_filter *filter,
+			   const struct normalized_coords *unaccelerated,
+			   void *data, uint64_t time);
 	void (*destroy)(struct motion_filter *filter);
 	bool (*set_speed)(struct motion_filter *filter,
 			  double speed);
@@ -40,6 +41,5 @@ struct motion_filter {
 	double speed; /* normalized [-1, 1] */
 	struct motion_filter_interface *interface;
 };
-
 
 #endif

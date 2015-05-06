@@ -64,14 +64,19 @@ START_TEST(device_sendevents_config_touchpad)
 {
 	struct litest_device *dev = litest_current_device();
 	struct libinput_device *device;
-	uint32_t modes;
+	uint32_t modes, expected;
+
+	expected = LIBINPUT_CONFIG_SEND_EVENTS_DISABLED;
+
+	/* The wacom devices in the test suite are external */
+	if (libevdev_get_id_vendor(dev->evdev) != 0x56a) /* wacom */
+		expected |=
+			LIBINPUT_CONFIG_SEND_EVENTS_DISABLED_ON_EXTERNAL_MOUSE;
 
 	device = dev->libinput_device;
 
 	modes = libinput_device_config_send_events_get_modes(device);
-	ck_assert_int_eq(modes,
-			 LIBINPUT_CONFIG_SEND_EVENTS_DISABLED_ON_EXTERNAL_MOUSE|
-			 LIBINPUT_CONFIG_SEND_EVENTS_DISABLED);
+	ck_assert_int_eq(modes, expected);
 }
 END_TEST
 
@@ -81,6 +86,10 @@ START_TEST(device_sendevents_config_touchpad_superset)
 	struct libinput_device *device;
 	enum libinput_config_status status;
 	uint32_t modes;
+
+	/* The wacom devices in the test suite are external */
+	if (libevdev_get_id_vendor(dev->evdev) == 0x56a) /* wacom */
+		return;
 
 	device = dev->libinput_device;
 
@@ -188,7 +197,6 @@ START_TEST(device_disable_touchpad)
 	litest_touch_down(dev, 0, 50, 50);
 	litest_touch_move_to(dev, 0, 50, 50, 90, 90, 10, 0);
 	litest_touch_up(dev, 0);
-
 
 	litest_assert_empty_queue(li);
 
@@ -519,7 +527,6 @@ START_TEST(device_disable_release_tap_n_drag)
 }
 END_TEST
 
-
 START_TEST(device_disable_release_softbutton)
 {
 	struct litest_device *dev = litest_current_device();
@@ -661,6 +668,314 @@ START_TEST(device_context)
 }
 END_TEST
 
+START_TEST(device_group_get)
+{
+	struct litest_device *dev = litest_current_device();
+	struct libinput_device_group *group;
+
+	int userdata = 10;
+
+	group = libinput_device_get_device_group(dev->libinput_device);
+	ck_assert_notnull(group);
+
+	libinput_device_group_ref(group);
+
+	libinput_device_group_set_user_data(group, &userdata);
+	ck_assert_ptr_eq(&userdata,
+			 libinput_device_group_get_user_data(group));
+
+	libinput_device_group_unref(group);
+}
+END_TEST
+
+START_TEST(device_group_ref)
+{
+	struct libinput *li = litest_create_context();
+	struct litest_device *dev = litest_add_device(li,
+						      LITEST_MOUSE);
+	struct libinput_device *device = dev->libinput_device;
+	struct libinput_device_group *group;
+
+	group = libinput_device_get_device_group(device);
+	ck_assert_notnull(group);
+	libinput_device_group_ref(group);
+
+	libinput_device_ref(device);
+	litest_drain_events(li);
+	litest_delete_device(dev);
+	litest_drain_events(li);
+
+	/* make sure the device is dead but the group is still around */
+	ck_assert(libinput_device_unref(device) == NULL);
+
+	libinput_device_group_ref(group);
+	ck_assert_notnull(libinput_device_group_unref(group));
+	ck_assert(libinput_device_group_unref(group) == NULL);
+
+	libinput_unref(li);
+}
+END_TEST
+
+START_TEST(abs_device_no_absx)
+{
+	struct libevdev_uinput *uinput;
+	struct libinput *li;
+	struct libinput_device *device;
+
+	uinput = litest_create_uinput_device("test device", NULL,
+					     EV_KEY, BTN_LEFT,
+					     EV_KEY, BTN_RIGHT,
+					     EV_ABS, ABS_Y,
+					     -1);
+	li = litest_create_context();
+	litest_disable_log_handler(li);
+	device = libinput_path_add_device(li,
+					  libevdev_uinput_get_devnode(uinput));
+	litest_restore_log_handler(li);
+	ck_assert(device == NULL);
+	libinput_unref(li);
+
+	libevdev_uinput_destroy(uinput);
+}
+END_TEST
+
+START_TEST(abs_device_no_absy)
+{
+	struct libevdev_uinput *uinput;
+	struct libinput *li;
+	struct libinput_device *device;
+
+	uinput = litest_create_uinput_device("test device", NULL,
+					     EV_KEY, BTN_LEFT,
+					     EV_KEY, BTN_RIGHT,
+					     EV_ABS, ABS_X,
+					     -1);
+	li = litest_create_context();
+	litest_disable_log_handler(li);
+	device = libinput_path_add_device(li,
+					  libevdev_uinput_get_devnode(uinput));
+	litest_restore_log_handler(li);
+	ck_assert(device == NULL);
+	libinput_unref(li);
+
+	libevdev_uinput_destroy(uinput);
+}
+END_TEST
+
+START_TEST(abs_mt_device_no_absy)
+{
+	struct libevdev_uinput *uinput;
+	struct libinput *li;
+	struct libinput_device *device;
+
+	uinput = litest_create_uinput_device("test device", NULL,
+					     EV_KEY, BTN_LEFT,
+					     EV_KEY, BTN_RIGHT,
+					     EV_ABS, ABS_X,
+					     EV_ABS, ABS_Y,
+					     EV_ABS, ABS_MT_SLOT,
+					     EV_ABS, ABS_MT_POSITION_X,
+					     -1);
+	li = litest_create_context();
+	litest_disable_log_handler(li);
+	device = libinput_path_add_device(li,
+					  libevdev_uinput_get_devnode(uinput));
+	litest_restore_log_handler(li);
+	ck_assert(device == NULL);
+	libinput_unref(li);
+
+	libevdev_uinput_destroy(uinput);
+}
+END_TEST
+
+START_TEST(abs_mt_device_no_absx)
+{
+	struct libevdev_uinput *uinput;
+	struct libinput *li;
+	struct libinput_device *device;
+
+	uinput = litest_create_uinput_device("test device", NULL,
+					     EV_KEY, BTN_LEFT,
+					     EV_KEY, BTN_RIGHT,
+					     EV_ABS, ABS_X,
+					     EV_ABS, ABS_Y,
+					     EV_ABS, ABS_MT_SLOT,
+					     EV_ABS, ABS_MT_POSITION_Y,
+					     -1);
+	li = litest_create_context();
+	litest_disable_log_handler(li);
+	device = libinput_path_add_device(li,
+					  libevdev_uinput_get_devnode(uinput));
+	litest_restore_log_handler(li);
+	ck_assert(device == NULL);
+	libinput_unref(li);
+
+	libevdev_uinput_destroy(uinput);
+}
+END_TEST
+
+static void
+assert_device_ignored(struct libinput *li, struct input_absinfo *absinfo)
+{
+	struct libevdev_uinput *uinput;
+	struct libinput_device *device;
+
+	uinput = litest_create_uinput_abs_device("test device", NULL,
+						 absinfo,
+						 EV_KEY, BTN_LEFT,
+						 EV_KEY, BTN_RIGHT,
+						 -1);
+	device = libinput_path_add_device(li,
+					  libevdev_uinput_get_devnode(uinput));
+	ck_assert(device == NULL);
+	libevdev_uinput_destroy(uinput);
+}
+
+START_TEST(abs_device_no_range_lo)
+{
+	struct libinput *li;
+	int code;
+	/* set x/y so libinput doesn't just reject for missing axes */
+	struct input_absinfo absinfo[] = {
+		{ ABS_X, 0, 10, 0, 0, 0 },
+		{ ABS_Y, 0, 10, 0, 0, 0 },
+		{ -1, 0, 0, 0, 0, 0 },
+		{ -1, -1, -1, -1, -1, -1 }
+	};
+
+	li = litest_create_context();
+	litest_disable_log_handler(li);
+
+	for (code = 0; code < ABS_MISC/2; code++) {
+		absinfo[2].value = code;
+		assert_device_ignored(li, absinfo);
+	}
+
+	litest_restore_log_handler(li);
+	libinput_unref(li);
+}
+END_TEST
+
+START_TEST(abs_device_no_range_hi)
+{
+	struct libinput *li;
+	int code;
+	/* set x/y so libinput doesn't just reject for missing axes */
+	struct input_absinfo absinfo[] = {
+		{ ABS_X, 0, 10, 0, 0, 0 },
+		{ ABS_Y, 0, 10, 0, 0, 0 },
+		{ -1, 0, 0, 0, 0, 0 },
+		{ -1, -1, -1, -1, -1, -1 }
+	};
+
+	li = litest_create_context();
+	litest_disable_log_handler(li);
+
+	for (code = ABS_MISC/2; code < ABS_MISC; code++) {
+		absinfo[2].value = code;
+		assert_device_ignored(li, absinfo);
+	}
+
+	litest_restore_log_handler(li);
+	libinput_unref(li);
+}
+END_TEST
+
+START_TEST(abs_mt_device_no_range)
+{
+	struct libinput *li;
+	int code;
+	/* set x/y so libinput doesn't just reject for missing axes */
+	struct input_absinfo absinfo[] = {
+		{ ABS_X, 0, 10, 0, 0, 0 },
+		{ ABS_Y, 0, 10, 0, 0, 0 },
+		{ ABS_MT_SLOT, 0, 10, 0, 0, 0 },
+		{ ABS_MT_TRACKING_ID, 0, 255, 0, 0, 0 },
+		{ ABS_MT_POSITION_X, 0, 10, 0, 0, 0 },
+		{ ABS_MT_POSITION_Y, 0, 10, 0, 0, 0 },
+		{ -1, 0, 0, 0, 0, 0 },
+		{ -1, -1, -1, -1, -1, -1 }
+	};
+
+	li = litest_create_context();
+	litest_disable_log_handler(li);
+
+	for (code = ABS_MT_SLOT + 1; code < ABS_CNT; code++) {
+		if (code == ABS_MT_TOOL_TYPE ||
+		    code == ABS_MT_TRACKING_ID) /* kernel overrides it */
+			continue;
+
+		absinfo[6].value = code;
+		assert_device_ignored(li, absinfo);
+	}
+
+	litest_restore_log_handler(li);
+	libinput_unref(li);
+}
+END_TEST
+
+START_TEST(abs_device_missing_res)
+{
+	struct libinput *li;
+	struct input_absinfo absinfo[] = {
+		{ ABS_X, 0, 10, 0, 0, 10 },
+		{ ABS_Y, 0, 10, 0, 0, 0 },
+		{ -1, -1, -1, -1, -1, -1 }
+	};
+
+	li = litest_create_context();
+	litest_disable_log_handler(li);
+
+	assert_device_ignored(li, absinfo);
+
+	absinfo[0].resolution = 0;
+	absinfo[1].resolution = 20;
+
+	assert_device_ignored(li, absinfo);
+
+	litest_restore_log_handler(li);
+	libinput_unref(li);
+}
+END_TEST
+
+START_TEST(abs_mt_device_missing_res)
+{
+	struct libinput *li;
+	struct input_absinfo absinfo[] = {
+		{ ABS_X, 0, 10, 0, 0, 10 },
+		{ ABS_Y, 0, 10, 0, 0, 10 },
+		{ ABS_MT_SLOT, 0, 2, 0, 0, 0 },
+		{ ABS_MT_TRACKING_ID, 0, 255, 0, 0, 0 },
+		{ ABS_MT_POSITION_X, 0, 10, 0, 0, 10 },
+		{ ABS_MT_POSITION_Y, 0, 10, 0, 0, 0 },
+		{ -1, -1, -1, -1, -1, -1 }
+	};
+
+	li = litest_create_context();
+	litest_disable_log_handler(li);
+	assert_device_ignored(li, absinfo);
+
+	absinfo[4].resolution = 0;
+	absinfo[5].resolution = 20;
+
+	assert_device_ignored(li, absinfo);
+
+	litest_restore_log_handler(li);
+	libinput_unref(li);
+
+}
+END_TEST
+
+START_TEST(device_wheel_only)
+{
+	struct litest_device *dev = litest_current_device();
+	struct libinput_device *device = dev->libinput_device;
+
+	ck_assert(libinput_device_has_capability(device,
+						 LIBINPUT_DEVICE_CAP_POINTER));
+}
+END_TEST
+
 int main (int argc, char **argv)
 {
 	litest_add("device:sendevents", device_sendevents_config, LITEST_ANY, LITEST_TOUCHPAD);
@@ -685,6 +1000,21 @@ int main (int argc, char **argv)
 	litest_add_for_device("device:context", device_context, LITEST_SYNAPTICS_CLICKPAD);
 
 	litest_add("device:udev", device_get_udev_handle, LITEST_ANY, LITEST_ANY);
+
+	litest_add("device:group", device_group_get, LITEST_ANY, LITEST_ANY);
+	litest_add_no_device("device:group", device_group_ref);
+
+	litest_add_no_device("device:invalid devices", abs_device_no_absx);
+	litest_add_no_device("device:invalid devices", abs_device_no_absy);
+	litest_add_no_device("device:invalid devices", abs_mt_device_no_absx);
+	litest_add_no_device("device:invalid devices", abs_mt_device_no_absy);
+	litest_add_no_device("device:invalid devices", abs_device_no_range_hi);
+	litest_add_no_device("device:invalid devices", abs_device_no_range_lo);
+	litest_add_no_device("device:invalid devices", abs_mt_device_no_range);
+	litest_add_no_device("device:invalid devices", abs_device_missing_res);
+	litest_add_no_device("device:invalid devices", abs_mt_device_missing_res);
+
+	litest_add("device:wheel", device_wheel_only, LITEST_WHEEL, LITEST_RELATIVE|LITEST_ABSOLUTE);
 
 	return litest_run(argc, argv);
 }

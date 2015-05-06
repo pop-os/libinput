@@ -1,3 +1,11 @@
+libinput (0.15.0-1) experimental; urgency=medium
+
+  * New upstream release.
+    - see upstream changes: http://www.freedesktop.org/wiki/Software/libinput/
+  * d/control: update ABI/API to libinput10.
+
+ -- Hector Oron <zumbi@debian.org>  Wed, 06 May 2015 11:16:14 +0200
+
 libinput (0.10.0-1) experimental; urgency=medium
 
   * New upstream release, bugfix release:

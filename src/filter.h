@@ -28,18 +28,13 @@
 #include <stdbool.h>
 #include <stdint.h>
 
-/* The HW DPI rate we normalize to before calculating pointer acceleration */
-#define DEFAULT_MOUSE_DPI 1000
-
-struct motion_params {
-	double dx, dy; /* in units/ms @ DEFAULT_MOUSE_DPI resolution */
-};
+#include "libinput-private.h"
 
 struct motion_filter;
 
-void
+struct normalized_coords
 filter_dispatch(struct motion_filter *filter,
-		struct motion_params *motion,
+		const struct normalized_coords *unaccelerated,
 		void *data, uint64_t time);
 void
 filter_destroy(struct motion_filter *filter);
@@ -58,7 +53,6 @@ typedef double (*accel_profile_func_t)(struct motion_filter *filter,
 struct motion_filter *
 create_pointer_accelerator_filter(accel_profile_func_t filter);
 
-
 /*
  * Pointer acceleration profiles.
  */
@@ -68,4 +62,14 @@ pointer_accel_profile_linear(struct motion_filter *filter,
 			     void *data,
 			     double speed_in,
 			     uint64_t time);
+double
+touchpad_accel_profile_linear(struct motion_filter *filter,
+			      void *data,
+			      double speed_in,
+			      uint64_t time);
+double
+touchpad_lenovo_x230_accel_profile(struct motion_filter *filter,
+				      void *data,
+				      double speed_in,
+				      uint64_t time);
 #endif /* FILTER_H */
