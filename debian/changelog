@@ -1,3 +1,9 @@
+libinput (0.15.0-2) unstable; urgency=medium
+
+  * Upload to unstable.
+
+ -- Emilio Pozuelo Monfort <pochu@debian.org>  Wed, 27 May 2015 00:19:33 +0200
+
 libinput (0.15.0-1) experimental; urgency=medium
 
   * New upstream release.
