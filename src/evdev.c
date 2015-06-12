@@ -1,6 +1,7 @@
 /*
  * Copyright © 2010 Intel Corporation
  * Copyright © 2013 Jonas Ådahl
+ * Copyright © 2013-2015 Red Hat, Inc.
  *
  * Permission to use, copy, modify, distribute, and sell this software and
  * its documentation for any purpose is hereby granted without fee, provided
@@ -59,6 +60,7 @@ enum evdev_device_udev_tags {
         EVDEV_UDEV_TAG_JOYSTICK = (1 << 6),
         EVDEV_UDEV_TAG_ACCELEROMETER = (1 << 7),
         EVDEV_UDEV_TAG_BUTTONSET = (1 << 8),
+        EVDEV_UDEV_TAG_POINTINGSTICK = (1 << 9),
 };
 
 struct evdev_udev_tag_match {
@@ -77,6 +79,7 @@ static const struct evdev_udev_tag_match evdev_udev_tag_matches[] = {
 	{"ID_INPUT_TABLET_PAD",		EVDEV_UDEV_TAG_BUTTONSET},
 	{"ID_INPUT_JOYSTICK",		EVDEV_UDEV_TAG_JOYSTICK},
 	{"ID_INPUT_ACCELEROMETER",	EVDEV_UDEV_TAG_ACCELEROMETER},
+	{"ID_INPUT_POINTINGSTICK",	EVDEV_UDEV_TAG_POINTINGSTICK},
 
 	/* sentinel value */
 	{ 0 },
@@ -439,6 +442,7 @@ evdev_button_scroll_button(struct evdev_device *device,
 	if (is_press) {
 		libinput_timer_set(&device->scroll.timer,
 				time + DEFAULT_MIDDLE_BUTTON_SCROLL_TIMEOUT);
+		device->scroll.button_down_time = time;
 	} else {
 		libinput_timer_cancel(&device->scroll.timer);
 		if (device->scroll.button_scroll_active) {
@@ -448,7 +452,8 @@ evdev_button_scroll_button(struct evdev_device *device,
 		} else {
 			/* If the button is released quickly enough emit the
 			 * button press/release events. */
-			evdev_pointer_notify_physical_button(device, time,
+			evdev_pointer_notify_physical_button(device,
+					device->scroll.button_down_time,
 					device->scroll.button,
 					LIBINPUT_BUTTON_STATE_PRESSED);
 			evdev_pointer_notify_physical_button(device, time,
@@ -719,18 +724,38 @@ evdev_tag_external_mouse(struct evdev_device *device,
 	int bustype;
 
 	bustype = libevdev_get_id_bustype(device->evdev);
-	if (bustype == BUS_USB || bustype == BUS_BLUETOOTH) {
-		if (device->seat_caps & EVDEV_DEVICE_POINTER)
-			device->tags |= EVDEV_TAG_EXTERNAL_MOUSE;
-	}
+	if (bustype == BUS_USB || bustype == BUS_BLUETOOTH)
+		device->tags |= EVDEV_TAG_EXTERNAL_MOUSE;
 }
 
 static void
 evdev_tag_trackpoint(struct evdev_device *device,
 		     struct udev_device *udev_device)
 {
-	if (libevdev_has_property(device->evdev, INPUT_PROP_POINTING_STICK))
+	if (libevdev_has_property(device->evdev,
+				  INPUT_PROP_POINTING_STICK) ||
+	    udev_device_get_property_value(udev_device,
+					   "ID_INPUT_POINTINGSTICK"))
 		device->tags |= EVDEV_TAG_TRACKPOINT;
+}
+
+static void
+evdev_tag_keyboard(struct evdev_device *device,
+		   struct udev_device *udev_device)
+{
+	int code;
+
+	if (!libevdev_has_event_type(device->evdev, EV_KEY))
+		return;
+
+	for (code = KEY_Q; code <= KEY_P; code++) {
+		if (!libevdev_has_event_code(device->evdev,
+					     EV_KEY,
+					     code))
+			return;
+	}
+
+	device->tags |= EVDEV_TAG_KEYBOARD;
 }
 
 static void
@@ -761,17 +786,68 @@ fallback_process(struct evdev_dispatch *dispatch,
 }
 
 static void
-fallback_destroy(struct evdev_dispatch *dispatch)
+release_pressed_keys(struct evdev_device *device)
 {
-	free(dispatch);
+	struct libinput *libinput = device->base.seat->libinput;
+	uint64_t time;
+	int code;
+
+	if ((time = libinput_now(libinput)) == 0)
+		return;
+
+	for (code = 0; code < KEY_CNT; code++) {
+		int count = get_key_down_count(device, code);
+
+		if (count == 0)
+			continue;
+
+		if (count > 1) {
+			log_bug_libinput(libinput,
+					 "Key %d is down %d times.\n",
+					 code,
+					 count);
+		}
+
+		switch (get_key_type(code)) {
+		case EVDEV_KEY_TYPE_NONE:
+			break;
+		case EVDEV_KEY_TYPE_KEY:
+			evdev_keyboard_notify_key(
+				device,
+				time,
+				code,
+				LIBINPUT_KEY_STATE_RELEASED);
+			break;
+		case EVDEV_KEY_TYPE_BUTTON:
+			evdev_pointer_notify_physical_button(
+				device,
+				time,
+				evdev_to_left_handed(device, code),
+				LIBINPUT_BUTTON_STATE_RELEASED);
+			break;
+		}
+
+		count = get_key_down_count(device, code);
+		if (count != 0) {
+			log_bug_libinput(libinput,
+					 "Releasing key %d failed.\n",
+					 code);
+			break;
+		}
+	}
 }
 
 static void
-fallback_tag_device(struct evdev_device *device,
-		    struct udev_device *udev_device)
+fallback_suspend(struct evdev_dispatch *dispatch,
+		 struct evdev_device *device)
 {
-	evdev_tag_external_mouse(device, udev_device);
-	evdev_tag_trackpoint(device, udev_device);
+	release_pressed_keys(device);
+}
+
+static void
+fallback_destroy(struct evdev_dispatch *dispatch)
+{
+	free(dispatch);
 }
 
 static int
@@ -817,13 +893,13 @@ evdev_calibration_get_default_matrix(struct libinput_device *libinput_device,
 
 struct evdev_dispatch_interface fallback_interface = {
 	fallback_process,
+	fallback_suspend,
 	NULL, /* remove */
 	fallback_destroy,
 	NULL, /* device_added */
 	NULL, /* device_removed */
 	NULL, /* device_suspended */
 	NULL, /* device_resumed */
-	fallback_tag_device,
 };
 
 static uint32_t
@@ -984,7 +1060,7 @@ evdev_scroll_get_default_method(struct libinput_device *device)
 {
 	struct evdev_device *evdev = (struct evdev_device *)device;
 
-	if (libevdev_has_property(evdev->evdev, INPUT_PROP_POINTING_STICK))
+	if (evdev->tags & EVDEV_TAG_TRACKPOINT)
 		return LIBINPUT_CONFIG_SCROLL_ON_BUTTON_DOWN;
 
 	/* Mice without a scroll wheel but with middle button have on-button
@@ -1024,14 +1100,7 @@ evdev_scroll_get_default_button(struct libinput_device *device)
 {
 	struct evdev_device *evdev = (struct evdev_device *)device;
 
-	if (libevdev_has_property(evdev->evdev, INPUT_PROP_POINTING_STICK))
-		return BTN_MIDDLE;
-
-	/* A device that defaults to button scrolling defaults
-	   to BTN_MIDDLE */
-	if (evdev_scroll_get_default_method(device) ==
-		LIBINPUT_CONFIG_SCROLL_ON_BUTTON_DOWN &&
-	    libevdev_has_event_code(evdev->evdev, EV_KEY, BTN_MIDDLE))
+	if( libevdev_has_event_code(evdev->evdev, EV_KEY, BTN_MIDDLE))
 		return BTN_MIDDLE;
 
 	return 0;
@@ -1351,14 +1420,6 @@ evdev_need_mtdev(struct evdev_device *device)
 		!libevdev_has_event_code(evdev, EV_ABS, ABS_MT_SLOT));
 }
 
-static void
-evdev_tag_device(struct evdev_device *device)
-{
-	if (device->dispatch->interface->tag_device)
-		device->dispatch->interface->tag_device(device,
-							device->udev_device);
-}
-
 static inline int
 evdev_read_wheel_click_prop(struct evdev_device *device)
 {
@@ -1419,7 +1480,7 @@ evdev_read_dpi_prop(struct evdev_device *device)
 	 * POINTINGSTICK_CONST_ACCEL value to compensate for sensitivity
 	 * differences between models, we translate this to a fake dpi.
 	 */
-	if (libevdev_has_property(device->evdev, INPUT_PROP_POINTING_STICK))
+	if (device->tags & EVDEV_TAG_TRACKPOINT)
 		return evdev_get_trackpoint_dpi(device);
 
 	mouse_dpi = udev_device_get_property_value(device->udev_device,
@@ -1449,9 +1510,9 @@ evdev_read_model(struct evdev_device *device)
 		{ "LIBINPUT_MODEL_LENOVO_X230", EVDEV_MODEL_LENOVO_X230 },
 		{ "LIBINPUT_MODEL_CHROMEBOOK", EVDEV_MODEL_CHROMEBOOK },
 		{ "LIBINPUT_MODEL_SYSTEM76_BONOBO", EVDEV_MODEL_SYSTEM76_BONOBO },
-		{ "LIBINPUT_MODEL_SYSTEM76_CLEVO", EVDEV_MODEL_SYSTEM76_CLEVO },
 		{ "LIBINPUT_MODEL_SYSTEM76_GALAGO", EVDEV_MODEL_SYSTEM76_GALAGO },
 		{ "LIBINPUT_MODEL_SYSTEM76_KUDU", EVDEV_MODEL_SYSTEM76_KUDU },
+		{ "LIBINPUT_MODEL_CLEVO_W740SU", EVDEV_MODEL_CLEVO_W740SU },
 		{ NULL, EVDEV_MODEL_DEFAULT },
 	};
 	const struct model_map *m = model_map;
@@ -1721,8 +1782,16 @@ evdev_configure_mt_device(struct evdev_device *device)
 
 	for (slot = 0; slot < num_slots; ++slot) {
 		slots[slot].seat_slot = -1;
-		slots[slot].point.x = 0;
-		slots[slot].point.y = 0;
+
+		if (evdev_need_mtdev(device))
+			continue;
+
+		slots[slot].point.x = libevdev_get_slot_value(evdev,
+							      slot,
+							      ABS_MT_POSITION_X);
+		slots[slot].point.y = libevdev_get_slot_value(evdev,
+							      slot,
+							      ABS_MT_POSITION_Y);
 	}
 	device->mt.slots = slots;
 	device->mt.slots_len = num_slots;
@@ -1750,13 +1819,14 @@ evdev_configure_device(struct evdev_device *device)
 	}
 
 	log_info(libinput,
-		 "input device '%s', %s is tagged by udev as:%s%s%s%s%s%s%s%s\n",
+		 "input device '%s', %s is tagged by udev as:%s%s%s%s%s%s%s%s%s\n",
 		 device->devname, devnode,
 		 udev_tags & EVDEV_UDEV_TAG_KEYBOARD ? " Keyboard" : "",
 		 udev_tags & EVDEV_UDEV_TAG_MOUSE ? " Mouse" : "",
 		 udev_tags & EVDEV_UDEV_TAG_TOUCHPAD ? " Touchpad" : "",
 		 udev_tags & EVDEV_UDEV_TAG_TOUCHSCREEN ? " Touchscreen" : "",
 		 udev_tags & EVDEV_UDEV_TAG_TABLET ? " Tablet" : "",
+		 udev_tags & EVDEV_UDEV_TAG_POINTINGSTICK ? " Pointingstick" : "",
 		 udev_tags & EVDEV_UDEV_TAG_JOYSTICK ? " Joystick" : "",
 		 udev_tags & EVDEV_UDEV_TAG_ACCELEROMETER ? " Accelerometer" : "",
 		 udev_tags & EVDEV_UDEV_TAG_BUTTONSET ? " Buttonset" : "");
@@ -1797,6 +1867,8 @@ evdev_configure_device(struct evdev_device *device)
 			device->abs.fake_resolution = 1;
 		device->abs.absinfo_x = libevdev_get_abs_info(evdev, ABS_X);
 		device->abs.absinfo_y = libevdev_get_abs_info(evdev, ABS_Y);
+		device->abs.point.x = device->abs.absinfo_x->value;
+		device->abs.point.y = device->abs.absinfo_y->value;
 
 		if (evdev_is_fake_mt_device(device)) {
 			udev_tags &= ~EVDEV_UDEV_TAG_TOUCHSCREEN;
@@ -1810,10 +1882,13 @@ evdev_configure_device(struct evdev_device *device)
 		log_info(libinput,
 			 "input device '%s', %s is a touchpad\n",
 			 device->devname, devnode);
+
+		evdev_tag_touchpad(device, device->udev_device);
 		return device->dispatch == NULL ? -1 : 0;
 	}
 
-	if (udev_tags & EVDEV_UDEV_TAG_MOUSE) {
+	if (udev_tags & EVDEV_UDEV_TAG_MOUSE ||
+	    udev_tags & EVDEV_UDEV_TAG_POINTINGSTICK) {
 		if (libevdev_has_event_code(evdev, EV_REL, REL_X) &&
 		    libevdev_has_event_code(evdev, EV_REL, REL_Y) &&
 		    evdev_device_init_pointer_acceleration(
@@ -1833,6 +1908,9 @@ evdev_configure_device(struct evdev_device *device)
 		device->scroll.natural_scrolling_enabled = true;
 		/* want button scrolling config option */
 		device->scroll.want_button = 1;
+
+		evdev_tag_external_mouse(device, device->udev_device);
+		evdev_tag_trackpoint(device, device->udev_device);
 	}
 
 	if (udev_tags & EVDEV_UDEV_TAG_KEYBOARD) {
@@ -1847,6 +1925,8 @@ evdev_configure_device(struct evdev_device *device)
 			device->scroll.natural_scrolling_enabled = true;
 			device->seat_caps |= EVDEV_DEVICE_POINTER;
 		}
+
+		evdev_tag_keyboard(device, device->udev_device);
 	}
 
 	if (udev_tags & EVDEV_UDEV_TAG_TOUCHSCREEN) {
@@ -1885,13 +1965,13 @@ evdev_notify_added_device(struct evdev_device *device)
 	notify_added_device(&device->base);
 }
 
-static int
-evdev_device_compare_syspath(struct udev_device *udev_device, int fd)
+static bool
+evdev_device_have_same_syspath(struct udev_device *udev_device, int fd)
 {
 	struct udev *udev = udev_device_get_udev(udev_device);
 	struct udev_device *udev_device_new = NULL;
 	struct stat st;
-	int rc = 1;
+	bool rc = false;
 
 	if (fstat(fd, &st) < 0)
 		goto out;
@@ -1900,8 +1980,8 @@ evdev_device_compare_syspath(struct udev_device *udev_device, int fd)
 	if (!udev_device_new)
 		goto out;
 
-	rc = strcmp(udev_device_get_syspath(udev_device_new),
-		    udev_device_get_syspath(udev_device));
+	rc = streq(udev_device_get_syspath(udev_device_new),
+		   udev_device_get_syspath(udev_device));
 out:
 	if (udev_device_new)
 		udev_device_unref(udev_device_new);
@@ -1967,7 +2047,7 @@ evdev_device_create(struct libinput_seat *seat,
 		return NULL;
 	}
 
-	if (evdev_device_compare_syspath(udev_device, fd) != 0)
+	if (!evdev_device_have_same_syspath(udev_device, fd))
 		goto err;
 
 	device = zalloc(sizeof *device);
@@ -1998,7 +2078,6 @@ evdev_device_create(struct libinput_seat *seat,
 	device->scroll.direction = 0;
 	device->scroll.wheel_click_angle =
 		evdev_read_wheel_click_prop(device);
-	device->dpi = evdev_read_dpi_prop(device);
 	device->model = evdev_read_model(device);
 	/* at most 5 SYN_DROPPED log-messages per 30s */
 	ratelimit_init(&device->syn_drop_limit, 30ULL * 1000, 5);
@@ -2009,6 +2088,8 @@ evdev_device_create(struct libinput_seat *seat,
 
 	if (evdev_configure_device(device) == -1)
 		goto err;
+
+	device->dpi = evdev_read_dpi_prop(device);
 
 	if (device->seat_caps == 0) {
 		unhandled_device = 1;
@@ -2031,7 +2112,6 @@ evdev_device_create(struct libinput_seat *seat,
 
 	list_insert(seat->devices_list.prev, &device->base.link);
 
-	evdev_tag_device(device);
 	evdev_notify_added_device(device);
 
 	return device;
@@ -2317,49 +2397,6 @@ evdev_stop_scroll(struct evdev_device *device,
 	device->scroll.direction = 0;
 }
 
-static void
-release_pressed_keys(struct evdev_device *device)
-{
-	struct libinput *libinput = device->base.seat->libinput;
-	uint64_t time;
-	int code;
-
-	if ((time = libinput_now(libinput)) == 0)
-		return;
-
-	for (code = 0; code < KEY_CNT; code++) {
-		int count = get_key_down_count(device, code);
-
-		if (count > 1) {
-			log_bug_libinput(libinput,
-					 "Key %d is down %d times.\n",
-					 code,
-					 count);
-		}
-
-		while (get_key_down_count(device, code) > 0) {
-			switch (get_key_type(code)) {
-			case EVDEV_KEY_TYPE_NONE:
-				break;
-			case EVDEV_KEY_TYPE_KEY:
-				evdev_keyboard_notify_key(
-					device,
-					time,
-					code,
-					LIBINPUT_KEY_STATE_RELEASED);
-				break;
-			case EVDEV_KEY_TYPE_BUTTON:
-				evdev_pointer_notify_physical_button(
-					device,
-					time,
-					evdev_to_left_handed(device, code),
-					LIBINPUT_BUTTON_STATE_RELEASED);
-				break;
-			}
-		}
-	}
-}
-
 void
 evdev_notify_suspended_device(struct evdev_device *device)
 {
@@ -2405,13 +2442,15 @@ evdev_device_suspend(struct evdev_device *device)
 {
 	evdev_notify_suspended_device(device);
 
+	if (device->dispatch->interface->suspend)
+		device->dispatch->interface->suspend(device->dispatch,
+						     device);
+
 	if (device->source) {
 		libinput_remove_source(device->base.seat->libinput,
 				       device->source);
 		device->source = NULL;
 	}
-
-	release_pressed_keys(device);
 
 	if (device->mtdev) {
 		mtdev_close_delete(device->mtdev);
@@ -2448,7 +2487,7 @@ evdev_device_resume(struct evdev_device *device)
 	if (fd < 0)
 		return -errno;
 
-	if (evdev_device_compare_syspath(device->udev_device, fd)) {
+	if (!evdev_device_have_same_syspath(device->udev_device, fd)) {
 		close_restricted(libinput, fd);
 		return -ENODEV;
 	}

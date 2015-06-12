@@ -90,6 +90,8 @@ PRE_UNINSTALL = :
 POST_UNINSTALL = :
 build_triplet = @build@
 host_triplet = @host@
+@BUILD_TESTS_TRUE@@HAVE_LIBUNWIND_TRUE@am__append_1 = $(LIBUNWIND_LIBS) -ldl
+@BUILD_TESTS_TRUE@@HAVE_LIBUNWIND_TRUE@am__append_2 = $(LIBUNWIND_CFLAGS)
 @BUILD_TESTS_TRUE@noinst_PROGRAMS = $(am__EXEEXT_1) $(am__EXEEXT_2)
 @BUILD_TESTS_TRUE@TESTS = $(am__EXEEXT_2) symbols-leak-test
 subdir = test
@@ -106,10 +108,14 @@ CONFIG_HEADER = $(top_builddir)/config.h
 CONFIG_CLEAN_FILES = symbols-leak-test
 CONFIG_CLEAN_VPATH_FILES =
 LTLIBRARIES = $(noinst_LTLIBRARIES)
+am__DEPENDENCIES_1 =
+@BUILD_TESTS_TRUE@@HAVE_LIBUNWIND_TRUE@am__DEPENDENCIES_2 =  \
+@BUILD_TESTS_TRUE@@HAVE_LIBUNWIND_TRUE@	$(am__DEPENDENCIES_1)
 @BUILD_TESTS_TRUE@liblitest_la_DEPENDENCIES =  \
-@BUILD_TESTS_TRUE@	$(top_builddir)/src/libinput-util.la
+@BUILD_TESTS_TRUE@	$(top_builddir)/src/libinput-util.la \
+@BUILD_TESTS_TRUE@	$(am__DEPENDENCIES_2)
 am__liblitest_la_SOURCES_DIST = litest.h litest-int.h \
-	litest-alps-semi-mt.c litest-bcm5974.c \
+	litest-alps-semi-mt.c litest-atmel-hover.c litest-bcm5974.c \
 	litest-generic-singletouch.c litest-keyboard.c \
 	litest-keyboard-razer-blackwidow.c litest-logitech-trackball.c \
 	litest-mouse.c litest-mouse-roccat.c litest-ms-surface-cover.c \
@@ -120,41 +126,51 @@ am__liblitest_la_SOURCES_DIST = litest.h litest-int.h \
 	litest-wacom-touch.c litest-wacom-intuos-finger.c \
 	litest-wheel-only.c litest-xen-virtual-pointer.c \
 	litest-vmware-virtual-usb-mouse.c litest.c
-@BUILD_TESTS_TRUE@am_liblitest_la_OBJECTS = litest-alps-semi-mt.lo \
-@BUILD_TESTS_TRUE@	litest-bcm5974.lo \
-@BUILD_TESTS_TRUE@	litest-generic-singletouch.lo \
-@BUILD_TESTS_TRUE@	litest-keyboard.lo \
-@BUILD_TESTS_TRUE@	litest-keyboard-razer-blackwidow.lo \
-@BUILD_TESTS_TRUE@	litest-logitech-trackball.lo litest-mouse.lo \
-@BUILD_TESTS_TRUE@	litest-mouse-roccat.lo \
-@BUILD_TESTS_TRUE@	litest-ms-surface-cover.lo \
-@BUILD_TESTS_TRUE@	litest-protocol-a-touch-screen.lo \
-@BUILD_TESTS_TRUE@	litest-qemu-usb-tablet.lo \
-@BUILD_TESTS_TRUE@	litest-synaptics.lo \
-@BUILD_TESTS_TRUE@	litest-synaptics-hover.lo \
-@BUILD_TESTS_TRUE@	litest-synaptics-st.lo \
-@BUILD_TESTS_TRUE@	litest-synaptics-t440.lo \
-@BUILD_TESTS_TRUE@	litest-synaptics-x1-carbon-3rd.lo \
-@BUILD_TESTS_TRUE@	litest-trackpoint.lo litest-wacom-touch.lo \
-@BUILD_TESTS_TRUE@	litest-wacom-intuos-finger.lo \
-@BUILD_TESTS_TRUE@	litest-wheel-only.lo \
-@BUILD_TESTS_TRUE@	litest-xen-virtual-pointer.lo \
-@BUILD_TESTS_TRUE@	litest-vmware-virtual-usb-mouse.lo litest.lo
+@BUILD_TESTS_TRUE@am_liblitest_la_OBJECTS =  \
+@BUILD_TESTS_TRUE@	liblitest_la-litest-alps-semi-mt.lo \
+@BUILD_TESTS_TRUE@	liblitest_la-litest-atmel-hover.lo \
+@BUILD_TESTS_TRUE@	liblitest_la-litest-bcm5974.lo \
+@BUILD_TESTS_TRUE@	liblitest_la-litest-generic-singletouch.lo \
+@BUILD_TESTS_TRUE@	liblitest_la-litest-keyboard.lo \
+@BUILD_TESTS_TRUE@	liblitest_la-litest-keyboard-razer-blackwidow.lo \
+@BUILD_TESTS_TRUE@	liblitest_la-litest-logitech-trackball.lo \
+@BUILD_TESTS_TRUE@	liblitest_la-litest-mouse.lo \
+@BUILD_TESTS_TRUE@	liblitest_la-litest-mouse-roccat.lo \
+@BUILD_TESTS_TRUE@	liblitest_la-litest-ms-surface-cover.lo \
+@BUILD_TESTS_TRUE@	liblitest_la-litest-protocol-a-touch-screen.lo \
+@BUILD_TESTS_TRUE@	liblitest_la-litest-qemu-usb-tablet.lo \
+@BUILD_TESTS_TRUE@	liblitest_la-litest-synaptics.lo \
+@BUILD_TESTS_TRUE@	liblitest_la-litest-synaptics-hover.lo \
+@BUILD_TESTS_TRUE@	liblitest_la-litest-synaptics-st.lo \
+@BUILD_TESTS_TRUE@	liblitest_la-litest-synaptics-t440.lo \
+@BUILD_TESTS_TRUE@	liblitest_la-litest-synaptics-x1-carbon-3rd.lo \
+@BUILD_TESTS_TRUE@	liblitest_la-litest-trackpoint.lo \
+@BUILD_TESTS_TRUE@	liblitest_la-litest-wacom-touch.lo \
+@BUILD_TESTS_TRUE@	liblitest_la-litest-wacom-intuos-finger.lo \
+@BUILD_TESTS_TRUE@	liblitest_la-litest-wheel-only.lo \
+@BUILD_TESTS_TRUE@	liblitest_la-litest-xen-virtual-pointer.lo \
+@BUILD_TESTS_TRUE@	liblitest_la-litest-vmware-virtual-usb-mouse.lo \
+@BUILD_TESTS_TRUE@	liblitest_la-litest.lo
 liblitest_la_OBJECTS = $(am_liblitest_la_OBJECTS)
 AM_V_lt = $(am__v_lt_@AM_V@)
 am__v_lt_ = $(am__v_lt_@AM_DEFAULT_V@)
 am__v_lt_0 = --silent
 am__v_lt_1 = 
+liblitest_la_LINK = $(LIBTOOL) $(AM_V_lt) --tag=CC $(AM_LIBTOOLFLAGS) \
+	$(LIBTOOLFLAGS) --mode=link $(CCLD) $(liblitest_la_CFLAGS) \
+	$(CFLAGS) $(AM_LDFLAGS) $(LDFLAGS) -o $@
 @BUILD_TESTS_TRUE@am_liblitest_la_rpath =
 @BUILD_TESTS_TRUE@am__EXEEXT_1 = test-build-cxx$(EXEEXT) \
 @BUILD_TESTS_TRUE@	test-build-linker$(EXEEXT) \
 @BUILD_TESTS_TRUE@	test-build-pedantic-c99$(EXEEXT) \
 @BUILD_TESTS_TRUE@	test-build-std-gnuc90$(EXEEXT)
-@BUILD_TESTS_TRUE@am__EXEEXT_2 = test-udev$(EXEEXT) test-path$(EXEEXT) \
-@BUILD_TESTS_TRUE@	test-pointer$(EXEEXT) test-touch$(EXEEXT) \
-@BUILD_TESTS_TRUE@	test-log$(EXEEXT) test-touchpad$(EXEEXT) \
-@BUILD_TESTS_TRUE@	test-trackpoint$(EXEEXT) test-misc$(EXEEXT) \
-@BUILD_TESTS_TRUE@	test-keyboard$(EXEEXT) test-device$(EXEEXT)
+@BUILD_TESTS_TRUE@am__EXEEXT_2 = test-touchpad$(EXEEXT) \
+@BUILD_TESTS_TRUE@	test-device$(EXEEXT) test-pointer$(EXEEXT) \
+@BUILD_TESTS_TRUE@	test-touch$(EXEEXT) test-trackpoint$(EXEEXT) \
+@BUILD_TESTS_TRUE@	test-udev$(EXEEXT) test-path$(EXEEXT) \
+@BUILD_TESTS_TRUE@	test-log$(EXEEXT) test-misc$(EXEEXT) \
+@BUILD_TESTS_TRUE@	test-keyboard$(EXEEXT) \
+@BUILD_TESTS_TRUE@	test-litest-selftest$(EXEEXT)
 PROGRAMS = $(noinst_PROGRAMS)
 am__test_build_cxx_SOURCES_DIST = build-cxx.cc
 @BUILD_TESTS_TRUE@am_test_build_cxx_OBJECTS =  \
@@ -196,61 +212,71 @@ test_build_std_gnuc90_LINK = $(LIBTOOL) $(AM_V_lt) --tag=CC \
 am__test_device_SOURCES_DIST = device.c
 @BUILD_TESTS_TRUE@am_test_device_OBJECTS = device.$(OBJEXT)
 test_device_OBJECTS = $(am_test_device_OBJECTS)
-am__DEPENDENCIES_1 =
-@BUILD_TESTS_TRUE@am__DEPENDENCIES_2 = liblitest.la \
+@BUILD_TESTS_TRUE@am__DEPENDENCIES_3 = liblitest.la \
 @BUILD_TESTS_TRUE@	$(am__DEPENDENCIES_1) $(am__DEPENDENCIES_1) \
 @BUILD_TESTS_TRUE@	$(am__DEPENDENCIES_1) \
 @BUILD_TESTS_TRUE@	$(top_builddir)/src/libinput.la
-@BUILD_TESTS_TRUE@test_device_DEPENDENCIES = $(am__DEPENDENCIES_2)
+@BUILD_TESTS_TRUE@test_device_DEPENDENCIES = $(am__DEPENDENCIES_3)
 test_device_LINK = $(LIBTOOL) $(AM_V_lt) --tag=CC $(AM_LIBTOOLFLAGS) \
 	$(LIBTOOLFLAGS) --mode=link $(CCLD) $(AM_CFLAGS) $(CFLAGS) \
 	$(test_device_LDFLAGS) $(LDFLAGS) -o $@
 am__test_keyboard_SOURCES_DIST = keyboard.c
 @BUILD_TESTS_TRUE@am_test_keyboard_OBJECTS = keyboard.$(OBJEXT)
 test_keyboard_OBJECTS = $(am_test_keyboard_OBJECTS)
-@BUILD_TESTS_TRUE@test_keyboard_DEPENDENCIES = $(am__DEPENDENCIES_2)
+@BUILD_TESTS_TRUE@test_keyboard_DEPENDENCIES = $(am__DEPENDENCIES_3)
 test_keyboard_LINK = $(LIBTOOL) $(AM_V_lt) --tag=CC $(AM_LIBTOOLFLAGS) \
 	$(LIBTOOLFLAGS) --mode=link $(CCLD) $(AM_CFLAGS) $(CFLAGS) \
 	$(test_keyboard_LDFLAGS) $(LDFLAGS) -o $@
+am__test_litest_selftest_SOURCES_DIST = litest-selftest.c litest.c \
+	litest-int.h litest.h
+@BUILD_TESTS_TRUE@am_test_litest_selftest_OBJECTS = test_litest_selftest-litest-selftest.$(OBJEXT) \
+@BUILD_TESTS_TRUE@	test_litest_selftest-litest.$(OBJEXT)
+test_litest_selftest_OBJECTS = $(am_test_litest_selftest_OBJECTS)
+@BUILD_TESTS_TRUE@test_litest_selftest_DEPENDENCIES =  \
+@BUILD_TESTS_TRUE@	$(am__DEPENDENCIES_3)
+test_litest_selftest_LINK = $(LIBTOOL) $(AM_V_lt) --tag=CC \
+	$(AM_LIBTOOLFLAGS) $(LIBTOOLFLAGS) --mode=link $(CCLD) \
+	$(test_litest_selftest_CFLAGS) $(CFLAGS) \
+	$(test_litest_selftest_LDFLAGS) $(LDFLAGS) -o $@
 am__test_log_SOURCES_DIST = log.c
 @BUILD_TESTS_TRUE@am_test_log_OBJECTS = log.$(OBJEXT)
 test_log_OBJECTS = $(am_test_log_OBJECTS)
-@BUILD_TESTS_TRUE@test_log_DEPENDENCIES = $(am__DEPENDENCIES_2)
+@BUILD_TESTS_TRUE@test_log_DEPENDENCIES = $(am__DEPENDENCIES_3)
 test_log_LINK = $(LIBTOOL) $(AM_V_lt) --tag=CC $(AM_LIBTOOLFLAGS) \
 	$(LIBTOOLFLAGS) --mode=link $(CCLD) $(AM_CFLAGS) $(CFLAGS) \
 	$(test_log_LDFLAGS) $(LDFLAGS) -o $@
 am__test_misc_SOURCES_DIST = misc.c
 @BUILD_TESTS_TRUE@am_test_misc_OBJECTS = misc.$(OBJEXT)
 test_misc_OBJECTS = $(am_test_misc_OBJECTS)
-@BUILD_TESTS_TRUE@test_misc_DEPENDENCIES = $(am__DEPENDENCIES_2)
+@BUILD_TESTS_TRUE@test_misc_DEPENDENCIES = $(am__DEPENDENCIES_3)
 test_misc_LINK = $(LIBTOOL) $(AM_V_lt) --tag=CC $(AM_LIBTOOLFLAGS) \
 	$(LIBTOOLFLAGS) --mode=link $(CCLD) $(AM_CFLAGS) $(CFLAGS) \
 	$(test_misc_LDFLAGS) $(LDFLAGS) -o $@
 am__test_path_SOURCES_DIST = path.c
 @BUILD_TESTS_TRUE@am_test_path_OBJECTS = path.$(OBJEXT)
 test_path_OBJECTS = $(am_test_path_OBJECTS)
-@BUILD_TESTS_TRUE@test_path_DEPENDENCIES = $(am__DEPENDENCIES_2)
+@BUILD_TESTS_TRUE@test_path_DEPENDENCIES = $(am__DEPENDENCIES_3)
 test_path_LINK = $(LIBTOOL) $(AM_V_lt) --tag=CC $(AM_LIBTOOLFLAGS) \
 	$(LIBTOOLFLAGS) --mode=link $(CCLD) $(AM_CFLAGS) $(CFLAGS) \
 	$(test_path_LDFLAGS) $(LDFLAGS) -o $@
 am__test_pointer_SOURCES_DIST = pointer.c
 @BUILD_TESTS_TRUE@am_test_pointer_OBJECTS = pointer.$(OBJEXT)
 test_pointer_OBJECTS = $(am_test_pointer_OBJECTS)
-@BUILD_TESTS_TRUE@test_pointer_DEPENDENCIES = $(am__DEPENDENCIES_2)
+@BUILD_TESTS_TRUE@test_pointer_DEPENDENCIES = $(am__DEPENDENCIES_3)
 test_pointer_LINK = $(LIBTOOL) $(AM_V_lt) --tag=CC $(AM_LIBTOOLFLAGS) \
 	$(LIBTOOLFLAGS) --mode=link $(CCLD) $(AM_CFLAGS) $(CFLAGS) \
 	$(test_pointer_LDFLAGS) $(LDFLAGS) -o $@
 am__test_touch_SOURCES_DIST = touch.c
 @BUILD_TESTS_TRUE@am_test_touch_OBJECTS = touch.$(OBJEXT)
 test_touch_OBJECTS = $(am_test_touch_OBJECTS)
-@BUILD_TESTS_TRUE@test_touch_DEPENDENCIES = $(am__DEPENDENCIES_2)
+@BUILD_TESTS_TRUE@test_touch_DEPENDENCIES = $(am__DEPENDENCIES_3)
 test_touch_LINK = $(LIBTOOL) $(AM_V_lt) --tag=CC $(AM_LIBTOOLFLAGS) \
 	$(LIBTOOLFLAGS) --mode=link $(CCLD) $(AM_CFLAGS) $(CFLAGS) \
 	$(test_touch_LDFLAGS) $(LDFLAGS) -o $@
 am__test_touchpad_SOURCES_DIST = touchpad.c
 @BUILD_TESTS_TRUE@am_test_touchpad_OBJECTS = touchpad.$(OBJEXT)
 test_touchpad_OBJECTS = $(am_test_touchpad_OBJECTS)
-@BUILD_TESTS_TRUE@test_touchpad_DEPENDENCIES = $(am__DEPENDENCIES_2)
+@BUILD_TESTS_TRUE@test_touchpad_DEPENDENCIES = $(am__DEPENDENCIES_3)
 test_touchpad_LINK = $(LIBTOOL) $(AM_V_lt) --tag=CC $(AM_LIBTOOLFLAGS) \
 	$(LIBTOOLFLAGS) --mode=link $(CCLD) $(AM_CFLAGS) $(CFLAGS) \
 	$(test_touchpad_LDFLAGS) $(LDFLAGS) -o $@
@@ -258,7 +284,7 @@ am__test_trackpoint_SOURCES_DIST = trackpoint.c
 @BUILD_TESTS_TRUE@am_test_trackpoint_OBJECTS = trackpoint.$(OBJEXT)
 test_trackpoint_OBJECTS = $(am_test_trackpoint_OBJECTS)
 @BUILD_TESTS_TRUE@test_trackpoint_DEPENDENCIES =  \
-@BUILD_TESTS_TRUE@	$(am__DEPENDENCIES_2)
+@BUILD_TESTS_TRUE@	$(am__DEPENDENCIES_3)
 test_trackpoint_LINK = $(LIBTOOL) $(AM_V_lt) --tag=CC \
 	$(AM_LIBTOOLFLAGS) $(LIBTOOLFLAGS) --mode=link $(CCLD) \
 	$(AM_CFLAGS) $(CFLAGS) $(test_trackpoint_LDFLAGS) $(LDFLAGS) \
@@ -266,7 +292,7 @@ test_trackpoint_LINK = $(LIBTOOL) $(AM_V_lt) --tag=CC \
 am__test_udev_SOURCES_DIST = udev.c
 @BUILD_TESTS_TRUE@am_test_udev_OBJECTS = udev.$(OBJEXT)
 test_udev_OBJECTS = $(am_test_udev_OBJECTS)
-@BUILD_TESTS_TRUE@test_udev_DEPENDENCIES = $(am__DEPENDENCIES_2)
+@BUILD_TESTS_TRUE@test_udev_DEPENDENCIES = $(am__DEPENDENCIES_3)
 test_udev_LINK = $(LIBTOOL) $(AM_V_lt) --tag=CC $(AM_LIBTOOLFLAGS) \
 	$(LIBTOOLFLAGS) --mode=link $(CCLD) $(AM_CFLAGS) $(CFLAGS) \
 	$(test_udev_LDFLAGS) $(LDFLAGS) -o $@
@@ -327,8 +353,8 @@ SOURCES = $(liblitest_la_SOURCES) $(test_build_cxx_SOURCES) \
 	$(test_build_linker_SOURCES) \
 	$(test_build_pedantic_c99_SOURCES) \
 	$(test_build_std_gnuc90_SOURCES) $(test_device_SOURCES) \
-	$(test_keyboard_SOURCES) $(test_log_SOURCES) \
-	$(test_misc_SOURCES) $(test_path_SOURCES) \
+	$(test_keyboard_SOURCES) $(test_litest_selftest_SOURCES) \
+	$(test_log_SOURCES) $(test_misc_SOURCES) $(test_path_SOURCES) \
 	$(test_pointer_SOURCES) $(test_touch_SOURCES) \
 	$(test_touchpad_SOURCES) $(test_trackpoint_SOURCES) \
 	$(test_udev_SOURCES)
@@ -338,9 +364,10 @@ DIST_SOURCES = $(am__liblitest_la_SOURCES_DIST) \
 	$(am__test_build_pedantic_c99_SOURCES_DIST) \
 	$(am__test_build_std_gnuc90_SOURCES_DIST) \
 	$(am__test_device_SOURCES_DIST) \
-	$(am__test_keyboard_SOURCES_DIST) $(am__test_log_SOURCES_DIST) \
-	$(am__test_misc_SOURCES_DIST) $(am__test_path_SOURCES_DIST) \
-	$(am__test_pointer_SOURCES_DIST) \
+	$(am__test_keyboard_SOURCES_DIST) \
+	$(am__test_litest_selftest_SOURCES_DIST) \
+	$(am__test_log_SOURCES_DIST) $(am__test_misc_SOURCES_DIST) \
+	$(am__test_path_SOURCES_DIST) $(am__test_pointer_SOURCES_DIST) \
 	$(am__test_touch_SOURCES_DIST) \
 	$(am__test_touchpad_SOURCES_DIST) \
 	$(am__test_trackpoint_SOURCES_DIST) \
@@ -577,6 +604,7 @@ am__DIST_COMMON = $(srcdir)/Makefile.in $(srcdir)/symbols-leak-test.in \
 	$(top_srcdir)/depcomp $(top_srcdir)/test-driver
 DISTFILES = $(DIST_COMMON) $(DIST_SOURCES) $(TEXINFOS) $(EXTRA_DIST)
 ACLOCAL = @ACLOCAL@
+ADDR2LINE = @ADDR2LINE@
 AMTAR = @AMTAR@
 AM_DEFAULT_VERBOSITY = @AM_DEFAULT_VERBOSITY@
 AR = @AR@
@@ -635,6 +663,8 @@ LIBS = @LIBS@
 LIBTOOL = @LIBTOOL@
 LIBUDEV_CFLAGS = @LIBUDEV_CFLAGS@
 LIBUDEV_LIBS = @LIBUDEV_LIBS@
+LIBUNWIND_CFLAGS = @LIBUNWIND_CFLAGS@
+LIBUNWIND_LIBS = @LIBUNWIND_LIBS@
 LIPO = @LIPO@
 LN_S = @LN_S@
 LTLIBOBJS = @LTLIBOBJS@
@@ -735,6 +765,7 @@ top_srcdir = @top_srcdir@
 @BUILD_TESTS_TRUE@	litest.h \
 @BUILD_TESTS_TRUE@	litest-int.h \
 @BUILD_TESTS_TRUE@	litest-alps-semi-mt.c \
+@BUILD_TESTS_TRUE@	litest-atmel-hover.c \
 @BUILD_TESTS_TRUE@	litest-bcm5974.c \
 @BUILD_TESTS_TRUE@	litest-generic-singletouch.c \
 @BUILD_TESTS_TRUE@	litest-keyboard.c \
@@ -758,18 +789,22 @@ top_srcdir = @top_srcdir@
 @BUILD_TESTS_TRUE@	litest-vmware-virtual-usb-mouse.c \
 @BUILD_TESTS_TRUE@	litest.c
 
-@BUILD_TESTS_TRUE@liblitest_la_LIBADD = $(top_builddir)/src/libinput-util.la
+@BUILD_TESTS_TRUE@liblitest_la_LIBADD =  \
+@BUILD_TESTS_TRUE@	$(top_builddir)/src/libinput-util.la \
+@BUILD_TESTS_TRUE@	$(am__append_1)
+@BUILD_TESTS_TRUE@liblitest_la_CFLAGS = $(AM_CFLAGS) $(am__append_2)
 @BUILD_TESTS_TRUE@run_tests = \
-@BUILD_TESTS_TRUE@	test-udev \
-@BUILD_TESTS_TRUE@	test-path \
+@BUILD_TESTS_TRUE@	test-touchpad \
+@BUILD_TESTS_TRUE@	test-device \
 @BUILD_TESTS_TRUE@	test-pointer \
 @BUILD_TESTS_TRUE@	test-touch \
-@BUILD_TESTS_TRUE@	test-log \
-@BUILD_TESTS_TRUE@	test-touchpad \
 @BUILD_TESTS_TRUE@	test-trackpoint \
+@BUILD_TESTS_TRUE@	test-udev \
+@BUILD_TESTS_TRUE@	test-path \
+@BUILD_TESTS_TRUE@	test-log \
 @BUILD_TESTS_TRUE@	test-misc \
 @BUILD_TESTS_TRUE@	test-keyboard \
-@BUILD_TESTS_TRUE@	test-device
+@BUILD_TESTS_TRUE@	test-litest-selftest
 
 @BUILD_TESTS_TRUE@build_tests = \
 @BUILD_TESTS_TRUE@	test-build-cxx \
@@ -808,6 +843,10 @@ top_srcdir = @top_srcdir@
 @BUILD_TESTS_TRUE@test_device_SOURCES = device.c
 @BUILD_TESTS_TRUE@test_device_LDADD = $(TEST_LIBS)
 @BUILD_TESTS_TRUE@test_device_LDFLAGS = -no-install
+@BUILD_TESTS_TRUE@test_litest_selftest_SOURCES = litest-selftest.c litest.c litest-int.h litest.h
+@BUILD_TESTS_TRUE@test_litest_selftest_CFLAGS = -DLITEST_DISABLE_BACKTRACE_LOGGING -DLITEST_NO_MAIN
+@BUILD_TESTS_TRUE@test_litest_selftest_LDADD = $(TEST_LIBS)
+@BUILD_TESTS_TRUE@test_litest_selftest_LDFLAGS = -no-install
 
 # build-test only
 @BUILD_TESTS_TRUE@test_build_pedantic_c99_SOURCES = build-pedantic.c
@@ -823,6 +862,7 @@ top_srcdir = @top_srcdir@
 # test including from C++
 @BUILD_TESTS_TRUE@test_build_cxx_SOURCES = build-cxx.cc
 @BUILD_TESTS_TRUE@test_build_cxx_CXXFLAGS = -Wall -Wextra -Wno-unused-parameter $(AM_CXXFLAGS)
+@BUILD_TESTS_TRUE@AM_TESTS_ENVIRONMENT = LITEST_VERBOSE=1; export LITEST_VERBOSE;
 @BUILD_TESTS_TRUE@@HAVE_VALGRIND_TRUE@VALGRIND_FLAGS = --leak-check=full \
 @BUILD_TESTS_TRUE@@HAVE_VALGRIND_TRUE@	       --quiet \
 @BUILD_TESTS_TRUE@@HAVE_VALGRIND_TRUE@	       --error-exitcode=3 \
@@ -877,7 +917,7 @@ clean-noinstLTLIBRARIES:
 	}
 
 liblitest.la: $(liblitest_la_OBJECTS) $(liblitest_la_DEPENDENCIES) $(EXTRA_liblitest_la_DEPENDENCIES) 
-	$(AM_V_CCLD)$(LINK) $(am_liblitest_la_rpath) $(liblitest_la_OBJECTS) $(liblitest_la_LIBADD) $(LIBS)
+	$(AM_V_CCLD)$(liblitest_la_LINK) $(am_liblitest_la_rpath) $(liblitest_la_OBJECTS) $(liblitest_la_LIBADD) $(LIBS)
 
 clean-noinstPROGRAMS:
 	@list='$(noinst_PROGRAMS)'; test -n "$$list" || exit 0; \
@@ -911,6 +951,10 @@ test-device$(EXEEXT): $(test_device_OBJECTS) $(test_device_DEPENDENCIES) $(EXTRA
 test-keyboard$(EXEEXT): $(test_keyboard_OBJECTS) $(test_keyboard_DEPENDENCIES) $(EXTRA_test_keyboard_DEPENDENCIES) 
 	@rm -f test-keyboard$(EXEEXT)
 	$(AM_V_CCLD)$(test_keyboard_LINK) $(test_keyboard_OBJECTS) $(test_keyboard_LDADD) $(LIBS)
+
+test-litest-selftest$(EXEEXT): $(test_litest_selftest_OBJECTS) $(test_litest_selftest_DEPENDENCIES) $(EXTRA_test_litest_selftest_DEPENDENCIES) 
+	@rm -f test-litest-selftest$(EXEEXT)
+	$(AM_V_CCLD)$(test_litest_selftest_LINK) $(test_litest_selftest_OBJECTS) $(test_litest_selftest_LDADD) $(LIBS)
 
 test-log$(EXEEXT): $(test_log_OBJECTS) $(test_log_DEPENDENCIES) $(EXTRA_test_log_DEPENDENCIES) 
 	@rm -f test-log$(EXEEXT)
@@ -952,29 +996,30 @@ distclean-compile:
 
 @AMDEP_TRUE@@am__include@ @am__quote@./$(DEPDIR)/device.Po@am__quote@
 @AMDEP_TRUE@@am__include@ @am__quote@./$(DEPDIR)/keyboard.Po@am__quote@
-@AMDEP_TRUE@@am__include@ @am__quote@./$(DEPDIR)/litest-alps-semi-mt.Plo@am__quote@
-@AMDEP_TRUE@@am__include@ @am__quote@./$(DEPDIR)/litest-bcm5974.Plo@am__quote@
-@AMDEP_TRUE@@am__include@ @am__quote@./$(DEPDIR)/litest-generic-singletouch.Plo@am__quote@
-@AMDEP_TRUE@@am__include@ @am__quote@./$(DEPDIR)/litest-keyboard-razer-blackwidow.Plo@am__quote@
-@AMDEP_TRUE@@am__include@ @am__quote@./$(DEPDIR)/litest-keyboard.Plo@am__quote@
-@AMDEP_TRUE@@am__include@ @am__quote@./$(DEPDIR)/litest-logitech-trackball.Plo@am__quote@
-@AMDEP_TRUE@@am__include@ @am__quote@./$(DEPDIR)/litest-mouse-roccat.Plo@am__quote@
-@AMDEP_TRUE@@am__include@ @am__quote@./$(DEPDIR)/litest-mouse.Plo@am__quote@
-@AMDEP_TRUE@@am__include@ @am__quote@./$(DEPDIR)/litest-ms-surface-cover.Plo@am__quote@
-@AMDEP_TRUE@@am__include@ @am__quote@./$(DEPDIR)/litest-protocol-a-touch-screen.Plo@am__quote@
-@AMDEP_TRUE@@am__include@ @am__quote@./$(DEPDIR)/litest-qemu-usb-tablet.Plo@am__quote@
-@AMDEP_TRUE@@am__include@ @am__quote@./$(DEPDIR)/litest-synaptics-hover.Plo@am__quote@
-@AMDEP_TRUE@@am__include@ @am__quote@./$(DEPDIR)/litest-synaptics-st.Plo@am__quote@
-@AMDEP_TRUE@@am__include@ @am__quote@./$(DEPDIR)/litest-synaptics-t440.Plo@am__quote@
-@AMDEP_TRUE@@am__include@ @am__quote@./$(DEPDIR)/litest-synaptics-x1-carbon-3rd.Plo@am__quote@
-@AMDEP_TRUE@@am__include@ @am__quote@./$(DEPDIR)/litest-synaptics.Plo@am__quote@
-@AMDEP_TRUE@@am__include@ @am__quote@./$(DEPDIR)/litest-trackpoint.Plo@am__quote@
-@AMDEP_TRUE@@am__include@ @am__quote@./$(DEPDIR)/litest-vmware-virtual-usb-mouse.Plo@am__quote@
-@AMDEP_TRUE@@am__include@ @am__quote@./$(DEPDIR)/litest-wacom-intuos-finger.Plo@am__quote@
-@AMDEP_TRUE@@am__include@ @am__quote@./$(DEPDIR)/litest-wacom-touch.Plo@am__quote@
-@AMDEP_TRUE@@am__include@ @am__quote@./$(DEPDIR)/litest-wheel-only.Plo@am__quote@
-@AMDEP_TRUE@@am__include@ @am__quote@./$(DEPDIR)/litest-xen-virtual-pointer.Plo@am__quote@
-@AMDEP_TRUE@@am__include@ @am__quote@./$(DEPDIR)/litest.Plo@am__quote@
+@AMDEP_TRUE@@am__include@ @am__quote@./$(DEPDIR)/liblitest_la-litest-alps-semi-mt.Plo@am__quote@
+@AMDEP_TRUE@@am__include@ @am__quote@./$(DEPDIR)/liblitest_la-litest-atmel-hover.Plo@am__quote@
+@AMDEP_TRUE@@am__include@ @am__quote@./$(DEPDIR)/liblitest_la-litest-bcm5974.Plo@am__quote@
+@AMDEP_TRUE@@am__include@ @am__quote@./$(DEPDIR)/liblitest_la-litest-generic-singletouch.Plo@am__quote@
+@AMDEP_TRUE@@am__include@ @am__quote@./$(DEPDIR)/liblitest_la-litest-keyboard-razer-blackwidow.Plo@am__quote@
+@AMDEP_TRUE@@am__include@ @am__quote@./$(DEPDIR)/liblitest_la-litest-keyboard.Plo@am__quote@
+@AMDEP_TRUE@@am__include@ @am__quote@./$(DEPDIR)/liblitest_la-litest-logitech-trackball.Plo@am__quote@
+@AMDEP_TRUE@@am__include@ @am__quote@./$(DEPDIR)/liblitest_la-litest-mouse-roccat.Plo@am__quote@
+@AMDEP_TRUE@@am__include@ @am__quote@./$(DEPDIR)/liblitest_la-litest-mouse.Plo@am__quote@
+@AMDEP_TRUE@@am__include@ @am__quote@./$(DEPDIR)/liblitest_la-litest-ms-surface-cover.Plo@am__quote@
+@AMDEP_TRUE@@am__include@ @am__quote@./$(DEPDIR)/liblitest_la-litest-protocol-a-touch-screen.Plo@am__quote@
+@AMDEP_TRUE@@am__include@ @am__quote@./$(DEPDIR)/liblitest_la-litest-qemu-usb-tablet.Plo@am__quote@
+@AMDEP_TRUE@@am__include@ @am__quote@./$(DEPDIR)/liblitest_la-litest-synaptics-hover.Plo@am__quote@
+@AMDEP_TRUE@@am__include@ @am__quote@./$(DEPDIR)/liblitest_la-litest-synaptics-st.Plo@am__quote@
+@AMDEP_TRUE@@am__include@ @am__quote@./$(DEPDIR)/liblitest_la-litest-synaptics-t440.Plo@am__quote@
+@AMDEP_TRUE@@am__include@ @am__quote@./$(DEPDIR)/liblitest_la-litest-synaptics-x1-carbon-3rd.Plo@am__quote@
+@AMDEP_TRUE@@am__include@ @am__quote@./$(DEPDIR)/liblitest_la-litest-synaptics.Plo@am__quote@
+@AMDEP_TRUE@@am__include@ @am__quote@./$(DEPDIR)/liblitest_la-litest-trackpoint.Plo@am__quote@
+@AMDEP_TRUE@@am__include@ @am__quote@./$(DEPDIR)/liblitest_la-litest-vmware-virtual-usb-mouse.Plo@am__quote@
+@AMDEP_TRUE@@am__include@ @am__quote@./$(DEPDIR)/liblitest_la-litest-wacom-intuos-finger.Plo@am__quote@
+@AMDEP_TRUE@@am__include@ @am__quote@./$(DEPDIR)/liblitest_la-litest-wacom-touch.Plo@am__quote@
+@AMDEP_TRUE@@am__include@ @am__quote@./$(DEPDIR)/liblitest_la-litest-wheel-only.Plo@am__quote@
+@AMDEP_TRUE@@am__include@ @am__quote@./$(DEPDIR)/liblitest_la-litest-xen-virtual-pointer.Plo@am__quote@
+@AMDEP_TRUE@@am__include@ @am__quote@./$(DEPDIR)/liblitest_la-litest.Plo@am__quote@
 @AMDEP_TRUE@@am__include@ @am__quote@./$(DEPDIR)/log.Po@am__quote@
 @AMDEP_TRUE@@am__include@ @am__quote@./$(DEPDIR)/misc.Po@am__quote@
 @AMDEP_TRUE@@am__include@ @am__quote@./$(DEPDIR)/path.Po@am__quote@
@@ -983,6 +1028,8 @@ distclean-compile:
 @AMDEP_TRUE@@am__include@ @am__quote@./$(DEPDIR)/test_build_linker-build-pedantic.Po@am__quote@
 @AMDEP_TRUE@@am__include@ @am__quote@./$(DEPDIR)/test_build_pedantic_c99-build-pedantic.Po@am__quote@
 @AMDEP_TRUE@@am__include@ @am__quote@./$(DEPDIR)/test_build_std_gnuc90-build-pedantic.Po@am__quote@
+@AMDEP_TRUE@@am__include@ @am__quote@./$(DEPDIR)/test_litest_selftest-litest-selftest.Po@am__quote@
+@AMDEP_TRUE@@am__include@ @am__quote@./$(DEPDIR)/test_litest_selftest-litest.Po@am__quote@
 @AMDEP_TRUE@@am__include@ @am__quote@./$(DEPDIR)/touch.Po@am__quote@
 @AMDEP_TRUE@@am__include@ @am__quote@./$(DEPDIR)/touchpad.Po@am__quote@
 @AMDEP_TRUE@@am__include@ @am__quote@./$(DEPDIR)/trackpoint.Po@am__quote@
@@ -1008,6 +1055,174 @@ distclean-compile:
 @AMDEP_TRUE@@am__fastdepCC_FALSE@	$(AM_V_CC)source='$<' object='$@' libtool=yes @AMDEPBACKSLASH@
 @AMDEP_TRUE@@am__fastdepCC_FALSE@	DEPDIR=$(DEPDIR) $(CCDEPMODE) $(depcomp) @AMDEPBACKSLASH@
 @am__fastdepCC_FALSE@	$(AM_V_CC@am__nodep@)$(LTCOMPILE) -c -o $@ $<
+
+liblitest_la-litest-alps-semi-mt.lo: litest-alps-semi-mt.c
+@am__fastdepCC_TRUE@	$(AM_V_CC)$(LIBTOOL) $(AM_V_lt) --tag=CC $(AM_LIBTOOLFLAGS) $(LIBTOOLFLAGS) --mode=compile $(CC) $(DEFS) $(DEFAULT_INCLUDES) $(INCLUDES) $(AM_CPPFLAGS) $(CPPFLAGS) $(liblitest_la_CFLAGS) $(CFLAGS) -MT liblitest_la-litest-alps-semi-mt.lo -MD -MP -MF $(DEPDIR)/liblitest_la-litest-alps-semi-mt.Tpo -c -o liblitest_la-litest-alps-semi-mt.lo `test -f 'litest-alps-semi-mt.c' || echo '$(srcdir)/'`litest-alps-semi-mt.c
+@am__fastdepCC_TRUE@	$(AM_V_at)$(am__mv) $(DEPDIR)/liblitest_la-litest-alps-semi-mt.Tpo $(DEPDIR)/liblitest_la-litest-alps-semi-mt.Plo
+@AMDEP_TRUE@@am__fastdepCC_FALSE@	$(AM_V_CC)source='litest-alps-semi-mt.c' object='liblitest_la-litest-alps-semi-mt.lo' libtool=yes @AMDEPBACKSLASH@
+@AMDEP_TRUE@@am__fastdepCC_FALSE@	DEPDIR=$(DEPDIR) $(CCDEPMODE) $(depcomp) @AMDEPBACKSLASH@
+@am__fastdepCC_FALSE@	$(AM_V_CC@am__nodep@)$(LIBTOOL) $(AM_V_lt) --tag=CC $(AM_LIBTOOLFLAGS) $(LIBTOOLFLAGS) --mode=compile $(CC) $(DEFS) $(DEFAULT_INCLUDES) $(INCLUDES) $(AM_CPPFLAGS) $(CPPFLAGS) $(liblitest_la_CFLAGS) $(CFLAGS) -c -o liblitest_la-litest-alps-semi-mt.lo `test -f 'litest-alps-semi-mt.c' || echo '$(srcdir)/'`litest-alps-semi-mt.c
+
+liblitest_la-litest-atmel-hover.lo: litest-atmel-hover.c
+@am__fastdepCC_TRUE@	$(AM_V_CC)$(LIBTOOL) $(AM_V_lt) --tag=CC $(AM_LIBTOOLFLAGS) $(LIBTOOLFLAGS) --mode=compile $(CC) $(DEFS) $(DEFAULT_INCLUDES) $(INCLUDES) $(AM_CPPFLAGS) $(CPPFLAGS) $(liblitest_la_CFLAGS) $(CFLAGS) -MT liblitest_la-litest-atmel-hover.lo -MD -MP -MF $(DEPDIR)/liblitest_la-litest-atmel-hover.Tpo -c -o liblitest_la-litest-atmel-hover.lo `test -f 'litest-atmel-hover.c' || echo '$(srcdir)/'`litest-atmel-hover.c
+@am__fastdepCC_TRUE@	$(AM_V_at)$(am__mv) $(DEPDIR)/liblitest_la-litest-atmel-hover.Tpo $(DEPDIR)/liblitest_la-litest-atmel-hover.Plo
+@AMDEP_TRUE@@am__fastdepCC_FALSE@	$(AM_V_CC)source='litest-atmel-hover.c' object='liblitest_la-litest-atmel-hover.lo' libtool=yes @AMDEPBACKSLASH@
+@AMDEP_TRUE@@am__fastdepCC_FALSE@	DEPDIR=$(DEPDIR) $(CCDEPMODE) $(depcomp) @AMDEPBACKSLASH@
+@am__fastdepCC_FALSE@	$(AM_V_CC@am__nodep@)$(LIBTOOL) $(AM_V_lt) --tag=CC $(AM_LIBTOOLFLAGS) $(LIBTOOLFLAGS) --mode=compile $(CC) $(DEFS) $(DEFAULT_INCLUDES) $(INCLUDES) $(AM_CPPFLAGS) $(CPPFLAGS) $(liblitest_la_CFLAGS) $(CFLAGS) -c -o liblitest_la-litest-atmel-hover.lo `test -f 'litest-atmel-hover.c' || echo '$(srcdir)/'`litest-atmel-hover.c
+
+liblitest_la-litest-bcm5974.lo: litest-bcm5974.c
+@am__fastdepCC_TRUE@	$(AM_V_CC)$(LIBTOOL) $(AM_V_lt) --tag=CC $(AM_LIBTOOLFLAGS) $(LIBTOOLFLAGS) --mode=compile $(CC) $(DEFS) $(DEFAULT_INCLUDES) $(INCLUDES) $(AM_CPPFLAGS) $(CPPFLAGS) $(liblitest_la_CFLAGS) $(CFLAGS) -MT liblitest_la-litest-bcm5974.lo -MD -MP -MF $(DEPDIR)/liblitest_la-litest-bcm5974.Tpo -c -o liblitest_la-litest-bcm5974.lo `test -f 'litest-bcm5974.c' || echo '$(srcdir)/'`litest-bcm5974.c
+@am__fastdepCC_TRUE@	$(AM_V_at)$(am__mv) $(DEPDIR)/liblitest_la-litest-bcm5974.Tpo $(DEPDIR)/liblitest_la-litest-bcm5974.Plo
+@AMDEP_TRUE@@am__fastdepCC_FALSE@	$(AM_V_CC)source='litest-bcm5974.c' object='liblitest_la-litest-bcm5974.lo' libtool=yes @AMDEPBACKSLASH@
+@AMDEP_TRUE@@am__fastdepCC_FALSE@	DEPDIR=$(DEPDIR) $(CCDEPMODE) $(depcomp) @AMDEPBACKSLASH@
+@am__fastdepCC_FALSE@	$(AM_V_CC@am__nodep@)$(LIBTOOL) $(AM_V_lt) --tag=CC $(AM_LIBTOOLFLAGS) $(LIBTOOLFLAGS) --mode=compile $(CC) $(DEFS) $(DEFAULT_INCLUDES) $(INCLUDES) $(AM_CPPFLAGS) $(CPPFLAGS) $(liblitest_la_CFLAGS) $(CFLAGS) -c -o liblitest_la-litest-bcm5974.lo `test -f 'litest-bcm5974.c' || echo '$(srcdir)/'`litest-bcm5974.c
+
+liblitest_la-litest-generic-singletouch.lo: litest-generic-singletouch.c
+@am__fastdepCC_TRUE@	$(AM_V_CC)$(LIBTOOL) $(AM_V_lt) --tag=CC $(AM_LIBTOOLFLAGS) $(LIBTOOLFLAGS) --mode=compile $(CC) $(DEFS) $(DEFAULT_INCLUDES) $(INCLUDES) $(AM_CPPFLAGS) $(CPPFLAGS) $(liblitest_la_CFLAGS) $(CFLAGS) -MT liblitest_la-litest-generic-singletouch.lo -MD -MP -MF $(DEPDIR)/liblitest_la-litest-generic-singletouch.Tpo -c -o liblitest_la-litest-generic-singletouch.lo `test -f 'litest-generic-singletouch.c' || echo '$(srcdir)/'`litest-generic-singletouch.c
+@am__fastdepCC_TRUE@	$(AM_V_at)$(am__mv) $(DEPDIR)/liblitest_la-litest-generic-singletouch.Tpo $(DEPDIR)/liblitest_la-litest-generic-singletouch.Plo
+@AMDEP_TRUE@@am__fastdepCC_FALSE@	$(AM_V_CC)source='litest-generic-singletouch.c' object='liblitest_la-litest-generic-singletouch.lo' libtool=yes @AMDEPBACKSLASH@
+@AMDEP_TRUE@@am__fastdepCC_FALSE@	DEPDIR=$(DEPDIR) $(CCDEPMODE) $(depcomp) @AMDEPBACKSLASH@
+@am__fastdepCC_FALSE@	$(AM_V_CC@am__nodep@)$(LIBTOOL) $(AM_V_lt) --tag=CC $(AM_LIBTOOLFLAGS) $(LIBTOOLFLAGS) --mode=compile $(CC) $(DEFS) $(DEFAULT_INCLUDES) $(INCLUDES) $(AM_CPPFLAGS) $(CPPFLAGS) $(liblitest_la_CFLAGS) $(CFLAGS) -c -o liblitest_la-litest-generic-singletouch.lo `test -f 'litest-generic-singletouch.c' || echo '$(srcdir)/'`litest-generic-singletouch.c
+
+liblitest_la-litest-keyboard.lo: litest-keyboard.c
+@am__fastdepCC_TRUE@	$(AM_V_CC)$(LIBTOOL) $(AM_V_lt) --tag=CC $(AM_LIBTOOLFLAGS) $(LIBTOOLFLAGS) --mode=compile $(CC) $(DEFS) $(DEFAULT_INCLUDES) $(INCLUDES) $(AM_CPPFLAGS) $(CPPFLAGS) $(liblitest_la_CFLAGS) $(CFLAGS) -MT liblitest_la-litest-keyboard.lo -MD -MP -MF $(DEPDIR)/liblitest_la-litest-keyboard.Tpo -c -o liblitest_la-litest-keyboard.lo `test -f 'litest-keyboard.c' || echo '$(srcdir)/'`litest-keyboard.c
+@am__fastdepCC_TRUE@	$(AM_V_at)$(am__mv) $(DEPDIR)/liblitest_la-litest-keyboard.Tpo $(DEPDIR)/liblitest_la-litest-keyboard.Plo
+@AMDEP_TRUE@@am__fastdepCC_FALSE@	$(AM_V_CC)source='litest-keyboard.c' object='liblitest_la-litest-keyboard.lo' libtool=yes @AMDEPBACKSLASH@
+@AMDEP_TRUE@@am__fastdepCC_FALSE@	DEPDIR=$(DEPDIR) $(CCDEPMODE) $(depcomp) @AMDEPBACKSLASH@
+@am__fastdepCC_FALSE@	$(AM_V_CC@am__nodep@)$(LIBTOOL) $(AM_V_lt) --tag=CC $(AM_LIBTOOLFLAGS) $(LIBTOOLFLAGS) --mode=compile $(CC) $(DEFS) $(DEFAULT_INCLUDES) $(INCLUDES) $(AM_CPPFLAGS) $(CPPFLAGS) $(liblitest_la_CFLAGS) $(CFLAGS) -c -o liblitest_la-litest-keyboard.lo `test -f 'litest-keyboard.c' || echo '$(srcdir)/'`litest-keyboard.c
+
+liblitest_la-litest-keyboard-razer-blackwidow.lo: litest-keyboard-razer-blackwidow.c
+@am__fastdepCC_TRUE@	$(AM_V_CC)$(LIBTOOL) $(AM_V_lt) --tag=CC $(AM_LIBTOOLFLAGS) $(LIBTOOLFLAGS) --mode=compile $(CC) $(DEFS) $(DEFAULT_INCLUDES) $(INCLUDES) $(AM_CPPFLAGS) $(CPPFLAGS) $(liblitest_la_CFLAGS) $(CFLAGS) -MT liblitest_la-litest-keyboard-razer-blackwidow.lo -MD -MP -MF $(DEPDIR)/liblitest_la-litest-keyboard-razer-blackwidow.Tpo -c -o liblitest_la-litest-keyboard-razer-blackwidow.lo `test -f 'litest-keyboard-razer-blackwidow.c' || echo '$(srcdir)/'`litest-keyboard-razer-blackwidow.c
+@am__fastdepCC_TRUE@	$(AM_V_at)$(am__mv) $(DEPDIR)/liblitest_la-litest-keyboard-razer-blackwidow.Tpo $(DEPDIR)/liblitest_la-litest-keyboard-razer-blackwidow.Plo
+@AMDEP_TRUE@@am__fastdepCC_FALSE@	$(AM_V_CC)source='litest-keyboard-razer-blackwidow.c' object='liblitest_la-litest-keyboard-razer-blackwidow.lo' libtool=yes @AMDEPBACKSLASH@
+@AMDEP_TRUE@@am__fastdepCC_FALSE@	DEPDIR=$(DEPDIR) $(CCDEPMODE) $(depcomp) @AMDEPBACKSLASH@
+@am__fastdepCC_FALSE@	$(AM_V_CC@am__nodep@)$(LIBTOOL) $(AM_V_lt) --tag=CC $(AM_LIBTOOLFLAGS) $(LIBTOOLFLAGS) --mode=compile $(CC) $(DEFS) $(DEFAULT_INCLUDES) $(INCLUDES) $(AM_CPPFLAGS) $(CPPFLAGS) $(liblitest_la_CFLAGS) $(CFLAGS) -c -o liblitest_la-litest-keyboard-razer-blackwidow.lo `test -f 'litest-keyboard-razer-blackwidow.c' || echo '$(srcdir)/'`litest-keyboard-razer-blackwidow.c
+
+liblitest_la-litest-logitech-trackball.lo: litest-logitech-trackball.c
+@am__fastdepCC_TRUE@	$(AM_V_CC)$(LIBTOOL) $(AM_V_lt) --tag=CC $(AM_LIBTOOLFLAGS) $(LIBTOOLFLAGS) --mode=compile $(CC) $(DEFS) $(DEFAULT_INCLUDES) $(INCLUDES) $(AM_CPPFLAGS) $(CPPFLAGS) $(liblitest_la_CFLAGS) $(CFLAGS) -MT liblitest_la-litest-logitech-trackball.lo -MD -MP -MF $(DEPDIR)/liblitest_la-litest-logitech-trackball.Tpo -c -o liblitest_la-litest-logitech-trackball.lo `test -f 'litest-logitech-trackball.c' || echo '$(srcdir)/'`litest-logitech-trackball.c
+@am__fastdepCC_TRUE@	$(AM_V_at)$(am__mv) $(DEPDIR)/liblitest_la-litest-logitech-trackball.Tpo $(DEPDIR)/liblitest_la-litest-logitech-trackball.Plo
+@AMDEP_TRUE@@am__fastdepCC_FALSE@	$(AM_V_CC)source='litest-logitech-trackball.c' object='liblitest_la-litest-logitech-trackball.lo' libtool=yes @AMDEPBACKSLASH@
+@AMDEP_TRUE@@am__fastdepCC_FALSE@	DEPDIR=$(DEPDIR) $(CCDEPMODE) $(depcomp) @AMDEPBACKSLASH@
+@am__fastdepCC_FALSE@	$(AM_V_CC@am__nodep@)$(LIBTOOL) $(AM_V_lt) --tag=CC $(AM_LIBTOOLFLAGS) $(LIBTOOLFLAGS) --mode=compile $(CC) $(DEFS) $(DEFAULT_INCLUDES) $(INCLUDES) $(AM_CPPFLAGS) $(CPPFLAGS) $(liblitest_la_CFLAGS) $(CFLAGS) -c -o liblitest_la-litest-logitech-trackball.lo `test -f 'litest-logitech-trackball.c' || echo '$(srcdir)/'`litest-logitech-trackball.c
+
+liblitest_la-litest-mouse.lo: litest-mouse.c
+@am__fastdepCC_TRUE@	$(AM_V_CC)$(LIBTOOL) $(AM_V_lt) --tag=CC $(AM_LIBTOOLFLAGS) $(LIBTOOLFLAGS) --mode=compile $(CC) $(DEFS) $(DEFAULT_INCLUDES) $(INCLUDES) $(AM_CPPFLAGS) $(CPPFLAGS) $(liblitest_la_CFLAGS) $(CFLAGS) -MT liblitest_la-litest-mouse.lo -MD -MP -MF $(DEPDIR)/liblitest_la-litest-mouse.Tpo -c -o liblitest_la-litest-mouse.lo `test -f 'litest-mouse.c' || echo '$(srcdir)/'`litest-mouse.c
+@am__fastdepCC_TRUE@	$(AM_V_at)$(am__mv) $(DEPDIR)/liblitest_la-litest-mouse.Tpo $(DEPDIR)/liblitest_la-litest-mouse.Plo
+@AMDEP_TRUE@@am__fastdepCC_FALSE@	$(AM_V_CC)source='litest-mouse.c' object='liblitest_la-litest-mouse.lo' libtool=yes @AMDEPBACKSLASH@
+@AMDEP_TRUE@@am__fastdepCC_FALSE@	DEPDIR=$(DEPDIR) $(CCDEPMODE) $(depcomp) @AMDEPBACKSLASH@
+@am__fastdepCC_FALSE@	$(AM_V_CC@am__nodep@)$(LIBTOOL) $(AM_V_lt) --tag=CC $(AM_LIBTOOLFLAGS) $(LIBTOOLFLAGS) --mode=compile $(CC) $(DEFS) $(DEFAULT_INCLUDES) $(INCLUDES) $(AM_CPPFLAGS) $(CPPFLAGS) $(liblitest_la_CFLAGS) $(CFLAGS) -c -o liblitest_la-litest-mouse.lo `test -f 'litest-mouse.c' || echo '$(srcdir)/'`litest-mouse.c
+
+liblitest_la-litest-mouse-roccat.lo: litest-mouse-roccat.c
+@am__fastdepCC_TRUE@	$(AM_V_CC)$(LIBTOOL) $(AM_V_lt) --tag=CC $(AM_LIBTOOLFLAGS) $(LIBTOOLFLAGS) --mode=compile $(CC) $(DEFS) $(DEFAULT_INCLUDES) $(INCLUDES) $(AM_CPPFLAGS) $(CPPFLAGS) $(liblitest_la_CFLAGS) $(CFLAGS) -MT liblitest_la-litest-mouse-roccat.lo -MD -MP -MF $(DEPDIR)/liblitest_la-litest-mouse-roccat.Tpo -c -o liblitest_la-litest-mouse-roccat.lo `test -f 'litest-mouse-roccat.c' || echo '$(srcdir)/'`litest-mouse-roccat.c
+@am__fastdepCC_TRUE@	$(AM_V_at)$(am__mv) $(DEPDIR)/liblitest_la-litest-mouse-roccat.Tpo $(DEPDIR)/liblitest_la-litest-mouse-roccat.Plo
+@AMDEP_TRUE@@am__fastdepCC_FALSE@	$(AM_V_CC)source='litest-mouse-roccat.c' object='liblitest_la-litest-mouse-roccat.lo' libtool=yes @AMDEPBACKSLASH@
+@AMDEP_TRUE@@am__fastdepCC_FALSE@	DEPDIR=$(DEPDIR) $(CCDEPMODE) $(depcomp) @AMDEPBACKSLASH@
+@am__fastdepCC_FALSE@	$(AM_V_CC@am__nodep@)$(LIBTOOL) $(AM_V_lt) --tag=CC $(AM_LIBTOOLFLAGS) $(LIBTOOLFLAGS) --mode=compile $(CC) $(DEFS) $(DEFAULT_INCLUDES) $(INCLUDES) $(AM_CPPFLAGS) $(CPPFLAGS) $(liblitest_la_CFLAGS) $(CFLAGS) -c -o liblitest_la-litest-mouse-roccat.lo `test -f 'litest-mouse-roccat.c' || echo '$(srcdir)/'`litest-mouse-roccat.c
+
+liblitest_la-litest-ms-surface-cover.lo: litest-ms-surface-cover.c
+@am__fastdepCC_TRUE@	$(AM_V_CC)$(LIBTOOL) $(AM_V_lt) --tag=CC $(AM_LIBTOOLFLAGS) $(LIBTOOLFLAGS) --mode=compile $(CC) $(DEFS) $(DEFAULT_INCLUDES) $(INCLUDES) $(AM_CPPFLAGS) $(CPPFLAGS) $(liblitest_la_CFLAGS) $(CFLAGS) -MT liblitest_la-litest-ms-surface-cover.lo -MD -MP -MF $(DEPDIR)/liblitest_la-litest-ms-surface-cover.Tpo -c -o liblitest_la-litest-ms-surface-cover.lo `test -f 'litest-ms-surface-cover.c' || echo '$(srcdir)/'`litest-ms-surface-cover.c
+@am__fastdepCC_TRUE@	$(AM_V_at)$(am__mv) $(DEPDIR)/liblitest_la-litest-ms-surface-cover.Tpo $(DEPDIR)/liblitest_la-litest-ms-surface-cover.Plo
+@AMDEP_TRUE@@am__fastdepCC_FALSE@	$(AM_V_CC)source='litest-ms-surface-cover.c' object='liblitest_la-litest-ms-surface-cover.lo' libtool=yes @AMDEPBACKSLASH@
+@AMDEP_TRUE@@am__fastdepCC_FALSE@	DEPDIR=$(DEPDIR) $(CCDEPMODE) $(depcomp) @AMDEPBACKSLASH@
+@am__fastdepCC_FALSE@	$(AM_V_CC@am__nodep@)$(LIBTOOL) $(AM_V_lt) --tag=CC $(AM_LIBTOOLFLAGS) $(LIBTOOLFLAGS) --mode=compile $(CC) $(DEFS) $(DEFAULT_INCLUDES) $(INCLUDES) $(AM_CPPFLAGS) $(CPPFLAGS) $(liblitest_la_CFLAGS) $(CFLAGS) -c -o liblitest_la-litest-ms-surface-cover.lo `test -f 'litest-ms-surface-cover.c' || echo '$(srcdir)/'`litest-ms-surface-cover.c
+
+liblitest_la-litest-protocol-a-touch-screen.lo: litest-protocol-a-touch-screen.c
+@am__fastdepCC_TRUE@	$(AM_V_CC)$(LIBTOOL) $(AM_V_lt) --tag=CC $(AM_LIBTOOLFLAGS) $(LIBTOOLFLAGS) --mode=compile $(CC) $(DEFS) $(DEFAULT_INCLUDES) $(INCLUDES) $(AM_CPPFLAGS) $(CPPFLAGS) $(liblitest_la_CFLAGS) $(CFLAGS) -MT liblitest_la-litest-protocol-a-touch-screen.lo -MD -MP -MF $(DEPDIR)/liblitest_la-litest-protocol-a-touch-screen.Tpo -c -o liblitest_la-litest-protocol-a-touch-screen.lo `test -f 'litest-protocol-a-touch-screen.c' || echo '$(srcdir)/'`litest-protocol-a-touch-screen.c
+@am__fastdepCC_TRUE@	$(AM_V_at)$(am__mv) $(DEPDIR)/liblitest_la-litest-protocol-a-touch-screen.Tpo $(DEPDIR)/liblitest_la-litest-protocol-a-touch-screen.Plo
+@AMDEP_TRUE@@am__fastdepCC_FALSE@	$(AM_V_CC)source='litest-protocol-a-touch-screen.c' object='liblitest_la-litest-protocol-a-touch-screen.lo' libtool=yes @AMDEPBACKSLASH@
+@AMDEP_TRUE@@am__fastdepCC_FALSE@	DEPDIR=$(DEPDIR) $(CCDEPMODE) $(depcomp) @AMDEPBACKSLASH@
+@am__fastdepCC_FALSE@	$(AM_V_CC@am__nodep@)$(LIBTOOL) $(AM_V_lt) --tag=CC $(AM_LIBTOOLFLAGS) $(LIBTOOLFLAGS) --mode=compile $(CC) $(DEFS) $(DEFAULT_INCLUDES) $(INCLUDES) $(AM_CPPFLAGS) $(CPPFLAGS) $(liblitest_la_CFLAGS) $(CFLAGS) -c -o liblitest_la-litest-protocol-a-touch-screen.lo `test -f 'litest-protocol-a-touch-screen.c' || echo '$(srcdir)/'`litest-protocol-a-touch-screen.c
+
+liblitest_la-litest-qemu-usb-tablet.lo: litest-qemu-usb-tablet.c
+@am__fastdepCC_TRUE@	$(AM_V_CC)$(LIBTOOL) $(AM_V_lt) --tag=CC $(AM_LIBTOOLFLAGS) $(LIBTOOLFLAGS) --mode=compile $(CC) $(DEFS) $(DEFAULT_INCLUDES) $(INCLUDES) $(AM_CPPFLAGS) $(CPPFLAGS) $(liblitest_la_CFLAGS) $(CFLAGS) -MT liblitest_la-litest-qemu-usb-tablet.lo -MD -MP -MF $(DEPDIR)/liblitest_la-litest-qemu-usb-tablet.Tpo -c -o liblitest_la-litest-qemu-usb-tablet.lo `test -f 'litest-qemu-usb-tablet.c' || echo '$(srcdir)/'`litest-qemu-usb-tablet.c
+@am__fastdepCC_TRUE@	$(AM_V_at)$(am__mv) $(DEPDIR)/liblitest_la-litest-qemu-usb-tablet.Tpo $(DEPDIR)/liblitest_la-litest-qemu-usb-tablet.Plo
+@AMDEP_TRUE@@am__fastdepCC_FALSE@	$(AM_V_CC)source='litest-qemu-usb-tablet.c' object='liblitest_la-litest-qemu-usb-tablet.lo' libtool=yes @AMDEPBACKSLASH@
+@AMDEP_TRUE@@am__fastdepCC_FALSE@	DEPDIR=$(DEPDIR) $(CCDEPMODE) $(depcomp) @AMDEPBACKSLASH@
+@am__fastdepCC_FALSE@	$(AM_V_CC@am__nodep@)$(LIBTOOL) $(AM_V_lt) --tag=CC $(AM_LIBTOOLFLAGS) $(LIBTOOLFLAGS) --mode=compile $(CC) $(DEFS) $(DEFAULT_INCLUDES) $(INCLUDES) $(AM_CPPFLAGS) $(CPPFLAGS) $(liblitest_la_CFLAGS) $(CFLAGS) -c -o liblitest_la-litest-qemu-usb-tablet.lo `test -f 'litest-qemu-usb-tablet.c' || echo '$(srcdir)/'`litest-qemu-usb-tablet.c
+
+liblitest_la-litest-synaptics.lo: litest-synaptics.c
+@am__fastdepCC_TRUE@	$(AM_V_CC)$(LIBTOOL) $(AM_V_lt) --tag=CC $(AM_LIBTOOLFLAGS) $(LIBTOOLFLAGS) --mode=compile $(CC) $(DEFS) $(DEFAULT_INCLUDES) $(INCLUDES) $(AM_CPPFLAGS) $(CPPFLAGS) $(liblitest_la_CFLAGS) $(CFLAGS) -MT liblitest_la-litest-synaptics.lo -MD -MP -MF $(DEPDIR)/liblitest_la-litest-synaptics.Tpo -c -o liblitest_la-litest-synaptics.lo `test -f 'litest-synaptics.c' || echo '$(srcdir)/'`litest-synaptics.c
+@am__fastdepCC_TRUE@	$(AM_V_at)$(am__mv) $(DEPDIR)/liblitest_la-litest-synaptics.Tpo $(DEPDIR)/liblitest_la-litest-synaptics.Plo
+@AMDEP_TRUE@@am__fastdepCC_FALSE@	$(AM_V_CC)source='litest-synaptics.c' object='liblitest_la-litest-synaptics.lo' libtool=yes @AMDEPBACKSLASH@
+@AMDEP_TRUE@@am__fastdepCC_FALSE@	DEPDIR=$(DEPDIR) $(CCDEPMODE) $(depcomp) @AMDEPBACKSLASH@
+@am__fastdepCC_FALSE@	$(AM_V_CC@am__nodep@)$(LIBTOOL) $(AM_V_lt) --tag=CC $(AM_LIBTOOLFLAGS) $(LIBTOOLFLAGS) --mode=compile $(CC) $(DEFS) $(DEFAULT_INCLUDES) $(INCLUDES) $(AM_CPPFLAGS) $(CPPFLAGS) $(liblitest_la_CFLAGS) $(CFLAGS) -c -o liblitest_la-litest-synaptics.lo `test -f 'litest-synaptics.c' || echo '$(srcdir)/'`litest-synaptics.c
+
+liblitest_la-litest-synaptics-hover.lo: litest-synaptics-hover.c
+@am__fastdepCC_TRUE@	$(AM_V_CC)$(LIBTOOL) $(AM_V_lt) --tag=CC $(AM_LIBTOOLFLAGS) $(LIBTOOLFLAGS) --mode=compile $(CC) $(DEFS) $(DEFAULT_INCLUDES) $(INCLUDES) $(AM_CPPFLAGS) $(CPPFLAGS) $(liblitest_la_CFLAGS) $(CFLAGS) -MT liblitest_la-litest-synaptics-hover.lo -MD -MP -MF $(DEPDIR)/liblitest_la-litest-synaptics-hover.Tpo -c -o liblitest_la-litest-synaptics-hover.lo `test -f 'litest-synaptics-hover.c' || echo '$(srcdir)/'`litest-synaptics-hover.c
+@am__fastdepCC_TRUE@	$(AM_V_at)$(am__mv) $(DEPDIR)/liblitest_la-litest-synaptics-hover.Tpo $(DEPDIR)/liblitest_la-litest-synaptics-hover.Plo
+@AMDEP_TRUE@@am__fastdepCC_FALSE@	$(AM_V_CC)source='litest-synaptics-hover.c' object='liblitest_la-litest-synaptics-hover.lo' libtool=yes @AMDEPBACKSLASH@
+@AMDEP_TRUE@@am__fastdepCC_FALSE@	DEPDIR=$(DEPDIR) $(CCDEPMODE) $(depcomp) @AMDEPBACKSLASH@
+@am__fastdepCC_FALSE@	$(AM_V_CC@am__nodep@)$(LIBTOOL) $(AM_V_lt) --tag=CC $(AM_LIBTOOLFLAGS) $(LIBTOOLFLAGS) --mode=compile $(CC) $(DEFS) $(DEFAULT_INCLUDES) $(INCLUDES) $(AM_CPPFLAGS) $(CPPFLAGS) $(liblitest_la_CFLAGS) $(CFLAGS) -c -o liblitest_la-litest-synaptics-hover.lo `test -f 'litest-synaptics-hover.c' || echo '$(srcdir)/'`litest-synaptics-hover.c
+
+liblitest_la-litest-synaptics-st.lo: litest-synaptics-st.c
+@am__fastdepCC_TRUE@	$(AM_V_CC)$(LIBTOOL) $(AM_V_lt) --tag=CC $(AM_LIBTOOLFLAGS) $(LIBTOOLFLAGS) --mode=compile $(CC) $(DEFS) $(DEFAULT_INCLUDES) $(INCLUDES) $(AM_CPPFLAGS) $(CPPFLAGS) $(liblitest_la_CFLAGS) $(CFLAGS) -MT liblitest_la-litest-synaptics-st.lo -MD -MP -MF $(DEPDIR)/liblitest_la-litest-synaptics-st.Tpo -c -o liblitest_la-litest-synaptics-st.lo `test -f 'litest-synaptics-st.c' || echo '$(srcdir)/'`litest-synaptics-st.c
+@am__fastdepCC_TRUE@	$(AM_V_at)$(am__mv) $(DEPDIR)/liblitest_la-litest-synaptics-st.Tpo $(DEPDIR)/liblitest_la-litest-synaptics-st.Plo
+@AMDEP_TRUE@@am__fastdepCC_FALSE@	$(AM_V_CC)source='litest-synaptics-st.c' object='liblitest_la-litest-synaptics-st.lo' libtool=yes @AMDEPBACKSLASH@
+@AMDEP_TRUE@@am__fastdepCC_FALSE@	DEPDIR=$(DEPDIR) $(CCDEPMODE) $(depcomp) @AMDEPBACKSLASH@
+@am__fastdepCC_FALSE@	$(AM_V_CC@am__nodep@)$(LIBTOOL) $(AM_V_lt) --tag=CC $(AM_LIBTOOLFLAGS) $(LIBTOOLFLAGS) --mode=compile $(CC) $(DEFS) $(DEFAULT_INCLUDES) $(INCLUDES) $(AM_CPPFLAGS) $(CPPFLAGS) $(liblitest_la_CFLAGS) $(CFLAGS) -c -o liblitest_la-litest-synaptics-st.lo `test -f 'litest-synaptics-st.c' || echo '$(srcdir)/'`litest-synaptics-st.c
+
+liblitest_la-litest-synaptics-t440.lo: litest-synaptics-t440.c
+@am__fastdepCC_TRUE@	$(AM_V_CC)$(LIBTOOL) $(AM_V_lt) --tag=CC $(AM_LIBTOOLFLAGS) $(LIBTOOLFLAGS) --mode=compile $(CC) $(DEFS) $(DEFAULT_INCLUDES) $(INCLUDES) $(AM_CPPFLAGS) $(CPPFLAGS) $(liblitest_la_CFLAGS) $(CFLAGS) -MT liblitest_la-litest-synaptics-t440.lo -MD -MP -MF $(DEPDIR)/liblitest_la-litest-synaptics-t440.Tpo -c -o liblitest_la-litest-synaptics-t440.lo `test -f 'litest-synaptics-t440.c' || echo '$(srcdir)/'`litest-synaptics-t440.c
+@am__fastdepCC_TRUE@	$(AM_V_at)$(am__mv) $(DEPDIR)/liblitest_la-litest-synaptics-t440.Tpo $(DEPDIR)/liblitest_la-litest-synaptics-t440.Plo
+@AMDEP_TRUE@@am__fastdepCC_FALSE@	$(AM_V_CC)source='litest-synaptics-t440.c' object='liblitest_la-litest-synaptics-t440.lo' libtool=yes @AMDEPBACKSLASH@
+@AMDEP_TRUE@@am__fastdepCC_FALSE@	DEPDIR=$(DEPDIR) $(CCDEPMODE) $(depcomp) @AMDEPBACKSLASH@
+@am__fastdepCC_FALSE@	$(AM_V_CC@am__nodep@)$(LIBTOOL) $(AM_V_lt) --tag=CC $(AM_LIBTOOLFLAGS) $(LIBTOOLFLAGS) --mode=compile $(CC) $(DEFS) $(DEFAULT_INCLUDES) $(INCLUDES) $(AM_CPPFLAGS) $(CPPFLAGS) $(liblitest_la_CFLAGS) $(CFLAGS) -c -o liblitest_la-litest-synaptics-t440.lo `test -f 'litest-synaptics-t440.c' || echo '$(srcdir)/'`litest-synaptics-t440.c
+
+liblitest_la-litest-synaptics-x1-carbon-3rd.lo: litest-synaptics-x1-carbon-3rd.c
+@am__fastdepCC_TRUE@	$(AM_V_CC)$(LIBTOOL) $(AM_V_lt) --tag=CC $(AM_LIBTOOLFLAGS) $(LIBTOOLFLAGS) --mode=compile $(CC) $(DEFS) $(DEFAULT_INCLUDES) $(INCLUDES) $(AM_CPPFLAGS) $(CPPFLAGS) $(liblitest_la_CFLAGS) $(CFLAGS) -MT liblitest_la-litest-synaptics-x1-carbon-3rd.lo -MD -MP -MF $(DEPDIR)/liblitest_la-litest-synaptics-x1-carbon-3rd.Tpo -c -o liblitest_la-litest-synaptics-x1-carbon-3rd.lo `test -f 'litest-synaptics-x1-carbon-3rd.c' || echo '$(srcdir)/'`litest-synaptics-x1-carbon-3rd.c
+@am__fastdepCC_TRUE@	$(AM_V_at)$(am__mv) $(DEPDIR)/liblitest_la-litest-synaptics-x1-carbon-3rd.Tpo $(DEPDIR)/liblitest_la-litest-synaptics-x1-carbon-3rd.Plo
+@AMDEP_TRUE@@am__fastdepCC_FALSE@	$(AM_V_CC)source='litest-synaptics-x1-carbon-3rd.c' object='liblitest_la-litest-synaptics-x1-carbon-3rd.lo' libtool=yes @AMDEPBACKSLASH@
+@AMDEP_TRUE@@am__fastdepCC_FALSE@	DEPDIR=$(DEPDIR) $(CCDEPMODE) $(depcomp) @AMDEPBACKSLASH@
+@am__fastdepCC_FALSE@	$(AM_V_CC@am__nodep@)$(LIBTOOL) $(AM_V_lt) --tag=CC $(AM_LIBTOOLFLAGS) $(LIBTOOLFLAGS) --mode=compile $(CC) $(DEFS) $(DEFAULT_INCLUDES) $(INCLUDES) $(AM_CPPFLAGS) $(CPPFLAGS) $(liblitest_la_CFLAGS) $(CFLAGS) -c -o liblitest_la-litest-synaptics-x1-carbon-3rd.lo `test -f 'litest-synaptics-x1-carbon-3rd.c' || echo '$(srcdir)/'`litest-synaptics-x1-carbon-3rd.c
+
+liblitest_la-litest-trackpoint.lo: litest-trackpoint.c
+@am__fastdepCC_TRUE@	$(AM_V_CC)$(LIBTOOL) $(AM_V_lt) --tag=CC $(AM_LIBTOOLFLAGS) $(LIBTOOLFLAGS) --mode=compile $(CC) $(DEFS) $(DEFAULT_INCLUDES) $(INCLUDES) $(AM_CPPFLAGS) $(CPPFLAGS) $(liblitest_la_CFLAGS) $(CFLAGS) -MT liblitest_la-litest-trackpoint.lo -MD -MP -MF $(DEPDIR)/liblitest_la-litest-trackpoint.Tpo -c -o liblitest_la-litest-trackpoint.lo `test -f 'litest-trackpoint.c' || echo '$(srcdir)/'`litest-trackpoint.c
+@am__fastdepCC_TRUE@	$(AM_V_at)$(am__mv) $(DEPDIR)/liblitest_la-litest-trackpoint.Tpo $(DEPDIR)/liblitest_la-litest-trackpoint.Plo
+@AMDEP_TRUE@@am__fastdepCC_FALSE@	$(AM_V_CC)source='litest-trackpoint.c' object='liblitest_la-litest-trackpoint.lo' libtool=yes @AMDEPBACKSLASH@
+@AMDEP_TRUE@@am__fastdepCC_FALSE@	DEPDIR=$(DEPDIR) $(CCDEPMODE) $(depcomp) @AMDEPBACKSLASH@
+@am__fastdepCC_FALSE@	$(AM_V_CC@am__nodep@)$(LIBTOOL) $(AM_V_lt) --tag=CC $(AM_LIBTOOLFLAGS) $(LIBTOOLFLAGS) --mode=compile $(CC) $(DEFS) $(DEFAULT_INCLUDES) $(INCLUDES) $(AM_CPPFLAGS) $(CPPFLAGS) $(liblitest_la_CFLAGS) $(CFLAGS) -c -o liblitest_la-litest-trackpoint.lo `test -f 'litest-trackpoint.c' || echo '$(srcdir)/'`litest-trackpoint.c
+
+liblitest_la-litest-wacom-touch.lo: litest-wacom-touch.c
+@am__fastdepCC_TRUE@	$(AM_V_CC)$(LIBTOOL) $(AM_V_lt) --tag=CC $(AM_LIBTOOLFLAGS) $(LIBTOOLFLAGS) --mode=compile $(CC) $(DEFS) $(DEFAULT_INCLUDES) $(INCLUDES) $(AM_CPPFLAGS) $(CPPFLAGS) $(liblitest_la_CFLAGS) $(CFLAGS) -MT liblitest_la-litest-wacom-touch.lo -MD -MP -MF $(DEPDIR)/liblitest_la-litest-wacom-touch.Tpo -c -o liblitest_la-litest-wacom-touch.lo `test -f 'litest-wacom-touch.c' || echo '$(srcdir)/'`litest-wacom-touch.c
+@am__fastdepCC_TRUE@	$(AM_V_at)$(am__mv) $(DEPDIR)/liblitest_la-litest-wacom-touch.Tpo $(DEPDIR)/liblitest_la-litest-wacom-touch.Plo
+@AMDEP_TRUE@@am__fastdepCC_FALSE@	$(AM_V_CC)source='litest-wacom-touch.c' object='liblitest_la-litest-wacom-touch.lo' libtool=yes @AMDEPBACKSLASH@
+@AMDEP_TRUE@@am__fastdepCC_FALSE@	DEPDIR=$(DEPDIR) $(CCDEPMODE) $(depcomp) @AMDEPBACKSLASH@
+@am__fastdepCC_FALSE@	$(AM_V_CC@am__nodep@)$(LIBTOOL) $(AM_V_lt) --tag=CC $(AM_LIBTOOLFLAGS) $(LIBTOOLFLAGS) --mode=compile $(CC) $(DEFS) $(DEFAULT_INCLUDES) $(INCLUDES) $(AM_CPPFLAGS) $(CPPFLAGS) $(liblitest_la_CFLAGS) $(CFLAGS) -c -o liblitest_la-litest-wacom-touch.lo `test -f 'litest-wacom-touch.c' || echo '$(srcdir)/'`litest-wacom-touch.c
+
+liblitest_la-litest-wacom-intuos-finger.lo: litest-wacom-intuos-finger.c
+@am__fastdepCC_TRUE@	$(AM_V_CC)$(LIBTOOL) $(AM_V_lt) --tag=CC $(AM_LIBTOOLFLAGS) $(LIBTOOLFLAGS) --mode=compile $(CC) $(DEFS) $(DEFAULT_INCLUDES) $(INCLUDES) $(AM_CPPFLAGS) $(CPPFLAGS) $(liblitest_la_CFLAGS) $(CFLAGS) -MT liblitest_la-litest-wacom-intuos-finger.lo -MD -MP -MF $(DEPDIR)/liblitest_la-litest-wacom-intuos-finger.Tpo -c -o liblitest_la-litest-wacom-intuos-finger.lo `test -f 'litest-wacom-intuos-finger.c' || echo '$(srcdir)/'`litest-wacom-intuos-finger.c
+@am__fastdepCC_TRUE@	$(AM_V_at)$(am__mv) $(DEPDIR)/liblitest_la-litest-wacom-intuos-finger.Tpo $(DEPDIR)/liblitest_la-litest-wacom-intuos-finger.Plo
+@AMDEP_TRUE@@am__fastdepCC_FALSE@	$(AM_V_CC)source='litest-wacom-intuos-finger.c' object='liblitest_la-litest-wacom-intuos-finger.lo' libtool=yes @AMDEPBACKSLASH@
+@AMDEP_TRUE@@am__fastdepCC_FALSE@	DEPDIR=$(DEPDIR) $(CCDEPMODE) $(depcomp) @AMDEPBACKSLASH@
+@am__fastdepCC_FALSE@	$(AM_V_CC@am__nodep@)$(LIBTOOL) $(AM_V_lt) --tag=CC $(AM_LIBTOOLFLAGS) $(LIBTOOLFLAGS) --mode=compile $(CC) $(DEFS) $(DEFAULT_INCLUDES) $(INCLUDES) $(AM_CPPFLAGS) $(CPPFLAGS) $(liblitest_la_CFLAGS) $(CFLAGS) -c -o liblitest_la-litest-wacom-intuos-finger.lo `test -f 'litest-wacom-intuos-finger.c' || echo '$(srcdir)/'`litest-wacom-intuos-finger.c
+
+liblitest_la-litest-wheel-only.lo: litest-wheel-only.c
+@am__fastdepCC_TRUE@	$(AM_V_CC)$(LIBTOOL) $(AM_V_lt) --tag=CC $(AM_LIBTOOLFLAGS) $(LIBTOOLFLAGS) --mode=compile $(CC) $(DEFS) $(DEFAULT_INCLUDES) $(INCLUDES) $(AM_CPPFLAGS) $(CPPFLAGS) $(liblitest_la_CFLAGS) $(CFLAGS) -MT liblitest_la-litest-wheel-only.lo -MD -MP -MF $(DEPDIR)/liblitest_la-litest-wheel-only.Tpo -c -o liblitest_la-litest-wheel-only.lo `test -f 'litest-wheel-only.c' || echo '$(srcdir)/'`litest-wheel-only.c
+@am__fastdepCC_TRUE@	$(AM_V_at)$(am__mv) $(DEPDIR)/liblitest_la-litest-wheel-only.Tpo $(DEPDIR)/liblitest_la-litest-wheel-only.Plo
+@AMDEP_TRUE@@am__fastdepCC_FALSE@	$(AM_V_CC)source='litest-wheel-only.c' object='liblitest_la-litest-wheel-only.lo' libtool=yes @AMDEPBACKSLASH@
+@AMDEP_TRUE@@am__fastdepCC_FALSE@	DEPDIR=$(DEPDIR) $(CCDEPMODE) $(depcomp) @AMDEPBACKSLASH@
+@am__fastdepCC_FALSE@	$(AM_V_CC@am__nodep@)$(LIBTOOL) $(AM_V_lt) --tag=CC $(AM_LIBTOOLFLAGS) $(LIBTOOLFLAGS) --mode=compile $(CC) $(DEFS) $(DEFAULT_INCLUDES) $(INCLUDES) $(AM_CPPFLAGS) $(CPPFLAGS) $(liblitest_la_CFLAGS) $(CFLAGS) -c -o liblitest_la-litest-wheel-only.lo `test -f 'litest-wheel-only.c' || echo '$(srcdir)/'`litest-wheel-only.c
+
+liblitest_la-litest-xen-virtual-pointer.lo: litest-xen-virtual-pointer.c
+@am__fastdepCC_TRUE@	$(AM_V_CC)$(LIBTOOL) $(AM_V_lt) --tag=CC $(AM_LIBTOOLFLAGS) $(LIBTOOLFLAGS) --mode=compile $(CC) $(DEFS) $(DEFAULT_INCLUDES) $(INCLUDES) $(AM_CPPFLAGS) $(CPPFLAGS) $(liblitest_la_CFLAGS) $(CFLAGS) -MT liblitest_la-litest-xen-virtual-pointer.lo -MD -MP -MF $(DEPDIR)/liblitest_la-litest-xen-virtual-pointer.Tpo -c -o liblitest_la-litest-xen-virtual-pointer.lo `test -f 'litest-xen-virtual-pointer.c' || echo '$(srcdir)/'`litest-xen-virtual-pointer.c
+@am__fastdepCC_TRUE@	$(AM_V_at)$(am__mv) $(DEPDIR)/liblitest_la-litest-xen-virtual-pointer.Tpo $(DEPDIR)/liblitest_la-litest-xen-virtual-pointer.Plo
+@AMDEP_TRUE@@am__fastdepCC_FALSE@	$(AM_V_CC)source='litest-xen-virtual-pointer.c' object='liblitest_la-litest-xen-virtual-pointer.lo' libtool=yes @AMDEPBACKSLASH@
+@AMDEP_TRUE@@am__fastdepCC_FALSE@	DEPDIR=$(DEPDIR) $(CCDEPMODE) $(depcomp) @AMDEPBACKSLASH@
+@am__fastdepCC_FALSE@	$(AM_V_CC@am__nodep@)$(LIBTOOL) $(AM_V_lt) --tag=CC $(AM_LIBTOOLFLAGS) $(LIBTOOLFLAGS) --mode=compile $(CC) $(DEFS) $(DEFAULT_INCLUDES) $(INCLUDES) $(AM_CPPFLAGS) $(CPPFLAGS) $(liblitest_la_CFLAGS) $(CFLAGS) -c -o liblitest_la-litest-xen-virtual-pointer.lo `test -f 'litest-xen-virtual-pointer.c' || echo '$(srcdir)/'`litest-xen-virtual-pointer.c
+
+liblitest_la-litest-vmware-virtual-usb-mouse.lo: litest-vmware-virtual-usb-mouse.c
+@am__fastdepCC_TRUE@	$(AM_V_CC)$(LIBTOOL) $(AM_V_lt) --tag=CC $(AM_LIBTOOLFLAGS) $(LIBTOOLFLAGS) --mode=compile $(CC) $(DEFS) $(DEFAULT_INCLUDES) $(INCLUDES) $(AM_CPPFLAGS) $(CPPFLAGS) $(liblitest_la_CFLAGS) $(CFLAGS) -MT liblitest_la-litest-vmware-virtual-usb-mouse.lo -MD -MP -MF $(DEPDIR)/liblitest_la-litest-vmware-virtual-usb-mouse.Tpo -c -o liblitest_la-litest-vmware-virtual-usb-mouse.lo `test -f 'litest-vmware-virtual-usb-mouse.c' || echo '$(srcdir)/'`litest-vmware-virtual-usb-mouse.c
+@am__fastdepCC_TRUE@	$(AM_V_at)$(am__mv) $(DEPDIR)/liblitest_la-litest-vmware-virtual-usb-mouse.Tpo $(DEPDIR)/liblitest_la-litest-vmware-virtual-usb-mouse.Plo
+@AMDEP_TRUE@@am__fastdepCC_FALSE@	$(AM_V_CC)source='litest-vmware-virtual-usb-mouse.c' object='liblitest_la-litest-vmware-virtual-usb-mouse.lo' libtool=yes @AMDEPBACKSLASH@
+@AMDEP_TRUE@@am__fastdepCC_FALSE@	DEPDIR=$(DEPDIR) $(CCDEPMODE) $(depcomp) @AMDEPBACKSLASH@
+@am__fastdepCC_FALSE@	$(AM_V_CC@am__nodep@)$(LIBTOOL) $(AM_V_lt) --tag=CC $(AM_LIBTOOLFLAGS) $(LIBTOOLFLAGS) --mode=compile $(CC) $(DEFS) $(DEFAULT_INCLUDES) $(INCLUDES) $(AM_CPPFLAGS) $(CPPFLAGS) $(liblitest_la_CFLAGS) $(CFLAGS) -c -o liblitest_la-litest-vmware-virtual-usb-mouse.lo `test -f 'litest-vmware-virtual-usb-mouse.c' || echo '$(srcdir)/'`litest-vmware-virtual-usb-mouse.c
+
+liblitest_la-litest.lo: litest.c
+@am__fastdepCC_TRUE@	$(AM_V_CC)$(LIBTOOL) $(AM_V_lt) --tag=CC $(AM_LIBTOOLFLAGS) $(LIBTOOLFLAGS) --mode=compile $(CC) $(DEFS) $(DEFAULT_INCLUDES) $(INCLUDES) $(AM_CPPFLAGS) $(CPPFLAGS) $(liblitest_la_CFLAGS) $(CFLAGS) -MT liblitest_la-litest.lo -MD -MP -MF $(DEPDIR)/liblitest_la-litest.Tpo -c -o liblitest_la-litest.lo `test -f 'litest.c' || echo '$(srcdir)/'`litest.c
+@am__fastdepCC_TRUE@	$(AM_V_at)$(am__mv) $(DEPDIR)/liblitest_la-litest.Tpo $(DEPDIR)/liblitest_la-litest.Plo
+@AMDEP_TRUE@@am__fastdepCC_FALSE@	$(AM_V_CC)source='litest.c' object='liblitest_la-litest.lo' libtool=yes @AMDEPBACKSLASH@
+@AMDEP_TRUE@@am__fastdepCC_FALSE@	DEPDIR=$(DEPDIR) $(CCDEPMODE) $(depcomp) @AMDEPBACKSLASH@
+@am__fastdepCC_FALSE@	$(AM_V_CC@am__nodep@)$(LIBTOOL) $(AM_V_lt) --tag=CC $(AM_LIBTOOLFLAGS) $(LIBTOOLFLAGS) --mode=compile $(CC) $(DEFS) $(DEFAULT_INCLUDES) $(INCLUDES) $(AM_CPPFLAGS) $(CPPFLAGS) $(liblitest_la_CFLAGS) $(CFLAGS) -c -o liblitest_la-litest.lo `test -f 'litest.c' || echo '$(srcdir)/'`litest.c
 
 test_build_linker-build-pedantic.o: build-pedantic.c
 @am__fastdepCC_TRUE@	$(AM_V_CC)$(CC) $(DEFS) $(DEFAULT_INCLUDES) $(INCLUDES) $(AM_CPPFLAGS) $(CPPFLAGS) $(test_build_linker_CFLAGS) $(CFLAGS) -MT test_build_linker-build-pedantic.o -MD -MP -MF $(DEPDIR)/test_build_linker-build-pedantic.Tpo -c -o test_build_linker-build-pedantic.o `test -f 'build-pedantic.c' || echo '$(srcdir)/'`build-pedantic.c
@@ -1050,6 +1265,34 @@ test_build_std_gnuc90-build-pedantic.obj: build-pedantic.c
 @AMDEP_TRUE@@am__fastdepCC_FALSE@	$(AM_V_CC)source='build-pedantic.c' object='test_build_std_gnuc90-build-pedantic.obj' libtool=no @AMDEPBACKSLASH@
 @AMDEP_TRUE@@am__fastdepCC_FALSE@	DEPDIR=$(DEPDIR) $(CCDEPMODE) $(depcomp) @AMDEPBACKSLASH@
 @am__fastdepCC_FALSE@	$(AM_V_CC@am__nodep@)$(CC) $(DEFS) $(DEFAULT_INCLUDES) $(INCLUDES) $(AM_CPPFLAGS) $(CPPFLAGS) $(test_build_std_gnuc90_CFLAGS) $(CFLAGS) -c -o test_build_std_gnuc90-build-pedantic.obj `if test -f 'build-pedantic.c'; then $(CYGPATH_W) 'build-pedantic.c'; else $(CYGPATH_W) '$(srcdir)/build-pedantic.c'; fi`
+
+test_litest_selftest-litest-selftest.o: litest-selftest.c
+@am__fastdepCC_TRUE@	$(AM_V_CC)$(CC) $(DEFS) $(DEFAULT_INCLUDES) $(INCLUDES) $(AM_CPPFLAGS) $(CPPFLAGS) $(test_litest_selftest_CFLAGS) $(CFLAGS) -MT test_litest_selftest-litest-selftest.o -MD -MP -MF $(DEPDIR)/test_litest_selftest-litest-selftest.Tpo -c -o test_litest_selftest-litest-selftest.o `test -f 'litest-selftest.c' || echo '$(srcdir)/'`litest-selftest.c
+@am__fastdepCC_TRUE@	$(AM_V_at)$(am__mv) $(DEPDIR)/test_litest_selftest-litest-selftest.Tpo $(DEPDIR)/test_litest_selftest-litest-selftest.Po
+@AMDEP_TRUE@@am__fastdepCC_FALSE@	$(AM_V_CC)source='litest-selftest.c' object='test_litest_selftest-litest-selftest.o' libtool=no @AMDEPBACKSLASH@
+@AMDEP_TRUE@@am__fastdepCC_FALSE@	DEPDIR=$(DEPDIR) $(CCDEPMODE) $(depcomp) @AMDEPBACKSLASH@
+@am__fastdepCC_FALSE@	$(AM_V_CC@am__nodep@)$(CC) $(DEFS) $(DEFAULT_INCLUDES) $(INCLUDES) $(AM_CPPFLAGS) $(CPPFLAGS) $(test_litest_selftest_CFLAGS) $(CFLAGS) -c -o test_litest_selftest-litest-selftest.o `test -f 'litest-selftest.c' || echo '$(srcdir)/'`litest-selftest.c
+
+test_litest_selftest-litest-selftest.obj: litest-selftest.c
+@am__fastdepCC_TRUE@	$(AM_V_CC)$(CC) $(DEFS) $(DEFAULT_INCLUDES) $(INCLUDES) $(AM_CPPFLAGS) $(CPPFLAGS) $(test_litest_selftest_CFLAGS) $(CFLAGS) -MT test_litest_selftest-litest-selftest.obj -MD -MP -MF $(DEPDIR)/test_litest_selftest-litest-selftest.Tpo -c -o test_litest_selftest-litest-selftest.obj `if test -f 'litest-selftest.c'; then $(CYGPATH_W) 'litest-selftest.c'; else $(CYGPATH_W) '$(srcdir)/litest-selftest.c'; fi`
+@am__fastdepCC_TRUE@	$(AM_V_at)$(am__mv) $(DEPDIR)/test_litest_selftest-litest-selftest.Tpo $(DEPDIR)/test_litest_selftest-litest-selftest.Po
+@AMDEP_TRUE@@am__fastdepCC_FALSE@	$(AM_V_CC)source='litest-selftest.c' object='test_litest_selftest-litest-selftest.obj' libtool=no @AMDEPBACKSLASH@
+@AMDEP_TRUE@@am__fastdepCC_FALSE@	DEPDIR=$(DEPDIR) $(CCDEPMODE) $(depcomp) @AMDEPBACKSLASH@
+@am__fastdepCC_FALSE@	$(AM_V_CC@am__nodep@)$(CC) $(DEFS) $(DEFAULT_INCLUDES) $(INCLUDES) $(AM_CPPFLAGS) $(CPPFLAGS) $(test_litest_selftest_CFLAGS) $(CFLAGS) -c -o test_litest_selftest-litest-selftest.obj `if test -f 'litest-selftest.c'; then $(CYGPATH_W) 'litest-selftest.c'; else $(CYGPATH_W) '$(srcdir)/litest-selftest.c'; fi`
+
+test_litest_selftest-litest.o: litest.c
+@am__fastdepCC_TRUE@	$(AM_V_CC)$(CC) $(DEFS) $(DEFAULT_INCLUDES) $(INCLUDES) $(AM_CPPFLAGS) $(CPPFLAGS) $(test_litest_selftest_CFLAGS) $(CFLAGS) -MT test_litest_selftest-litest.o -MD -MP -MF $(DEPDIR)/test_litest_selftest-litest.Tpo -c -o test_litest_selftest-litest.o `test -f 'litest.c' || echo '$(srcdir)/'`litest.c
+@am__fastdepCC_TRUE@	$(AM_V_at)$(am__mv) $(DEPDIR)/test_litest_selftest-litest.Tpo $(DEPDIR)/test_litest_selftest-litest.Po
+@AMDEP_TRUE@@am__fastdepCC_FALSE@	$(AM_V_CC)source='litest.c' object='test_litest_selftest-litest.o' libtool=no @AMDEPBACKSLASH@
+@AMDEP_TRUE@@am__fastdepCC_FALSE@	DEPDIR=$(DEPDIR) $(CCDEPMODE) $(depcomp) @AMDEPBACKSLASH@
+@am__fastdepCC_FALSE@	$(AM_V_CC@am__nodep@)$(CC) $(DEFS) $(DEFAULT_INCLUDES) $(INCLUDES) $(AM_CPPFLAGS) $(CPPFLAGS) $(test_litest_selftest_CFLAGS) $(CFLAGS) -c -o test_litest_selftest-litest.o `test -f 'litest.c' || echo '$(srcdir)/'`litest.c
+
+test_litest_selftest-litest.obj: litest.c
+@am__fastdepCC_TRUE@	$(AM_V_CC)$(CC) $(DEFS) $(DEFAULT_INCLUDES) $(INCLUDES) $(AM_CPPFLAGS) $(CPPFLAGS) $(test_litest_selftest_CFLAGS) $(CFLAGS) -MT test_litest_selftest-litest.obj -MD -MP -MF $(DEPDIR)/test_litest_selftest-litest.Tpo -c -o test_litest_selftest-litest.obj `if test -f 'litest.c'; then $(CYGPATH_W) 'litest.c'; else $(CYGPATH_W) '$(srcdir)/litest.c'; fi`
+@am__fastdepCC_TRUE@	$(AM_V_at)$(am__mv) $(DEPDIR)/test_litest_selftest-litest.Tpo $(DEPDIR)/test_litest_selftest-litest.Po
+@AMDEP_TRUE@@am__fastdepCC_FALSE@	$(AM_V_CC)source='litest.c' object='test_litest_selftest-litest.obj' libtool=no @AMDEPBACKSLASH@
+@AMDEP_TRUE@@am__fastdepCC_FALSE@	DEPDIR=$(DEPDIR) $(CCDEPMODE) $(depcomp) @AMDEPBACKSLASH@
+@am__fastdepCC_FALSE@	$(AM_V_CC@am__nodep@)$(CC) $(DEFS) $(DEFAULT_INCLUDES) $(INCLUDES) $(AM_CPPFLAGS) $(CPPFLAGS) $(test_litest_selftest_CFLAGS) $(CFLAGS) -c -o test_litest_selftest-litest.obj `if test -f 'litest.c'; then $(CYGPATH_W) 'litest.c'; else $(CYGPATH_W) '$(srcdir)/litest.c'; fi`
 
 .cc.o:
 @am__fastdepCXX_TRUE@	$(AM_V_CXX)$(CXXCOMPILE) -MT $@ -MD -MP -MF $(DEPDIR)/$*.Tpo -c -o $@ $<
@@ -1285,16 +1528,16 @@ recheck: all
 	        am__force_recheck=am--force-recheck \
 	        TEST_LOGS="$$log_list"; \
 	exit $$?
-test-udev.log: test-udev$(EXEEXT)
-	@p='test-udev$(EXEEXT)'; \
-	b='test-udev'; \
+test-touchpad.log: test-touchpad$(EXEEXT)
+	@p='test-touchpad$(EXEEXT)'; \
+	b='test-touchpad'; \
 	$(am__check_pre) $(LOG_DRIVER) --test-name "$$f" \
 	--log-file $$b.log --trs-file $$b.trs \
 	$(am__common_driver_flags) $(AM_LOG_DRIVER_FLAGS) $(LOG_DRIVER_FLAGS) -- $(LOG_COMPILE) \
 	"$$tst" $(AM_TESTS_FD_REDIRECT)
-test-path.log: test-path$(EXEEXT)
-	@p='test-path$(EXEEXT)'; \
-	b='test-path'; \
+test-device.log: test-device$(EXEEXT)
+	@p='test-device$(EXEEXT)'; \
+	b='test-device'; \
 	$(am__check_pre) $(LOG_DRIVER) --test-name "$$f" \
 	--log-file $$b.log --trs-file $$b.trs \
 	$(am__common_driver_flags) $(AM_LOG_DRIVER_FLAGS) $(LOG_DRIVER_FLAGS) -- $(LOG_COMPILE) \
@@ -1313,23 +1556,30 @@ test-touch.log: test-touch$(EXEEXT)
 	--log-file $$b.log --trs-file $$b.trs \
 	$(am__common_driver_flags) $(AM_LOG_DRIVER_FLAGS) $(LOG_DRIVER_FLAGS) -- $(LOG_COMPILE) \
 	"$$tst" $(AM_TESTS_FD_REDIRECT)
-test-log.log: test-log$(EXEEXT)
-	@p='test-log$(EXEEXT)'; \
-	b='test-log'; \
-	$(am__check_pre) $(LOG_DRIVER) --test-name "$$f" \
-	--log-file $$b.log --trs-file $$b.trs \
-	$(am__common_driver_flags) $(AM_LOG_DRIVER_FLAGS) $(LOG_DRIVER_FLAGS) -- $(LOG_COMPILE) \
-	"$$tst" $(AM_TESTS_FD_REDIRECT)
-test-touchpad.log: test-touchpad$(EXEEXT)
-	@p='test-touchpad$(EXEEXT)'; \
-	b='test-touchpad'; \
-	$(am__check_pre) $(LOG_DRIVER) --test-name "$$f" \
-	--log-file $$b.log --trs-file $$b.trs \
-	$(am__common_driver_flags) $(AM_LOG_DRIVER_FLAGS) $(LOG_DRIVER_FLAGS) -- $(LOG_COMPILE) \
-	"$$tst" $(AM_TESTS_FD_REDIRECT)
 test-trackpoint.log: test-trackpoint$(EXEEXT)
 	@p='test-trackpoint$(EXEEXT)'; \
 	b='test-trackpoint'; \
+	$(am__check_pre) $(LOG_DRIVER) --test-name "$$f" \
+	--log-file $$b.log --trs-file $$b.trs \
+	$(am__common_driver_flags) $(AM_LOG_DRIVER_FLAGS) $(LOG_DRIVER_FLAGS) -- $(LOG_COMPILE) \
+	"$$tst" $(AM_TESTS_FD_REDIRECT)
+test-udev.log: test-udev$(EXEEXT)
+	@p='test-udev$(EXEEXT)'; \
+	b='test-udev'; \
+	$(am__check_pre) $(LOG_DRIVER) --test-name "$$f" \
+	--log-file $$b.log --trs-file $$b.trs \
+	$(am__common_driver_flags) $(AM_LOG_DRIVER_FLAGS) $(LOG_DRIVER_FLAGS) -- $(LOG_COMPILE) \
+	"$$tst" $(AM_TESTS_FD_REDIRECT)
+test-path.log: test-path$(EXEEXT)
+	@p='test-path$(EXEEXT)'; \
+	b='test-path'; \
+	$(am__check_pre) $(LOG_DRIVER) --test-name "$$f" \
+	--log-file $$b.log --trs-file $$b.trs \
+	$(am__common_driver_flags) $(AM_LOG_DRIVER_FLAGS) $(LOG_DRIVER_FLAGS) -- $(LOG_COMPILE) \
+	"$$tst" $(AM_TESTS_FD_REDIRECT)
+test-log.log: test-log$(EXEEXT)
+	@p='test-log$(EXEEXT)'; \
+	b='test-log'; \
 	$(am__check_pre) $(LOG_DRIVER) --test-name "$$f" \
 	--log-file $$b.log --trs-file $$b.trs \
 	$(am__common_driver_flags) $(AM_LOG_DRIVER_FLAGS) $(LOG_DRIVER_FLAGS) -- $(LOG_COMPILE) \
@@ -1348,9 +1598,9 @@ test-keyboard.log: test-keyboard$(EXEEXT)
 	--log-file $$b.log --trs-file $$b.trs \
 	$(am__common_driver_flags) $(AM_LOG_DRIVER_FLAGS) $(LOG_DRIVER_FLAGS) -- $(LOG_COMPILE) \
 	"$$tst" $(AM_TESTS_FD_REDIRECT)
-test-device.log: test-device$(EXEEXT)
-	@p='test-device$(EXEEXT)'; \
-	b='test-device'; \
+test-litest-selftest.log: test-litest-selftest$(EXEEXT)
+	@p='test-litest-selftest$(EXEEXT)'; \
+	b='test-litest-selftest'; \
 	$(am__check_pre) $(LOG_DRIVER) --test-name "$$f" \
 	--log-file $$b.log --trs-file $$b.trs \
 	$(am__common_driver_flags) $(AM_LOG_DRIVER_FLAGS) $(LOG_DRIVER_FLAGS) -- $(LOG_COMPILE) \
@@ -1539,7 +1789,7 @@ uninstall-am:
 @BUILD_TESTS_TRUE@.NOTPARALLEL:
 
 @BUILD_TESTS_TRUE@@HAVE_VALGRIND_TRUE@valgrind:
-@BUILD_TESTS_TRUE@@HAVE_VALGRIND_TRUE@	$(MAKE) check-TESTS LOG_COMPILER="$(VALGRIND)" LOG_FLAGS="$(VALGRIND_FLAGS)" CK_FORK=no
+@BUILD_TESTS_TRUE@@HAVE_VALGRIND_TRUE@	$(MAKE) check-TESTS LOG_COMPILER="$(VALGRIND)" LOG_FLAGS="$(VALGRIND_FLAGS)" CK_FORK=no USING_VALGRIND=yes
 
 @BUILD_TESTS_TRUE@@HAVE_VALGRIND_TRUE@check: valgrind
 

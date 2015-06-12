@@ -125,7 +125,7 @@ PROGRAMS = $(bin_PROGRAMS) $(noinst_PROGRAMS)
 am_event_debug_OBJECTS = event_debug-event-debug.$(OBJEXT)
 event_debug_OBJECTS = $(am_event_debug_OBJECTS)
 event_debug_DEPENDENCIES = ../src/libinput.la libshared.la \
-	$(am__DEPENDENCIES_1)
+	$(am__DEPENDENCIES_1) $(am__DEPENDENCIES_1)
 event_debug_LINK = $(LIBTOOL) $(AM_V_lt) --tag=CC $(AM_LIBTOOLFLAGS) \
 	$(LIBTOOLFLAGS) --mode=link $(CCLD) $(event_debug_CFLAGS) \
 	$(CFLAGS) $(event_debug_LDFLAGS) $(LDFLAGS) -o $@
@@ -144,7 +144,7 @@ am__objects_1 = libinput_debug_events-event-debug.$(OBJEXT)
 am_libinput_debug_events_OBJECTS = $(am__objects_1)
 libinput_debug_events_OBJECTS = $(am_libinput_debug_events_OBJECTS)
 am__DEPENDENCIES_2 = ../src/libinput.la libshared.la \
-	$(am__DEPENDENCIES_1)
+	$(am__DEPENDENCIES_1) $(am__DEPENDENCIES_1)
 libinput_debug_events_DEPENDENCIES = $(am__DEPENDENCIES_2)
 libinput_debug_events_LINK = $(LIBTOOL) $(AM_V_lt) --tag=CC \
 	$(AM_LIBTOOLFLAGS) $(LIBTOOLFLAGS) --mode=link $(CCLD) \
@@ -264,6 +264,7 @@ am__DIST_COMMON = $(dist_man1_MANS) $(srcdir)/Makefile.in \
 	$(top_srcdir)/depcomp
 DISTFILES = $(DIST_COMMON) $(DIST_SOURCES) $(TEXINFOS) $(EXTRA_DIST)
 ACLOCAL = @ACLOCAL@
+ADDR2LINE = @ADDR2LINE@
 AMTAR = @AMTAR@
 AM_DEFAULT_VERBOSITY = @AM_DEFAULT_VERBOSITY@
 AR = @AR@
@@ -322,6 +323,8 @@ LIBS = @LIBS@
 LIBTOOL = @LIBTOOL@
 LIBUDEV_CFLAGS = @LIBUDEV_CFLAGS@
 LIBUDEV_LIBS = @LIBUDEV_LIBS@
+LIBUNWIND_CFLAGS = @LIBUNWIND_CFLAGS@
+LIBUNWIND_LIBS = @LIBUNWIND_LIBS@
 LIPO = @LIPO@
 LN_S = @LN_S@
 LTLIBOBJS = @LTLIBOBJS@
@@ -420,9 +423,9 @@ libshared_la_SOURCES = \
 libshared_la_CFLAGS = $(LIBEVDEV_CFLAGS)
 libshared_la_LIBADD = $(LIBEVDEV_LIBS)
 event_debug_SOURCES = event-debug.c
-event_debug_LDADD = ../src/libinput.la libshared.la $(LIBUDEV_LIBS)
+event_debug_LDADD = ../src/libinput.la libshared.la $(LIBUDEV_LIBS) $(LIBEVDEV_LIBS)
 event_debug_LDFLAGS = -no-install
-event_debug_CFLAGS = $(LIBUDEV_CFLAGS)
+event_debug_CFLAGS = $(LIBUDEV_CFLAGS) $(LIBEVDEV_CFLAGS)
 ptraccel_debug_SOURCES = ptraccel-debug.c
 ptraccel_debug_LDADD = ../src/libfilter.la
 ptraccel_debug_LDFLAGS = -no-install

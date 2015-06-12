@@ -42,12 +42,7 @@ get_accelerated_motion_event(struct libinput *li)
 
 	while (1) {
 		event = libinput_get_event(li);
-		ck_assert_notnull(event);
-		ck_assert_int_eq(libinput_event_get_type(event),
-				 LIBINPUT_EVENT_POINTER_MOTION);
-
-		ptrev = libinput_event_get_pointer_event(event);
-		ck_assert_notnull(ptrev);
+		ptrev = litest_is_motion_event(event);
 
 		if (fabs(libinput_event_pointer_get_dx(ptrev)) < DBL_MIN &&
 		    fabs(libinput_event_pointer_get_dy(ptrev)) < DBL_MIN) {
@@ -58,7 +53,7 @@ get_accelerated_motion_event(struct libinput *li)
 		return ptrev;
 	}
 
-	ck_abort_msg("No accelerated pointer motion event found");
+	litest_abort_msg("No accelerated pointer motion event found");
 	return NULL;
 }
 
@@ -95,11 +90,11 @@ test_relative_event(struct litest_device *dev, int dx, int dy)
 	actual_dir = atan2(ev_dx, ev_dy);
 
 	/* Check the length of the motion vector (tolerate 1.0 indifference). */
-	ck_assert(fabs(expected_length) >= actual_length);
+	litest_assert(fabs(expected_length) >= actual_length);
 
 	/* Check the direction of the motion vector (tolerate 2π/4 radians
 	 * indifference). */
-	ck_assert(fabs(expected_dir - actual_dir) < M_PI_2);
+	litest_assert(fabs(expected_dir - actual_dir) < M_PI_2);
 
 	libinput_event_destroy(libinput_event_pointer_get_base_event(ptrev));
 
@@ -110,12 +105,14 @@ static void
 disable_button_scrolling(struct litest_device *device)
 {
 	struct libinput_device *dev = device->libinput_device;
-	enum libinput_config_status status;
+	enum libinput_config_status status,
+				    expected;
 
 	status = libinput_device_config_scroll_set_method(dev,
 					LIBINPUT_CONFIG_SCROLL_NO_SCROLL);
 
-	ck_assert_int_eq(status, LIBINPUT_CONFIG_STATUS_SUCCESS);
+	expected = LIBINPUT_CONFIG_STATUS_SUCCESS;
+	litest_assert_int_eq(status, expected);
 }
 
 START_TEST(pointer_motion_relative)
@@ -143,22 +140,22 @@ test_absolute_event(struct litest_device *dev, double x, double y)
 	struct libinput_event *event;
 	struct libinput_event_pointer *ptrev;
 	double ex, ey;
+	enum libinput_event_type type = LIBINPUT_EVENT_POINTER_MOTION_ABSOLUTE;
 
 	litest_touch_down(dev, 0, x, y);
 	libinput_dispatch(li);
 
 	event = libinput_get_event(li);
-	ck_assert_notnull(event);
-	ck_assert_int_eq(libinput_event_get_type(event),
-			 LIBINPUT_EVENT_POINTER_MOTION_ABSOLUTE);
+	litest_assert_notnull(event);
+	litest_assert_int_eq(libinput_event_get_type(event), type);
 
 	ptrev = libinput_event_get_pointer_event(event);
-	ck_assert(ptrev != NULL);
+	litest_assert(ptrev != NULL);
 
 	ex = libinput_event_pointer_get_absolute_x_transformed(ptrev, 100);
 	ey = libinput_event_pointer_get_absolute_y_transformed(ptrev, 100);
-	ck_assert_int_eq(ex + 0.5, x);
-	ck_assert_int_eq(ey + 0.5, y);
+	litest_assert_int_eq((int)(ex + 0.5), (int)x);
+	litest_assert_int_eq((int)(ey + 0.5), (int)y);
 
 	libinput_event_destroy(event);
 }
@@ -172,6 +169,61 @@ START_TEST(pointer_motion_absolute)
 	test_absolute_event(dev, 0, 100);
 	test_absolute_event(dev, 100, 0);
 	test_absolute_event(dev, 50, 50);
+}
+END_TEST
+
+START_TEST(pointer_absolute_initial_state)
+{
+	struct litest_device *dev = litest_current_device();
+	struct libinput *libinput1, *libinput2;
+	struct libinput_event *ev1, *ev2;
+	struct libinput_event_pointer *p1, *p2;
+	int axis = _i; /* looped test */
+
+	dev = litest_current_device();
+	libinput1 = dev->libinput;
+	litest_touch_down(dev, 0, 40, 60);
+	litest_touch_up(dev, 0);
+
+	/* device is now on some x/y value */
+	litest_drain_events(libinput1);
+
+	libinput2 = litest_create_context();
+	libinput_path_add_device(libinput2,
+				 libevdev_uinput_get_devnode(dev->uinput));
+	litest_drain_events(libinput2);
+
+	if (axis == ABS_X)
+		litest_touch_down(dev, 0, 40, 70);
+	else
+		litest_touch_down(dev, 0, 70, 60);
+	litest_touch_up(dev, 0);
+
+	litest_wait_for_event(libinput1);
+	litest_wait_for_event(libinput2);
+
+	while (libinput_next_event_type(libinput1)) {
+		ev1 = libinput_get_event(libinput1);
+		ev2 = libinput_get_event(libinput2);
+
+		ck_assert_int_eq(libinput_event_get_type(ev1),
+				 LIBINPUT_EVENT_POINTER_MOTION_ABSOLUTE);
+		ck_assert_int_eq(libinput_event_get_type(ev1),
+				 libinput_event_get_type(ev2));
+
+		p1 = libinput_event_get_pointer_event(ev1);
+		p2 = libinput_event_get_pointer_event(ev2);
+
+		ck_assert_int_eq(libinput_event_pointer_get_absolute_x(p1),
+				 libinput_event_pointer_get_absolute_x(p2));
+		ck_assert_int_eq(libinput_event_pointer_get_absolute_y(p1),
+				 libinput_event_pointer_get_absolute_y(p2));
+
+		libinput_event_destroy(ev1);
+		libinput_event_destroy(ev2);
+	}
+
+	libinput_unref(libinput2);
 }
 END_TEST
 
@@ -190,18 +242,13 @@ test_unaccel_event(struct litest_device *dev, int dx, int dy)
       libinput_dispatch(li);
 
       event = libinput_get_event(li);
-      ck_assert_notnull(event);
-      ck_assert_int_eq(libinput_event_get_type(event),
-                       LIBINPUT_EVENT_POINTER_MOTION);
-
-      ptrev = libinput_event_get_pointer_event(event);
-      ck_assert(ptrev != NULL);
+      ptrev = litest_is_motion_event(event);
 
       ev_dx = libinput_event_pointer_get_dx_unaccelerated(ptrev);
       ev_dy = libinput_event_pointer_get_dy_unaccelerated(ptrev);
 
-      ck_assert_int_eq(dx, ev_dx);
-      ck_assert_int_eq(dy, ev_dy);
+      litest_assert_int_eq(dx, ev_dx);
+      litest_assert_int_eq(dy, ev_dy);
 
       libinput_event_destroy(event);
 
@@ -383,24 +430,18 @@ test_wheel_event(struct litest_device *dev, int which, int amount)
 
 	libinput_dispatch(li);
 
-	event = libinput_get_event(li);
-	ck_assert(event != NULL);
-	ck_assert_int_eq(libinput_event_get_type(event),
-			  LIBINPUT_EVENT_POINTER_AXIS);
-
-	ptrev = libinput_event_get_pointer_event(event);
-	ck_assert(ptrev != NULL);
-
 	axis = (which == REL_WHEEL) ?
 				LIBINPUT_POINTER_AXIS_SCROLL_VERTICAL :
 				LIBINPUT_POINTER_AXIS_SCROLL_HORIZONTAL;
+	event = libinput_get_event(li);
+	ptrev = litest_is_axis_event(event,
+				     axis,
+				     LIBINPUT_POINTER_AXIS_SOURCE_WHEEL);
 
-	ck_assert_int_eq(libinput_event_pointer_get_axis_value(ptrev, axis),
+	litest_assert_int_eq(libinput_event_pointer_get_axis_value(ptrev, axis),
 			 expected);
-	ck_assert_int_eq(libinput_event_pointer_get_axis_source(ptrev),
-			 LIBINPUT_POINTER_AXIS_SOURCE_WHEEL);
-	ck_assert_int_eq(libinput_event_pointer_get_axis_value_discrete(ptrev, axis),
-			 discrete);
+	litest_assert_int_eq(libinput_event_pointer_get_axis_value_discrete(ptrev, axis),
+			     discrete);
 	libinput_event_destroy(event);
 }
 
@@ -1224,7 +1265,7 @@ START_TEST(middlebutton_default_clickpad)
 
 	status = libinput_device_config_middle_emulation_set_enabled(device,
 					    LIBINPUT_CONFIG_MIDDLE_EMULATION_DISABLED);
-	ck_assert_int_eq(status, LIBINPUT_CONFIG_STATUS_UNSUPPORTED);
+	ck_assert_int_eq(status, LIBINPUT_CONFIG_STATUS_SUCCESS);
 
 	status = libinput_device_config_middle_emulation_set_enabled(device, 3);
 	ck_assert_int_eq(status, LIBINPUT_CONFIG_STATUS_INVALID);
@@ -1253,8 +1294,35 @@ START_TEST(middlebutton_default_touchpad)
 }
 END_TEST
 
-int main (int argc, char **argv)
+START_TEST(middlebutton_default_disabled)
 {
+	struct litest_device *dev = litest_current_device();
+	struct libinput_device *device = dev->libinput_device;
+	enum libinput_config_middle_emulation_state state;
+	enum libinput_config_status status;
+	int available;
+
+	available = libinput_device_config_middle_emulation_is_available(device);
+	ck_assert(!available);
+	state = libinput_device_config_middle_emulation_get_enabled(device);
+	ck_assert_int_eq(state, LIBINPUT_CONFIG_MIDDLE_EMULATION_DISABLED);
+	state = libinput_device_config_middle_emulation_get_default_enabled(
+								    device);
+	ck_assert_int_eq(state, LIBINPUT_CONFIG_MIDDLE_EMULATION_DISABLED);
+	status = libinput_device_config_middle_emulation_set_enabled(device,
+				     LIBINPUT_CONFIG_MIDDLE_EMULATION_DISABLED);
+	ck_assert_int_eq(status, LIBINPUT_CONFIG_STATUS_SUCCESS);
+	status = libinput_device_config_middle_emulation_set_enabled(device,
+				     LIBINPUT_CONFIG_MIDDLE_EMULATION_ENABLED);
+	ck_assert_int_eq(status, LIBINPUT_CONFIG_STATUS_UNSUPPORTED);
+}
+END_TEST
+
+void
+litest_setup_tests(void)
+{
+	struct range axis_range = {ABS_X, ABS_Y + 1};
+
 	litest_add("pointer:motion", pointer_motion_relative, LITEST_RELATIVE, LITEST_ANY);
 	litest_add("pointer:motion", pointer_motion_absolute, LITEST_ABSOLUTE, LITEST_ANY);
 	litest_add("pointer:motion", pointer_motion_unaccel, LITEST_RELATIVE, LITEST_ANY);
@@ -1290,5 +1358,7 @@ int main (int argc, char **argv)
 	litest_add("pointer:middlebutton", middlebutton_default_enabled, LITEST_BUTTON, LITEST_TOUCHPAD|LITEST_POINTINGSTICK);
 	litest_add("pointer:middlebutton", middlebutton_default_clickpad, LITEST_CLICKPAD, LITEST_ANY);
 	litest_add("pointer:middlebutton", middlebutton_default_touchpad, LITEST_TOUCHPAD, LITEST_CLICKPAD);
-	return litest_run(argc, argv);
+	litest_add("pointer:middlebutton", middlebutton_default_disabled, LITEST_ANY, LITEST_BUTTON);
+
+	litest_add_ranged("pointer:state", pointer_absolute_initial_state, LITEST_ABSOLUTE, LITEST_ANY, &axis_range);
 }

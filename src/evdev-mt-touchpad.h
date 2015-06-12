@@ -1,5 +1,5 @@
 /*
- * Copyright © 2014 Red Hat, Inc.
+ * Copyright © 2014-2015 Red Hat, Inc.
  *
  * Permission to use, copy, modify, distribute, and sell this software and
  * its documentation for any purpose is hereby granted without fee, provided
@@ -32,8 +32,6 @@
 #define TOUCHPAD_HISTORY_LENGTH 4
 #define TOUCHPAD_MIN_SAMPLES 4
 
-#define VENDOR_ID_APPLE 0x5ac
-
 /* Convert mm to a distance normalized to DEFAULT_MOUSE_DPI */
 #define TP_MM_TO_DPI_NORMALIZED(mm) (DEFAULT_MOUSE_DPI/25.4 * mm)
 
@@ -59,6 +57,12 @@ enum touch_state {
 	TOUCH_BEGIN,
 	TOUCH_UPDATE,
 	TOUCH_END
+};
+
+enum touch_palm_state {
+	PALM_NONE = 0,
+	PALM_EDGE,
+	PALM_TYPING,
 };
 
 enum button_event {
@@ -94,6 +98,7 @@ enum tp_tap_state {
 	TAP_STATE_TOUCH_3,
 	TAP_STATE_TOUCH_3_HOLD,
 	TAP_STATE_DRAGGING_OR_DOUBLETAP,
+	TAP_STATE_DRAGGING_OR_TAP,
 	TAP_STATE_DRAGGING,
 	TAP_STATE_DRAGGING_WAIT,
 	TAP_STATE_DRAGGING_2,
@@ -129,6 +134,7 @@ struct tp_touch {
 	bool dirty;
 	struct device_coords point;
 	uint64_t millis;
+	int distance;				/* distance == 0 means touch */
 
 	struct {
 		struct device_coords samples[TOUCHPAD_HISTORY_LENGTH];
@@ -169,7 +175,7 @@ struct tp_touch {
 	} scroll;
 
 	struct {
-		bool is_palm;
+		enum touch_palm_state state;
 		struct device_coords first; /* first coordinates if is_palm == true */
 		uint32_t time; /* first timestamp if is_palm == true */
 	} palm;
@@ -183,6 +189,7 @@ struct tp_dispatch {
 	unsigned int slot;			/* current slot */
 	bool has_mt;
 	bool semi_mt;
+	bool reports_distance;			/* does the device support true hovering */
 	enum touchpad_model model;
 
 	unsigned int num_slots;			/* number of slots */
@@ -269,14 +276,30 @@ struct tp_dispatch {
 	struct {
 		struct libinput_device_config_send_events config;
 		enum libinput_config_send_events_mode current_mode;
+
 		bool trackpoint_active;
 		struct libinput_event_listener trackpoint_listener;
 		struct libinput_timer trackpoint_timer;
 	} sendevents;
+
+	struct {
+		bool keyboard_active;
+		struct libinput_event_listener keyboard_listener;
+		struct libinput_timer keyboard_timer;
+		struct evdev_device *keyboard;
+
+		uint64_t keyboard_last_press_time;
+	} dwt;
 };
 
 #define tp_for_each_touch(_tp, _t) \
 	for (unsigned int _i = 0; _i < (_tp)->ntouches && (_t = &(_tp)->touches[_i]); _i++)
+
+static inline struct libinput*
+tp_libinput_context(struct tp_dispatch *tp)
+{
+	return tp->device->base.seat->libinput;
+}
 
 static inline struct normalized_coords
 tp_normalize_delta(struct tp_dispatch *tp, struct device_float_coords delta)

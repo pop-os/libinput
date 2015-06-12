@@ -1,5 +1,11 @@
 /* config.h.in.  Generated from configure.ac by autoheader.  */
 
+/* Path to addr2line */
+#undef ADDR2LINE
+
+/* addr2line found */
+#undef HAVE_ADDR2LINE
+
 /* Define to 1 if you have the <dlfcn.h> header file. */
 #undef HAVE_DLFCN_H
 
@@ -11,6 +17,9 @@
 
 /* Define to 1 if you have the `rt' library (-lrt). */
 #undef HAVE_LIBRT
+
+/* Have libunwind support */
+#undef HAVE_LIBUNWIND
 
 /* Define to 1 if you have the <memory.h> header file. */
 #undef HAVE_MEMORY_H
