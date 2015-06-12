@@ -1,3 +1,9 @@
+libinput (0.17.0-1) unstable; urgency=medium
+
+  * New upstream release.
+
+ -- Hector Oron <zumbi@debian.org>  Sat, 13 Jun 2015 01:52:44 +0200
+
 libinput (0.15.0-2) unstable; urgency=medium
 
   * Upload to unstable.
