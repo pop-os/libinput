@@ -1,6 +1,7 @@
 /*
  * Copyright © 2011, 2012 Intel Corporation
  * Copyright © 2013 Jonas Ådahl
+ * Copyright © 2013-2015 Red Hat, Inc.
  *
  * Permission to use, copy, modify, distribute, and sell this software and
  * its documentation for any purpose is hereby granted without fee, provided
@@ -68,6 +69,7 @@ enum evdev_device_tags {
 	EVDEV_TAG_INTERNAL_TOUCHPAD = (1 << 1),
 	EVDEV_TAG_TRACKPOINT = (1 << 2),
 	EVDEV_TAG_TOUCHPAD_TRACKPOINT = (1 << 3),
+	EVDEV_TAG_KEYBOARD = (1 << 4),
 };
 
 enum evdev_middlebutton_state {
@@ -98,9 +100,9 @@ enum evdev_device_model {
 	EVDEV_MODEL_LENOVO_X230,
 	EVDEV_MODEL_CHROMEBOOK,
 	EVDEV_MODEL_SYSTEM76_BONOBO,
-	EVDEV_MODEL_SYSTEM76_CLEVO,
 	EVDEV_MODEL_SYSTEM76_GALAGO,
 	EVDEV_MODEL_SYSTEM76_KUDU,
+	EVDEV_MODEL_CLEVO_W740SU,
 };
 
 struct mt_slot {
@@ -148,6 +150,8 @@ struct evdev_device {
 		/* Currently enabled method, button */
 		enum libinput_config_scroll_method method;
 		uint32_t button;
+		uint64_t button_down_time;
+
 		/* set during device init, used at runtime to delay changes
 		 * until all buttons are up */
 		enum libinput_config_scroll_method want_method;
@@ -227,6 +231,10 @@ struct evdev_dispatch_interface {
 			struct input_event *event,
 			uint64_t time);
 
+	/* Device is being suspended */
+	void (*suspend)(struct evdev_dispatch *dispatch,
+			struct evdev_device *device);
+
 	/* Device is being removed (may be NULL) */
 	void (*remove)(struct evdev_dispatch *dispatch);
 
@@ -248,10 +256,6 @@ struct evdev_dispatch_interface {
 	/* A device was resumed */
 	void (*device_resumed)(struct evdev_device *device,
 			       struct evdev_device *resumed_device);
-
-	/* Tag device with one of EVDEV_TAG */
-	void (*tag_device)(struct evdev_device *device,
-			   struct udev_device *udev_device);
 };
 
 struct evdev_dispatch {
@@ -284,6 +288,10 @@ evdev_touchpad_create(struct evdev_device *device);
 
 struct evdev_dispatch *
 evdev_mt_touchpad_create(struct evdev_device *device);
+
+void
+evdev_tag_touchpad(struct evdev_device *device,
+		   struct udev_device *udev_device);
 
 void
 evdev_device_led_update(struct evdev_device *device, enum libinput_led leds);

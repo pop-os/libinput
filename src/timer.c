@@ -1,5 +1,5 @@
 /*
- * Copyright © 2014 Red Hat, Inc.
+ * Copyright © 2014-2015 Red Hat, Inc.
  *
  * Permission to use, copy, modify, distribute, and sell this software and
  * its documentation for any purpose is hereby granted without fee, provided
@@ -19,6 +19,8 @@
  * CONTRACT, NEGLIGENCE OR OTHER TORTIOUS ACTION, ARISING OUT OF OR IN
  * CONNECTION WITH THE USE OR PERFORMANCE OF THIS SOFTWARE.
  */
+
+#include "config.h"
 
 #include <assert.h>
 #include <errno.h>
@@ -102,8 +104,14 @@ libinput_timer_handler(void *data)
 	struct libinput_timer *timer, *tmp;
 	uint64_t now;
 	uint64_t discard;
+	int r;
 
-	read(libinput->timer.fd, &discard, sizeof(discard));
+	r = read(libinput->timer.fd, &discard, sizeof(discard));
+	if (r == -1 && errno != EAGAIN)
+		log_bug_libinput(libinput,
+				 "Error %d reading from timerfd (%s)",
+				 errno,
+				 strerror(errno));
 
 	now = libinput_now(libinput);
 	if (now == 0)

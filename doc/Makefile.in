@@ -126,6 +126,7 @@ am__tagged_files = $(HEADERS) $(SOURCES) $(TAGS_FILES) $(LISP)
 am__DIST_COMMON = $(srcdir)/Makefile.in $(srcdir)/libinput.doxygen.in
 DISTFILES = $(DIST_COMMON) $(DIST_SOURCES) $(TEXINFOS) $(EXTRA_DIST)
 ACLOCAL = @ACLOCAL@
+ADDR2LINE = @ADDR2LINE@
 AMTAR = @AMTAR@
 AM_DEFAULT_VERBOSITY = @AM_DEFAULT_VERBOSITY@
 AR = @AR@
@@ -184,6 +185,8 @@ LIBS = @LIBS@
 LIBTOOL = @LIBTOOL@
 LIBUDEV_CFLAGS = @LIBUDEV_CFLAGS@
 LIBUDEV_LIBS = @LIBUDEV_LIBS@
+LIBUNWIND_CFLAGS = @LIBUNWIND_CFLAGS@
+LIBUNWIND_LIBS = @LIBUNWIND_LIBS@
 LIPO = @LIPO@
 LN_S = @LN_S@
 LTLIBOBJS = @LTLIBOBJS@
@@ -280,19 +283,28 @@ EXTRA_DIST = middle-button-emulation.svg \
 @BUILD_DOCS_TRUE@	$(srcdir)/absolute-axes.dox \
 @BUILD_DOCS_TRUE@	$(srcdir)/clickpad-softbuttons.dox \
 @BUILD_DOCS_TRUE@	$(srcdir)/device-configuration-via-udev.dox \
+@BUILD_DOCS_TRUE@	$(srcdir)/faqs.dox \
 @BUILD_DOCS_TRUE@	$(srcdir)/normalization-of-relative-motion.dox \
 @BUILD_DOCS_TRUE@	$(srcdir)/palm-detection.dox \
 @BUILD_DOCS_TRUE@	$(srcdir)/scrolling.dox \
 @BUILD_DOCS_TRUE@	$(srcdir)/seats.dox \
 @BUILD_DOCS_TRUE@	$(srcdir)/t440-support.dox \
-@BUILD_DOCS_TRUE@	$(srcdir)/tapping.dox
+@BUILD_DOCS_TRUE@	$(srcdir)/tapping.dox \
+@BUILD_DOCS_TRUE@	$(srcdir)/test-suite.dox
 
 @BUILD_DOCS_TRUE@diagram_files = \
 @BUILD_DOCS_TRUE@	$(srcdir)/dot/seats-sketch.gv \
 @BUILD_DOCS_TRUE@	$(srcdir)/dot/seats-sketch-libinput.gv \
+@BUILD_DOCS_TRUE@	$(srcdir)/dot/libinput-stack-wayland.gv \
+@BUILD_DOCS_TRUE@	$(srcdir)/dot/libinput-stack-xorg.gv \
+@BUILD_DOCS_TRUE@	$(srcdir)/dot/libinput-stack-gnome.gv \
+@BUILD_DOCS_TRUE@	$(srcdir)/svg/software-buttons.svg \
+@BUILD_DOCS_TRUE@	$(srcdir)/svg/clickfinger.svg \
 @BUILD_DOCS_TRUE@	$(srcdir)/svg/button-scrolling.svg \
 @BUILD_DOCS_TRUE@	$(srcdir)/svg/edge-scrolling.svg \
 @BUILD_DOCS_TRUE@	$(srcdir)/svg/palm-detection.svg \
+@BUILD_DOCS_TRUE@	$(srcdir)/svg/tap-n-drag.svg \
+@BUILD_DOCS_TRUE@	$(srcdir)/svg/top-software-buttons.svg \
 @BUILD_DOCS_TRUE@	$(srcdir)/svg/twofinger-scrolling.svg
 
 @BUILD_DOCS_TRUE@doc_src = $(shell find html -type f -printf "html/%P\n" 2>/dev/null)

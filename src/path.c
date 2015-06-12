@@ -1,5 +1,5 @@
 /*
- * Copyright © 2013 Red Hat, Inc.
+ * Copyright © 2013-2015 Red Hat, Inc.
  *
  * Permission to use, copy, modify, distribute, and sell this software and
  * its documentation for any purpose is hereby granted without fee, provided
@@ -101,8 +101,8 @@ path_seat_get_named(struct path_input *input,
 	struct path_seat *seat;
 
 	list_for_each(seat, &input->base.seat_list, base.link) {
-		if (strcmp(seat->base.physical_name, seat_name_physical) == 0 &&
-		    strcmp(seat->base.logical_name, seat_name_logical) == 0)
+		if (streq(seat->base.physical_name, seat_name_physical) &&
+		    streq(seat->base.logical_name, seat_name_logical))
 			return seat;
 	}
 
@@ -310,7 +310,7 @@ udev_device_from_devnode(struct libinput *libinput,
 		dev = udev_device_new_from_devnum(udev, 'c', st.st_rdev);
 
 		count++;
-		if (count > 10) {
+		if (count > 50) {
 			log_bug_libinput(libinput,
 					"udev device never initialized (%s)\n",
 					devnode);

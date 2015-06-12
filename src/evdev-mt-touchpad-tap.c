@@ -1,5 +1,5 @@
 /*
- * Copyright © 2013 Red Hat, Inc.
+ * Copyright © 2013-2015 Red Hat, Inc.
  *
  * Permission to use, copy, modify, distribute, and sell this software
  * and its documentation for any purpose is hereby granted without
@@ -37,7 +37,7 @@
 #define CASE_RETURN_STRING(a) case a: return #a
 
 #define DEFAULT_TAP_TIMEOUT_PERIOD 180
-#define DEFAULT_DRAG_TIMEOUT_PERIOD 500
+#define DEFAULT_DRAG_TIMEOUT_PERIOD 300
 #define DEFAULT_TAP_MOVE_THRESHOLD TP_MM_TO_DPI_NORMALIZED(3)
 
 enum tap_event {
@@ -74,6 +74,7 @@ tap_state_to_str(enum tp_tap_state state)
 	CASE_RETURN_STRING(TAP_STATE_DRAGGING);
 	CASE_RETURN_STRING(TAP_STATE_DRAGGING_WAIT);
 	CASE_RETURN_STRING(TAP_STATE_DRAGGING_OR_DOUBLETAP);
+	CASE_RETURN_STRING(TAP_STATE_DRAGGING_OR_TAP);
 	CASE_RETURN_STRING(TAP_STATE_DRAGGING_2);
 	CASE_RETURN_STRING(TAP_STATE_MULTITAP);
 	CASE_RETURN_STRING(TAP_STATE_MULTITAP_DOWN);
@@ -146,7 +147,7 @@ tp_tap_idle_handle_event(struct tp_dispatch *tp,
 			 struct tp_touch *t,
 			 enum tap_event event, uint64_t time)
 {
-	struct libinput *libinput = tp->device->base.seat->libinput;
+	struct libinput *libinput = tp_libinput_context(tp);
 
 	switch (event) {
 	case TAP_EVENT_TOUCH:
@@ -222,7 +223,7 @@ tp_tap_tapped_handle_event(struct tp_dispatch *tp,
 			   struct tp_touch *t,
 			   enum tap_event event, uint64_t time)
 {
-	struct libinput *libinput = tp->device->base.seat->libinput;
+	struct libinput *libinput = tp_libinput_context(tp);
 
 	switch (event) {
 	case TAP_EVENT_MOTION:
@@ -409,8 +410,8 @@ tp_tap_dragging_wait_handle_event(struct tp_dispatch *tp,
 
 	switch (event) {
 	case TAP_EVENT_TOUCH:
-		tp->tap.state = TAP_STATE_DRAGGING;
-		tp_tap_clear_timer(tp);
+		tp->tap.state = TAP_STATE_DRAGGING_OR_TAP;
+		tp_tap_set_timer(tp, time);
 		break;
 	case TAP_EVENT_RELEASE:
 	case TAP_EVENT_MOTION:
@@ -418,6 +419,32 @@ tp_tap_dragging_wait_handle_event(struct tp_dispatch *tp,
 	case TAP_EVENT_TIMEOUT:
 		tp->tap.state = TAP_STATE_IDLE;
 		tp_tap_notify(tp, time, 1, LIBINPUT_BUTTON_STATE_RELEASED);
+		break;
+	case TAP_EVENT_BUTTON:
+		tp->tap.state = TAP_STATE_DEAD;
+		tp_tap_notify(tp, time, 1, LIBINPUT_BUTTON_STATE_RELEASED);
+		break;
+	}
+}
+
+static void
+tp_tap_dragging_tap_handle_event(struct tp_dispatch *tp,
+				  struct tp_touch *t,
+				  enum tap_event event, uint64_t time)
+{
+
+	switch (event) {
+	case TAP_EVENT_TOUCH:
+		tp->tap.state = TAP_STATE_DRAGGING_2;
+		tp_tap_clear_timer(tp);
+		break;
+	case TAP_EVENT_RELEASE:
+		tp->tap.state = TAP_STATE_IDLE;
+		tp_tap_notify(tp, time, 1, LIBINPUT_BUTTON_STATE_RELEASED);
+		break;
+	case TAP_EVENT_MOTION:
+	case TAP_EVENT_TIMEOUT:
+		tp->tap.state = TAP_STATE_DRAGGING;
 		break;
 	case TAP_EVENT_BUTTON:
 		tp->tap.state = TAP_STATE_DEAD;
@@ -456,7 +483,7 @@ tp_tap_multitap_handle_event(struct tp_dispatch *tp,
 			      struct tp_touch *t,
 			      enum tap_event event, uint64_t time)
 {
-	struct libinput *libinput = tp->device->base.seat->libinput;
+	struct libinput *libinput = tp_libinput_context(tp);
 
 	switch (event) {
 	case TAP_EVENT_RELEASE:
@@ -549,7 +576,7 @@ tp_tap_handle_event(struct tp_dispatch *tp,
 		    enum tap_event event,
 		    uint64_t time)
 {
-	struct libinput *libinput = tp->device->base.seat->libinput;
+	struct libinput *libinput = tp_libinput_context(tp);
 	enum tp_tap_state current;
 
 	current = tp->tap.state;
@@ -587,6 +614,9 @@ tp_tap_handle_event(struct tp_dispatch *tp,
 		break;
 	case TAP_STATE_DRAGGING_WAIT:
 		tp_tap_dragging_wait_handle_event(tp, t, event, time);
+		break;
+	case TAP_STATE_DRAGGING_OR_TAP:
+		tp_tap_dragging_tap_handle_event(tp, t, event, time);
 		break;
 	case TAP_STATE_DRAGGING_2:
 		tp_tap_dragging2_handle_event(tp, t, event, time);
@@ -692,6 +722,7 @@ tp_tap_handle_state(struct tp_dispatch *tp, uint64_t time)
 	case TAP_STATE_TOUCH:
 	case TAP_STATE_TAPPED:
 	case TAP_STATE_DRAGGING_OR_DOUBLETAP:
+	case TAP_STATE_DRAGGING_OR_TAP:
 	case TAP_STATE_TOUCH_2:
 	case TAP_STATE_TOUCH_3:
 	case TAP_STATE_MULTITAP_DOWN:
@@ -826,7 +857,7 @@ tp_init_tap(struct tp_dispatch *tp)
 	tp->tap.enabled = tp_tap_default(tp->device);
 
 	libinput_timer_init(&tp->tap.timer,
-			    tp->device->base.seat->libinput,
+			    tp_libinput_context(tp),
 			    tp_tap_handle_timeout, tp);
 
 	return 0;
@@ -870,6 +901,7 @@ tp_tap_dragging(struct tp_dispatch *tp)
 	case TAP_STATE_DRAGGING:
 	case TAP_STATE_DRAGGING_2:
 	case TAP_STATE_DRAGGING_WAIT:
+	case TAP_STATE_DRAGGING_OR_TAP:
 		return true;
 	default:
 		return false;

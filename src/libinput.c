@@ -1,5 +1,6 @@
 /*
  * Copyright © 2013 Jonas Ådahl
+ * Copyright © 2013-2015 Red Hat, Inc.
  *
  * Permission to use, copy, modify, distribute, and sell this software and
  * its documentation for any purpose is hereby granted without fee, provided
@@ -1708,11 +1709,12 @@ libinput_device_config_tap_set_enabled(struct libinput_device *device,
 	    enable != LIBINPUT_CONFIG_TAP_DISABLED)
 		return LIBINPUT_CONFIG_STATUS_INVALID;
 
-	if (enable &&
-	    libinput_device_config_tap_get_finger_count(device) == 0)
-		return LIBINPUT_CONFIG_STATUS_UNSUPPORTED;
+	if (libinput_device_config_tap_get_finger_count(device) == 0)
+		return enable ? LIBINPUT_CONFIG_STATUS_UNSUPPORTED :
+				LIBINPUT_CONFIG_STATUS_SUCCESS;
 
 	return device->config.tap->set_enabled(device, enable);
+
 }
 
 LIBINPUT_EXPORT enum libinput_config_tap_state
@@ -1987,16 +1989,21 @@ libinput_device_config_middle_emulation_set_enabled(
 		struct libinput_device *device,
 		enum libinput_config_middle_emulation_state enable)
 {
+	int available =
+		libinput_device_config_middle_emulation_is_available(device);
+
 	switch (enable) {
 	case LIBINPUT_CONFIG_MIDDLE_EMULATION_DISABLED:
+		if (!available)
+			return LIBINPUT_CONFIG_STATUS_SUCCESS;
+		break;
 	case LIBINPUT_CONFIG_MIDDLE_EMULATION_ENABLED:
+		if (!available)
+			return LIBINPUT_CONFIG_STATUS_UNSUPPORTED;
 		break;
 	default:
 		return LIBINPUT_CONFIG_STATUS_INVALID;
 	}
-
-	if (!libinput_device_config_middle_emulation_is_available(device))
-		return LIBINPUT_CONFIG_STATUS_UNSUPPORTED;
 
 	return device->config.middle_emulation->set(device, enable);
 }
