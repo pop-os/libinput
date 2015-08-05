@@ -1,6 +1,7 @@
 libinput (0.21.0-1) UNRELEASED; urgency=medium
 
   * New upstream release.
+  * control: Add Vcs urls.
 
  -- Timo Aaltonen <tjaalton@debian.org>  Wed, 05 Aug 2015 09:34:35 +0300
 
