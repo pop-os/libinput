@@ -1,10 +1,10 @@
 #!/usr/bin/make -f
 
 override_dh_makeshlibs:
-	dh_makeshlibs -plibinput10 -V -- -c4
+	dh_makeshlibs -plibinput10 -V --add-udeb="libinput10-udeb" -- -c4
 
 override_dh_strip:
-	dh_strip -plibinput10 --dbg-package=libinput10-dbg
+	dh_strip --dbg-package=libinput10-dbg
 
 override_dh_clean:
 	rm -f doc/doxygen_sqlite3.db

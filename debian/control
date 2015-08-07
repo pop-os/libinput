@@ -31,6 +31,16 @@ Description: input device management and event handling library - shared library
  code the user of libinput need to provide the common set of
  functionality that users expect.
 
+Package: libinput10-udeb
+XC-Package-Type: udeb
+Section: debian-installer
+Architecture: any
+Depends:
+ ${shlibs:Depends},
+ ${misc:Depends},
+Description: input device management and event handling library - shared library
+ This is a udeb, or a microdeb, for the debian-installer.
+
 Package: libinput10-dbg
 Section: debug
 Priority: extra
