@@ -1,4 +1,4 @@
-libinput (0.21.0-1) UNRELEASED; urgency=medium
+libinput (0.21.0-1) unstable; urgency=medium
 
   * New upstream release.
   * control: Add Vcs urls.
@@ -7,7 +7,7 @@ libinput (0.21.0-1) UNRELEASED; urgency=medium
     in git and not in upstream tarballs.
   * Add a udeb package.
 
- -- Timo Aaltonen <tjaalton@debian.org>  Wed, 05 Aug 2015 09:34:35 +0300
+ -- Timo Aaltonen <tjaalton@debian.org>  Fri, 07 Aug 2015 08:41:30 +0300
 
 libinput (0.17.0-1) unstable; urgency=medium
 
