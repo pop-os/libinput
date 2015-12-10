@@ -1,11 +1,11 @@
-libinput (1.1.2-1) UNRELEASED; urgency=medium
+libinput (1.1.2-1) unstable; urgency=medium
 
   * New upstream release.
   * control: Add a package for libinput-tools, thanks Alessio Treglia!
     (Closes: #806985)
   * control: Update long descriptions.
 
- -- Timo Aaltonen <tjaalton@debian.org>  Thu, 10 Dec 2015 08:14:50 +0200
+ -- Timo Aaltonen <tjaalton@debian.org>  Thu, 10 Dec 2015 08:34:16 +0200
 
 libinput (1.1.0-1) unstable; urgency=medium
 
