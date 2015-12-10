@@ -3,6 +3,7 @@ libinput (1.1.2-1) UNRELEASED; urgency=medium
   * New upstream release.
   * control: Add a package for libinput-tools, thanks Alessio Treglia!
     (Closes: #806985)
+  * control: Update long descriptions.
 
  -- Timo Aaltonen <tjaalton@debian.org>  Thu, 10 Dec 2015 08:14:50 +0200
 

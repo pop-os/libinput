@@ -30,6 +30,8 @@ Description: input device management and event handling library - shared library
  processing and abstraction so minimize the amount of custom input
  code the user of libinput need to provide the common set of
  functionality that users expect.
+ .
+ This package includes the shared library.
 
 Package: libinput10-udeb
 XC-Package-Type: udeb
@@ -58,6 +60,8 @@ Description: input device management and event handling library - debugging symb
  processing and abstraction so minimize the amount of custom input
  code the user of libinput need to provide the common set of
  functionality that users expect.
+ .
+ This package includes the debugging symbols.
 
 Package: libinput-dev
 Section: libdevel
@@ -76,6 +80,8 @@ Description: input device management and event handling library - development fi
  processing and abstraction so minimize the amount of custom input
  code the user of libinput need to provide the common set of
  functionality that users expect.
+ .
+ This package includes the development headers.
 
 Package: libinput-tools
 Section: libdevel
