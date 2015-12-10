@@ -142,6 +142,8 @@ enum litest_device_type {
 	LITEST_NEXUS4_TOUCH_SCREEN = -28,
 	LITEST_MAGIC_TRACKPAD = -29,
 	LITEST_ELANTECH_TOUCHPAD = -30,
+	LITEST_MOUSE_GLADIUS = -31,
+	LITEST_MOUSE_WHEEL_CLICK_ANGLE = -32,
 };
 
 enum litest_device_feature {

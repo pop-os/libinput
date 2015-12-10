@@ -289,6 +289,9 @@ evdev_flush_pending_event(struct evdev_device *device, uint64_t time)
 	case EVDEV_NONE:
 		return;
 	case EVDEV_RELATIVE_MOTION:
+		if (!(device->seat_caps & EVDEV_DEVICE_POINTER))
+			break;
+
 		normalize_delta(device, &device->rel, &unaccel);
 		raw.x = device->rel.x;
 		raw.y = device->rel.y;
@@ -297,13 +300,20 @@ evdev_flush_pending_event(struct evdev_device *device, uint64_t time)
 
 		/* Use unaccelerated deltas for pointing stick scroll */
 		if (evdev_post_trackpoint_scroll(device, unaccel, time))
-		    break;
+			break;
 
-		/* Apply pointer acceleration. */
-		accel = filter_dispatch(device->pointer.filter,
-					&unaccel,
-					device,
-					time);
+		if (device->pointer.filter) {
+			/* Apply pointer acceleration. */
+			accel = filter_dispatch(device->pointer.filter,
+						&unaccel,
+						device,
+						time);
+		} else {
+			log_bug_libinput(libinput,
+					 "%s: accel filter missing\n",
+					 udev_device_get_devnode(device->udev_device));
+			accel = unaccel;
+		}
 
 		if (normalized_is_zero(accel) && normalized_is_zero(unaccel))
 			break;
@@ -429,8 +439,22 @@ evdev_flush_pending_event(struct evdev_device *device, uint64_t time)
 static enum evdev_key_type
 get_key_type(uint16_t code)
 {
-	if (code == BTN_TOUCH)
+	switch (code) {
+	case BTN_TOOL_PEN:
+	case BTN_TOOL_RUBBER:
+	case BTN_TOOL_BRUSH:
+	case BTN_TOOL_PENCIL:
+	case BTN_TOOL_AIRBRUSH:
+	case BTN_TOOL_MOUSE:
+	case BTN_TOOL_LENS:
+	case BTN_TOOL_QUINTTAP:
+	case BTN_TOOL_DOUBLETAP:
+	case BTN_TOOL_TRIPLETAP:
+	case BTN_TOOL_QUADTAP:
+	case BTN_TOOL_FINGER:
+	case BTN_TOUCH:
 		return EVDEV_KEY_TYPE_NONE;
+	}
 
 	if (code >= KEY_ESC && code <= KEY_MICMUTE)
 		return EVDEV_KEY_TYPE_KEY;
@@ -2052,11 +2076,6 @@ evdev_configure_device(struct evdev_device *device)
 		evdev_tag_trackpoint(device, device->udev_device);
 		device->dpi = evdev_read_dpi_prop(device);
 
-		if (libevdev_has_event_code(evdev, EV_REL, REL_X) &&
-		    libevdev_has_event_code(evdev, EV_REL, REL_Y) &&
-		    evdev_init_accel(device, LIBINPUT_CONFIG_ACCEL_PROFILE_ADAPTIVE) == -1)
-			return -1;
-
 		device->seat_caps |= EVDEV_DEVICE_POINTER;
 
 		log_info(libinput,
@@ -2092,6 +2111,16 @@ evdev_configure_device(struct evdev_device *device)
 		log_info(libinput,
 			 "input device '%s', %s is a touch device\n",
 			 device->devname, devnode);
+	}
+
+	if (device->seat_caps & EVDEV_DEVICE_POINTER &&
+	    libevdev_has_event_code(evdev, EV_REL, REL_X) &&
+	    libevdev_has_event_code(evdev, EV_REL, REL_Y) &&
+	    evdev_init_accel(device, LIBINPUT_CONFIG_ACCEL_PROFILE_ADAPTIVE) == -1) {
+		log_error(libinput,
+			  "failed to initialize pointer acceleration for %s\n",
+			  device->devname);
+		return -1;
 	}
 
 	return 0;
@@ -2519,9 +2548,16 @@ evdev_post_scroll(struct evdev_device *device,
 
 	if (!normalized_is_zero(event)) {
 		const struct discrete_coords zero_discrete = { 0.0, 0.0 };
+		uint32_t axes = device->scroll.direction;
+
+		if (event.y == 0.0)
+			axes &= ~AS_MASK(LIBINPUT_POINTER_AXIS_SCROLL_VERTICAL);
+		if (event.x == 0.0)
+			axes &= ~AS_MASK(LIBINPUT_POINTER_AXIS_SCROLL_HORIZONTAL);
+
 		evdev_notify_axis(device,
 				  time,
-				  device->scroll.direction,
+				  axes,
 				  source,
 				  &event,
 				  &zero_discrete);
