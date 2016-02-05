@@ -34,6 +34,16 @@ libinput:touchpad:input:b0005v05ACp*
  LIBINPUT_MODEL_APPLE_TOUCHPAD=1
  LIBINPUT_ATTR_SIZE_HINT=104x75
 
+libinput:name:*Apple Inc. Apple Internal Keyboard*:dmi:*
+ LIBINPUT_MODEL_APPLE_INTERNAL_KEYBOARD=1
+
+##########################################
+# Cyborg
+##########################################
+# Saitek Cyborg R.A.T.5 Mouse
+libinput:mouse:input:b0003v06A3p0CD5*
+ LIBINPUT_MODEL_CYBORG_RAT=1
+
 ##########################################
 # Elantech
 ##########################################
@@ -62,6 +72,9 @@ libinput:name:SynPS/2 Synaptics TouchPad:dmi:*pn*Alex*
 libinput:name:Cypress APA Trackpad (cyapa):dmi:*svn*SAMSUNG*:pn*Lumpy*
 libinput:name:Atmel maXTouch Touchpad:dmi:*svn*GOOGLE*:pn*Samus*
  LIBINPUT_MODEL_CHROMEBOOK=1
+
+libinput:name:Cypress APA Trackpad (cyapa):dmi:*
+ LIBINPUT_MODEL_CYAPA=1
 
 ##########################################
 # LENOVO

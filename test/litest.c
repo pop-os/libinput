@@ -367,6 +367,11 @@ extern struct litest_test_device litest_magicpad_device;
 extern struct litest_test_device litest_elantech_touchpad_device;
 extern struct litest_test_device litest_mouse_gladius_device;
 extern struct litest_test_device litest_mouse_wheel_click_angle_device;
+extern struct litest_test_device litest_apple_keyboard_device;
+extern struct litest_test_device litest_anker_mouse_kbd_device;
+extern struct litest_test_device litest_cyborg_rat_device;
+extern struct litest_test_device litest_yubikey_device;
+extern struct litest_test_device litest_synaptics_i2c_device;
 
 struct litest_test_device* devices[] = {
 	&litest_synaptics_clickpad_device,
@@ -400,6 +405,11 @@ struct litest_test_device* devices[] = {
 	&litest_elantech_touchpad_device,
 	&litest_mouse_gladius_device,
 	&litest_mouse_wheel_click_angle_device,
+	&litest_apple_keyboard_device,
+	&litest_anker_mouse_kbd_device,
+	&litest_cyborg_rat_device,
+	&litest_yubikey_device,
+	&litest_synaptics_i2c_device,
 	NULL,
 };
 
@@ -1234,6 +1244,7 @@ litest_delete_device(struct litest_device *d)
 	libinput_path_remove_device(d->libinput_device);
 	if (d->owns_context)
 		libinput_unref(d->libinput);
+	close(libevdev_get_fd(d->evdev));
 	libevdev_free(d->evdev);
 	libevdev_uinput_destroy(d->uinput);
 	free(d->private);
@@ -1496,18 +1507,22 @@ litest_touch_move_two_touches(struct litest_device *d,
 			      int steps, int sleep_ms)
 {
 	for (int i = 0; i < steps - 1; i++) {
+		litest_push_event_frame(d);
 		litest_touch_move(d, 0, x0 + dx / steps * i,
 					y0 + dy / steps * i);
 		litest_touch_move(d, 1, x1 + dx / steps * i,
 					y1 + dy / steps * i);
+		litest_pop_event_frame(d);
 		if (sleep_ms) {
 			libinput_dispatch(d->libinput);
 			msleep(sleep_ms);
 		}
 		libinput_dispatch(d->libinput);
 	}
+	litest_push_event_frame(d);
 	litest_touch_move(d, 0, x0 + dx, y0 + dy);
 	litest_touch_move(d, 1, x1 + dx, y1 + dy);
+	litest_pop_event_frame(d);
 }
 
 void

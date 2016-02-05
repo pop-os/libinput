@@ -1185,6 +1185,15 @@ tp_keyboard_timeout(uint64_t now, void *data)
 {
 	struct tp_dispatch *tp = data;
 
+	if (long_any_bit_set(tp->dwt.key_mask,
+			     ARRAY_LENGTH(tp->dwt.key_mask))) {
+		libinput_timer_set(&tp->dwt.keyboard_timer,
+				   now + DEFAULT_KEYBOARD_ACTIVITY_TIMEOUT_2);
+		tp->dwt.keyboard_last_press_time = now;
+		log_debug(tp_libinput_context(tp), "palm: keyboard timeout refresh\n");
+		return;
+	}
+
 	tp_tap_resume(tp, now);
 
 	tp->dwt.keyboard_active = false;
@@ -1229,6 +1238,7 @@ tp_keyboard_event(uint64_t time, struct libinput_event *event, void *data)
 	struct tp_dispatch *tp = data;
 	struct libinput_event_keyboard *kbdev;
 	unsigned int timeout;
+	unsigned int key;
 
 	if (!tp->dwt.dwt_enabled)
 		return;
@@ -1237,15 +1247,18 @@ tp_keyboard_event(uint64_t time, struct libinput_event *event, void *data)
 		return;
 
 	kbdev = libinput_event_get_keyboard_event(event);
+	key = libinput_event_keyboard_get_key(kbdev);
 
 	/* Only trigger the timer on key down. */
 	if (libinput_event_keyboard_get_key_state(kbdev) !=
-	    LIBINPUT_KEY_STATE_PRESSED)
+	    LIBINPUT_KEY_STATE_PRESSED) {
+		long_clear_bit(tp->dwt.key_mask, key);
 		return;
+	}
 
 	/* modifier keys don't trigger disable-while-typing so things like
 	 * ctrl+zoom or ctrl+click are possible */
-	if (tp_key_ignore_for_dwt(libinput_event_keyboard_get_key(kbdev)))
+	if (tp_key_ignore_for_dwt(key))
 		return;
 
 	if (!tp->dwt.keyboard_active) {
@@ -1259,6 +1272,7 @@ tp_keyboard_event(uint64_t time, struct libinput_event *event, void *data)
 	}
 
 	tp->dwt.keyboard_last_press_time = time;
+	long_set_bit(tp->dwt.key_mask, key);
 	libinput_timer_set(&tp->dwt.keyboard_timer,
 			   time + timeout);
 }
@@ -1285,6 +1299,8 @@ tp_want_dwt(struct evdev_device *touchpad,
 {
 	unsigned int bus_tp = libevdev_get_id_bustype(touchpad->evdev),
 		     bus_kbd = libevdev_get_id_bustype(keyboard->evdev);
+	unsigned int vendor_tp = evdev_device_get_id_vendor(touchpad);
+	unsigned int vendor_kbd = evdev_device_get_id_vendor(keyboard);
 
 	if (tp_dwt_device_is_blacklisted(touchpad) ||
 	    tp_dwt_device_is_blacklisted(keyboard))
@@ -1295,10 +1311,49 @@ tp_want_dwt(struct evdev_device *touchpad,
 	if (bus_tp == BUS_I8042 && bus_kbd != bus_tp)
 		return false;
 
+	/* For Apple touchpads, always use its internal keyboard */
+	if (vendor_tp == VENDOR_ID_APPLE) {
+		return vendor_kbd == vendor_tp &&
+		       keyboard->model_flags &
+				EVDEV_MODEL_APPLE_INTERNAL_KEYBOARD;
+	}
+
 	/* everything else we don't really know, so we have to assume
 	   they go together */
 
 	return true;
+}
+
+static void
+tp_dwt_pair_keyboard(struct evdev_device *touchpad,
+		     struct evdev_device *keyboard)
+{
+	struct tp_dispatch *tp = (struct tp_dispatch*)touchpad->dispatch;
+	unsigned int bus_kbd = libevdev_get_id_bustype(keyboard->evdev);
+
+	if (!tp_want_dwt(touchpad, keyboard))
+		return;
+
+	/* If we already have a keyboard paired, override it if the new one
+	 * is a serio device. Otherwise keep the current one */
+	if (tp->dwt.keyboard) {
+		if (bus_kbd != BUS_I8042)
+			return;
+
+		memset(tp->dwt.key_mask, 0, sizeof(tp->dwt.key_mask));
+		libinput_device_remove_event_listener(&tp->dwt.keyboard_listener);
+	}
+
+	libinput_device_add_event_listener(&keyboard->base,
+				&tp->dwt.keyboard_listener,
+				tp_keyboard_event, tp);
+	tp->dwt.keyboard = keyboard;
+	tp->dwt.keyboard_active = false;
+
+	log_debug(touchpad->base.seat->libinput,
+		  "palm: dwt activated with %s<->%s\n",
+		  touchpad->devname,
+		  keyboard->devname);
 }
 
 static void
@@ -1325,20 +1380,8 @@ tp_interface_device_added(struct evdev_device *device,
 						tp_trackpoint_event, tp);
 	}
 
-	if (added_device->tags & EVDEV_TAG_KEYBOARD &&
-	    tp->dwt.keyboard == NULL &&
-	    tp_want_dwt(device, added_device)) {
-		log_debug(tp_libinput_context(tp),
-			  "palm: dwt activated with %s<->%s\n",
-			  device->devname,
-			  added_device->devname);
-
-		libinput_device_add_event_listener(&added_device->base,
-					&tp->dwt.keyboard_listener,
-					tp_keyboard_event, tp);
-		tp->dwt.keyboard = added_device;
-		tp->dwt.keyboard_active = false;
-	}
+	if (added_device->tags & EVDEV_TAG_KEYBOARD)
+	    tp_dwt_pair_keyboard(device, added_device);
 
 	if (tp->sendevents.current_mode !=
 	    LIBINPUT_CONFIG_SEND_EVENTS_DISABLED_ON_EXTERNAL_MOUSE)
@@ -1478,16 +1521,22 @@ tp_init_slots(struct tp_dispatch *tp,
 
 	tp->semi_mt = libevdev_has_property(device->evdev, INPUT_PROP_SEMI_MT);
 
-	/* This device has a terrible resolution when two fingers are down,
+	/* Semi-mt devices are not reliable for true multitouch data, so we
+	 * simply pretend they're single touch touchpads with BTN_TOOL bits.
+	 * Synaptics:
+	 * Terrible resolution when two fingers are down,
 	 * causing scroll jumps. The single-touch emulation ABS_X/Y is
 	 * accurate but the ABS_MT_POSITION touchpoints report the bounding
-	 * box and that causes jumps.  So we simply pretend it's a single
-	 * touch touchpad with the BTN_TOOL bits.
-	 * See https://bugzilla.redhat.com/show_bug.cgi?id=1235175 for an
-	 * explanation.
+	 * box and that causes jumps. See https://bugzilla.redhat.com/1235175
+	 * Elantech:
+	 * On three-finger taps/clicks, one slot doesn't get a coordinate
+	 * assigned. See https://bugs.freedesktop.org/show_bug.cgi?id=93583
+	 * Alps:
+	 * If three fingers are set down in the same frame, one slot has the
+	 * coordinates 0/0 and may not get updated for several frames.
+	 * See https://bugzilla.redhat.com/show_bug.cgi?id=1295073
 	 */
-	if (tp->semi_mt &&
-	    (device->model_flags & EVDEV_MODEL_JUMPING_SEMI_MT)) {
+	if (tp->semi_mt) {
 		tp->num_slots = 1;
 		tp->slot = 0;
 		tp->has_mt = false;
@@ -1925,13 +1974,29 @@ tp_init_default_resolution(struct tp_dispatch *tp,
 	return 0;
 }
 
+static inline void
+tp_init_hysteresis(struct tp_dispatch *tp)
+{
+	int res_x, res_y;
+
+	res_x = tp->device->abs.absinfo_x->resolution;
+	res_y = tp->device->abs.absinfo_y->resolution;
+
+	if (tp->device->model_flags & EVDEV_MODEL_CYAPA) {
+		tp->hysteresis_margin.x = res_x/2;
+		tp->hysteresis_margin.y = res_y/2;
+	} else {
+		tp->hysteresis_margin.x = 0;
+		tp->hysteresis_margin.y = 0;
+	}
+}
+
 static int
 tp_init(struct tp_dispatch *tp,
 	struct evdev_device *device)
 {
 	int width, height;
 	double diagonal;
-	int res_x, res_y;
 
 	tp->base.interface = &tp_interface;
 	tp->device = device;
@@ -1945,8 +2010,6 @@ tp_init(struct tp_dispatch *tp,
 	if (tp_init_slots(tp, device) != 0)
 		return -1;
 
-	res_x = tp->device->abs.absinfo_x->resolution;
-	res_y = tp->device->abs.absinfo_y->resolution;
 	width = device->abs.dimensions.x;
 	height = device->abs.dimensions.y;
 	diagonal = sqrt(width*width + height*height);
@@ -1955,8 +2018,7 @@ tp_init(struct tp_dispatch *tp,
 						       EV_ABS,
 						       ABS_MT_DISTANCE);
 
-	tp->hysteresis_margin.x = res_x/2;
-	tp->hysteresis_margin.y = res_y/2;
+	tp_init_hysteresis(tp);
 
 	if (tp_init_accel(tp, diagonal) != 0)
 		return -1;

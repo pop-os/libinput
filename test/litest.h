@@ -144,6 +144,11 @@ enum litest_device_type {
 	LITEST_ELANTECH_TOUCHPAD = -30,
 	LITEST_MOUSE_GLADIUS = -31,
 	LITEST_MOUSE_WHEEL_CLICK_ANGLE = -32,
+	LITEST_APPLE_KEYBOARD = -33,
+	LITEST_ANKER_MOUSE_KBD = -34,
+	LITEST_CYBORG_RAT = -41,
+	LITEST_YUBIKEY = -42,
+	LITEST_SYNAPTICS_I2C = -43,
 };
 
 enum litest_device_feature {
@@ -548,16 +553,6 @@ litest_enable_buttonareas(struct litest_device *dev)
 				 LIBINPUT_CONFIG_CLICK_METHOD_BUTTON_AREAS);
 	expected = LIBINPUT_CONFIG_STATUS_SUCCESS;
 	litest_assert_int_eq(status, expected);
-}
-
-static inline int
-litest_is_synaptics_semi_mt(struct litest_device *dev)
-{
-	struct libevdev *evdev = dev->evdev;
-
-	return libevdev_has_property(evdev, INPUT_PROP_SEMI_MT) &&
-		libevdev_get_id_vendor(evdev) == 0x2 &&
-		libevdev_get_id_product(evdev) == 0x7;
 }
 
 static inline void

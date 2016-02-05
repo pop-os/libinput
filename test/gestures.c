@@ -34,7 +34,7 @@ START_TEST(gestures_cap)
 	struct litest_device *dev = litest_current_device();
 	struct libinput_device *device = dev->libinput_device;
 
-	if (litest_is_synaptics_semi_mt(dev))
+	if (libevdev_has_property(dev->evdev, INPUT_PROP_SEMI_MT))
 		ck_assert(!libinput_device_has_capability(device,
 					  LIBINPUT_DEVICE_CAP_GESTURE));
 	else
@@ -180,7 +180,9 @@ START_TEST(gestures_pinch)
 		{ -30, 30 },
 	};
 
-	if (libevdev_get_num_slots(dev->evdev) < 3)
+	if (libevdev_get_num_slots(dev->evdev) < 2 ||
+	    !libinput_device_has_capability(dev->libinput_device,
+					    LIBINPUT_DEVICE_CAP_GESTURE))
 		return;
 
 	dir_x = cardinals[cardinal][0];
@@ -195,13 +197,13 @@ START_TEST(gestures_pinch)
 	for (i = 0; i < 8; i++) {
 		litest_push_event_frame(dev);
 		if (dir_x > 0.0)
-			dir_x -= 3;
+			dir_x -= 2;
 		else if (dir_x < 0.0)
-			dir_x += 3;
+			dir_x += 2;
 		if (dir_y > 0.0)
-			dir_y -= 3;
+			dir_y -= 2;
 		else if (dir_y < 0.0)
-			dir_y += 3;
+			dir_y += 2;
 		litest_touch_move(dev,
 				  0,
 				  50 + dir_x,
@@ -269,17 +271,19 @@ START_TEST(gestures_spread)
 	double scale, oldscale;
 	double angle;
 	int cardinals[8][2] = {
-		{ 0, 1 },
-		{ 1, 1 },
-		{ 1, 0 },
-		{ 1, -1 },
-		{ 0, -1 },
-		{ -1, -1 },
-		{ -1, 0 },
-		{ -1, 1 },
+		{ 0, 30 },
+		{ 30, 30 },
+		{ 30, 0 },
+		{ 30, -30 },
+		{ 0, -30 },
+		{ -30, -30 },
+		{ -30, 0 },
+		{ -30, 30 },
 	};
 
-	if (libevdev_get_num_slots(dev->evdev) < 3)
+	if (libevdev_get_num_slots(dev->evdev) < 2 ||
+	    !libinput_device_has_capability(dev->libinput_device,
+					    LIBINPUT_DEVICE_CAP_GESTURE))
 		return;
 
 	dir_x = cardinals[cardinal][0];
