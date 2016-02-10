@@ -1185,7 +1185,8 @@ tp_keyboard_timeout(uint64_t now, void *data)
 {
 	struct tp_dispatch *tp = data;
 
-	if (long_any_bit_set(tp->dwt.key_mask,
+	if (tp->dwt.dwt_enabled &&
+	    long_any_bit_set(tp->dwt.key_mask,
 			     ARRAY_LENGTH(tp->dwt.key_mask))) {
 		libinput_timer_set(&tp->dwt.keyboard_timer,
 				   now + DEFAULT_KEYBOARD_ACTIVITY_TIMEOUT_2);
@@ -1240,9 +1241,6 @@ tp_keyboard_event(uint64_t time, struct libinput_event *event, void *data)
 	unsigned int timeout;
 	unsigned int key;
 
-	if (!tp->dwt.dwt_enabled)
-		return;
-
 	if (event->type != LIBINPUT_EVENT_KEYBOARD_KEY)
 		return;
 
@@ -1255,6 +1253,9 @@ tp_keyboard_event(uint64_t time, struct libinput_event *event, void *data)
 		long_clear_bit(tp->dwt.key_mask, key);
 		return;
 	}
+
+	if (!tp->dwt.dwt_enabled)
+		return;
 
 	/* modifier keys don't trigger disable-while-typing so things like
 	 * ctrl+zoom or ctrl+click are possible */
@@ -1982,7 +1983,8 @@ tp_init_hysteresis(struct tp_dispatch *tp)
 	res_x = tp->device->abs.absinfo_x->resolution;
 	res_y = tp->device->abs.absinfo_y->resolution;
 
-	if (tp->device->model_flags & EVDEV_MODEL_CYAPA) {
+	if (tp->device->model_flags &
+	    (EVDEV_MODEL_CYAPA|EVDEV_MODEL_ALPS_RUSHMORE)) {
 		tp->hysteresis_margin.x = res_x/2;
 		tp->hysteresis_margin.y = res_y/2;
 	} else {
