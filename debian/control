@@ -10,6 +10,7 @@ Build-Depends:
  libmtdev-dev (>= 1.1.0),
  libudev-dev,
  libevdev-dev (>= 0.4),
+ libwacom-dev (>= 0.12),
 Standards-Version: 3.9.6
 Vcs-Git: git://anonscm.debian.org/pkg-xorg/lib/libinput.git
 Vcs-Browser: http://anonscm.debian.org/cgit/pkg-xorg/lib/libinput.git
