@@ -2,6 +2,7 @@ libinput (1.2.0-1) UNRELEASED; urgency=medium
 
   * New upstream release.
   * control: Add libwacom-dev to build-depends.
+  * symbols: Updated.
 
  -- Timo Aaltonen <tjaalton@debian.org>  Tue, 23 Feb 2016 16:13:08 +0200
 
