@@ -1,0 +1,14 @@
+#!/usr/bin/make -f
+
+override_dh_makeshlibs:
+	dh_makeshlibs -plibinput10 -V --add-udeb="libinput10-udeb" -- -c4
+
+override_dh_strip:
+	dh_strip --dbg-package=libinput10-dbg
+
+override_dh_clean:
+	rm -f doc/doxygen_sqlite3.db
+	dh_clean
+
+%:
+	dh $@ --with autoreconf
