@@ -201,7 +201,7 @@ normalize_dist_slider(const struct input_absinfo *absinfo)
 	double range = absinfo->maximum - absinfo->minimum;
 	double value = (absinfo->value - absinfo->minimum) / range;
 
-	return value;
+	return value * 2 - 1;
 }
 
 static inline double
@@ -516,7 +516,7 @@ tablet_check_notify_axes(struct tablet_dispatch *tablet,
 		axes.tilt.x = 0;
 		axes.tilt.y = 0;
 
-		/* tilt is already coverted to left-handed, so mouse
+		/* tilt is already converted to left-handed, so mouse
 		 * rotation is converted to left-handed automatically */
 	} else {
 		axes.rotation = tablet_handle_artpen_rotation(tablet, device);
