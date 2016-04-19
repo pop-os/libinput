@@ -1,9 +1,9 @@
-libinput (1.2.4-1) UNRELEASED; urgency=medium
+libinput (1.2.4-1) unstable; urgency=medium
 
   * New upstream release.
   * copyright: Drop trailing / from Files-Excluded.
 
- -- Timo Aaltonen <tjaalton@debian.org>  Tue, 19 Apr 2016 11:35:03 +0300
+ -- Timo Aaltonen <tjaalton@debian.org>  Tue, 19 Apr 2016 11:36:37 +0300
 
 libinput (1.2.3-1) unstable; urgency=medium
 
