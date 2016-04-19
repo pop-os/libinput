@@ -4,7 +4,7 @@ Upstream-Contact: Jonas Ådahl <jadahl@gmail.com>
                   Peter Hutterer <peter.hutterer@who-t.net>
 Source: http://www.freedesktop.org/software/libinput/
 Files-Excluded:
- doc/html/
+ doc/html
 
 Files: debian/*
 Copyright: Copyright © 2014 Emilio Pozuelo Monfort <pochu@debian.org>
