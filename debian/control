@@ -63,26 +63,6 @@ Depends:
 Description: input device management and event handling library - shared library
  This is a udeb, or a microdeb, for the debian-installer.
 
-Package: libinput10-dbg
-Section: debug
-Priority: extra
-Architecture: any
-Multi-Arch: same
-Depends:
- libinput10 (= ${binary:Version}),
- ${shlibs:Depends},
- ${misc:Depends},
-Description: input device management and event handling library - debugging symbols
- libinput is a library that handles input devices for display servers and
- other applications that need to directly deal with input devices.
- .
- It provides device detection, device handling, input device event
- processing and abstraction so minimize the amount of custom input
- code the user of libinput need to provide the common set of
- functionality that users expect.
- .
- This package includes the debugging symbols.
-
 Package: libinput-dev
 Section: libdevel
 Priority: extra
