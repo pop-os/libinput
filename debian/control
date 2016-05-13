@@ -12,7 +12,7 @@ Build-Depends:
  libevdev-dev (>= 0.4),
  libwacom-dev (>= 0.12),
 Standards-Version: 3.9.8
-Vcs-Git: https://anonscm.debian.org/pkg-xorg/lib/libinput.git
+Vcs-Git: https://anonscm.debian.org/git/pkg-xorg/lib/libinput.git
 Vcs-Browser: https://anonscm.debian.org/cgit/pkg-xorg/lib/libinput.git
 Homepage: http://www.freedesktop.org/wiki/Software/libinput/
 

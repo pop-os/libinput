@@ -5,6 +5,7 @@ libinput (1.3.0-2) UNRELEASED; urgency=medium
   * rules: Purge .la files.
   * Install udev quirks and helpers in libinput-bin. (Closes: #822872)
   * Drop manual -dbg package.
+  * control: Fix Vcs-Git url.
 
  -- Timo Aaltonen <tjaalton@debian.org>  Fri, 13 May 2016 12:40:14 +0300
 
