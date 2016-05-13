@@ -23,7 +23,7 @@ Multi-Arch: same
 Depends:
  ${shlibs:Depends},
  ${misc:Depends},
- libinput-bin (= ${binary:Version}),
+ libinput-bin (>= ${binary:Version}),
 Description: input device management and event handling library - shared library
  libinput is a library that handles input devices for display servers and
  other applications that need to directly deal with input devices.
