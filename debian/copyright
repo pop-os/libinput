@@ -11,7 +11,8 @@ Copyright: Copyright © 2014 Emilio Pozuelo Monfort <pochu@debian.org>
 License: Expat
 
 Files: *
-Copyright: Copyright © 2008-2012 Kristian Høgsberg
+Copyright: Copyright © 2006-2009 Simon Thum
+           Copyright © 2008-2012 Kristian Høgsberg
            Copyright © 2010-2012 Intel Corporation
            Copyright © 2010-2011 Benjamin Franzke
            Copyright © 2011-2012 Collabora, Ltd.
