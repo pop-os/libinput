@@ -23,6 +23,7 @@ Multi-Arch: same
 Depends:
  ${shlibs:Depends},
  ${misc:Depends},
+ libinput-bin (= ${binary:Version}),
 Description: input device management and event handling library - shared library
  libinput is a library that handles input devices for display servers and
  other applications that need to directly deal with input devices.
@@ -33,6 +34,24 @@ Description: input device management and event handling library - shared library
  functionality that users expect.
  .
  This package includes the shared library.
+
+Package: libinput-bin
+Architecture: any
+Pre-Depends: ${misc:Pre-Depends}
+Multi-Arch: foreign
+Depends:
+ ${shlibs:Depends},
+ ${misc:Depends},
+Description: input device management and event handling library - udev quirks
+ libinput is a library that handles input devices for display servers and
+ other applications that need to directly deal with input devices.
+ .
+ It provides device detection, device handling, input device event
+ processing and abstraction so minimize the amount of custom input
+ code the user of libinput need to provide the common set of
+ functionality that users expect.
+ .
+ This package includes the udev quirks database and helpers.
 
 Package: libinput10-udeb
 XC-Package-Type: udeb
