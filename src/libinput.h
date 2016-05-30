@@ -1889,10 +1889,13 @@ libinput_event_tablet_tool_get_y_transformed(struct libinput_event_tablet_tool *
  *
  * Returns the tool that was in use during this event.
  *
- * If the caller holds at least one reference (see
- * libinput_tablet_tool_ref()), this struct is used whenever the
- * tools enters proximity. Otherwise, if no references remain when the tool
- * leaves proximity, the tool may be destroyed.
+ * The returned tablet tool is not refcounted and may become invalid after
+ * the next call to libinput. Use libinput_tablet_tool_ref() and
+ * libinput_tablet_tool_unref() to continue using the handle outside of the
+ * immediate scope.
+ *
+ * If the caller holds at least one reference, this struct is used
+ * whenever the tools enters proximity again.
   *
  * @note Physical tool tracking requires hardware support. If unavailable,
  * libinput creates one tool per type per tablet. See @ref
@@ -1999,7 +2002,7 @@ libinput_event_tablet_tool_get_time_usec(struct libinput_event_tablet_tool *even
 /**
  * @ingroup event_tablet
  *
- * Return the type of tool type for a tool object, see @ref
+ * Return the tool type for a tool object, see @ref
  * tablet-tool-types for details.
  *
  * @param tool The libinput tool
@@ -2047,7 +2050,8 @@ libinput_tablet_tool_ref(struct libinput_tablet_tool *tool);
  * @ingroup event_tablet
  *
  * Decrement the reference count of the tool by one. When the reference
- * count of tool reaches 0, the memory allocated for tool will be freed.
+ * count of the tool reaches 0, the memory allocated for the tool will be
+ * freed.
  *
  * @param tool The tool to decrement the ref count of
  * @return NULL if the tool was destroyed otherwise the passed tool
@@ -3064,6 +3068,11 @@ libinput_device_get_output_name(struct libinput_device *device);
  * There will ever be only one seat instance with a given physical and logical
  * seat name pair at any given time, but if no external reference is kept, it
  * may be destroyed if no device belonging to it is left.
+ *
+ * The returned seat is not refcounted and may become invalid after
+ * the next call to libinput. Use libinput_seat_ref() and
+ * libinput_seat_unref() to continue using the handle outside of the
+ * immediate scope.
  *
  * @param device A previously obtained device
  * @return The seat this input device belongs to
