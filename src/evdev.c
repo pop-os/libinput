@@ -1735,17 +1735,17 @@ evdev_read_model_flags(struct evdev_device *device)
 		{ "LIBINPUT_MODEL_APPLE_INTERNAL_KEYBOARD", EVDEV_MODEL_APPLE_INTERNAL_KEYBOARD },
 		{ "LIBINPUT_MODEL_CYBORG_RAT", EVDEV_MODEL_CYBORG_RAT },
 		{ "LIBINPUT_MODEL_CYAPA", EVDEV_MODEL_CYAPA },
-		{ "LIBINPUT_MODEL_ALPS_RUSHMORE", EVDEV_MODEL_ALPS_RUSHMORE },
 		{ "LIBINPUT_MODEL_LENOVO_T450_TOUCHPAD", EVDEV_MODEL_LENOVO_T450_TOUCHPAD },
-		{ "LIBINPUT_MODEL_WOBBLY_TOUCHPAD", EVDEV_MODEL_WOBBLY_TOUCHPAD },
 		{ NULL, EVDEV_MODEL_DEFAULT },
 	};
 	const struct model_map *m = model_map;
 	uint32_t model_flags = 0;
+	const char *val;
 
 	while (m->property) {
-		if (!!udev_device_get_property_value(device->udev_device,
-						     m->property)) {
+		val = udev_device_get_property_value(device->udev_device,
+						     m->property);
+		if (val && !streq(val, "0")) {
 			log_debug(device->base.seat->libinput,
 				  "%s: tagged as %s\n",
 				  evdev_device_get_sysname(device),

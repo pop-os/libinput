@@ -204,7 +204,7 @@ accel_profiles(struct libinput_device *device)
 
 	profile = libinput_device_config_accel_get_default_profile(device);
 	xasprintf(&str,
-		  "%s%s%s%s",
+		  "%s%s %s%s",
 		  (profile == LIBINPUT_CONFIG_ACCEL_PROFILE_FLAT) ? "*" : "",
 		  (profiles & LIBINPUT_CONFIG_ACCEL_PROFILE_FLAT) ? "flat" : "",
 		  (profile == LIBINPUT_CONFIG_ACCEL_PROFILE_ADAPTIVE) ? "*" : "",
@@ -268,10 +268,13 @@ print_device_notify(struct libinput_event *ev)
 		printf("pointer ");
 	if (libinput_device_has_capability(dev,
 					   LIBINPUT_DEVICE_CAP_TOUCH))
-		printf("touch");
+		printf("touch ");
 	if (libinput_device_has_capability(dev,
 					   LIBINPUT_DEVICE_CAP_TABLET_TOOL))
-		printf("tablet");
+		printf("tablet ");
+	if (libinput_device_has_capability(dev,
+					   LIBINPUT_DEVICE_CAP_TABLET_PAD))
+		printf("tablet-pad");
 	printf("\n");
 
 	printf("Tap-to-click:     %s\n", tap_default(dev));

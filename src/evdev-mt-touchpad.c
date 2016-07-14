@@ -289,6 +289,39 @@ tp_get_delta(struct tp_touch *t)
 	return tp_normalize_delta(t->tp, delta);
 }
 
+static inline void
+tp_check_axis_range(struct tp_dispatch *tp,
+		    unsigned int code,
+		    int value)
+{
+	int min, max;
+
+	switch(code) {
+	case ABS_X:
+	case ABS_MT_POSITION_X:
+		min = tp->warning_range.min.x;
+		max = tp->warning_range.max.x;
+		break;
+	case ABS_Y:
+	case ABS_MT_POSITION_Y:
+		min = tp->warning_range.min.y;
+		max = tp->warning_range.max.y;
+		break;
+	default:
+		return;
+	}
+
+	if (value < min || value > max) {
+		log_info_ratelimit(tp_libinput_context(tp),
+				   &tp->warning_range.range_warn_limit,
+				   "Axis %#x value %d is outside expected range [%d, %d]\n"
+				   "See %s/absolute_coordinate_ranges.html for details\n",
+				   code, value, min, max,
+				   HTTP_DOC_LINK);
+
+	}
+}
+
 static void
 tp_process_absolute(struct tp_dispatch *tp,
 		    const struct input_event *e,
@@ -298,12 +331,14 @@ tp_process_absolute(struct tp_dispatch *tp,
 
 	switch(e->code) {
 	case ABS_MT_POSITION_X:
+		tp_check_axis_range(tp, e->code, e->value);
 		t->point.x = e->value;
 		t->millis = time;
 		t->dirty = true;
 		tp->queued |= TOUCHPAD_EVENT_MOTION;
 		break;
 	case ABS_MT_POSITION_Y:
+		tp_check_axis_range(tp, e->code, e->value);
 		t->point.y = e->value;
 		t->millis = time;
 		t->dirty = true;
@@ -322,7 +357,6 @@ tp_process_absolute(struct tp_dispatch *tp,
 			tp_end_sequence(tp, t, time);
 		break;
 	case ABS_MT_PRESSURE:
-		t->pressure_delta = e->value - t->pressure;
 		t->pressure = e->value;
 		t->dirty = true;
 		tp->queued |= TOUCHPAD_EVENT_OTHERAXIS;
@@ -339,12 +373,14 @@ tp_process_absolute_st(struct tp_dispatch *tp,
 
 	switch(e->code) {
 	case ABS_X:
+		tp_check_axis_range(tp, e->code, e->value);
 		t->point.x = e->value;
 		t->millis = time;
 		t->dirty = true;
 		tp->queued |= TOUCHPAD_EVENT_MOTION;
 		break;
 	case ABS_Y:
+		tp_check_axis_range(tp, e->code, e->value);
 		t->point.y = e->value;
 		t->millis = time;
 		t->dirty = true;
@@ -928,7 +964,6 @@ tp_detect_jumps(const struct tp_dispatch *tp, struct tp_touch *t)
 static void
 tp_process_state(struct tp_dispatch *tp, uint64_t time)
 {
-	struct evdev_device *device = tp->device;
 	struct tp_touch *t;
 	unsigned int i;
 	bool restart_filter = false;
@@ -954,15 +989,12 @@ tp_process_state(struct tp_dispatch *tp, uint64_t time)
 		if (!t->dirty)
 			continue;
 
-		if ((device->model_flags & EVDEV_MODEL_LENOVO_T450_TOUCHPAD) &&
-		    t->pressure_delta < -7)
-			tp_motion_history_reset(t);
-
 		if (tp_detect_jumps(tp, t)) {
-			log_bug_kernel(tp_libinput_context(tp),
-				       "Touch jump detected and discarded.\n"
-				       "See %stouchpad_jumping_cursor for details\n",
-				       HTTP_DOC_LINK);
+			if (!tp->semi_mt)
+				log_bug_kernel(tp_libinput_context(tp),
+					       "Touch jump detected and discarded.\n"
+					       "See %stouchpad_jumping_cursor.html for details\n",
+					       HTTP_DOC_LINK);
 			tp_motion_history_reset(t);
 		}
 
@@ -2033,31 +2065,32 @@ tp_init_hysteresis(struct tp_dispatch *tp)
 {
 	int res_x, res_y;
 
-	if (tp->device->model_flags & EVDEV_MODEL_CYAPA)
-		goto want_hysteresis;
-
-	if (tp->device->model_flags & EVDEV_MODEL_ALPS_RUSHMORE)
-		goto want_hysteresis;
-
-	if (tp->semi_mt &&
-	    (tp->device->model_flags & EVDEV_MODEL_SYNAPTICS_SERIAL_TOUCHPAD))
-		goto want_hysteresis;
-
-	if (tp->device->model_flags & EVDEV_MODEL_WOBBLY_TOUCHPAD)
-		goto want_hysteresis;
-
-	tp->hysteresis_margin.x = 0;
-	tp->hysteresis_margin.y = 0;
-
-	return;
-
-want_hysteresis:
 	res_x = tp->device->abs.absinfo_x->resolution;
 	res_y = tp->device->abs.absinfo_y->resolution;
-
 	tp->hysteresis_margin.x = res_x/2;
 	tp->hysteresis_margin.y = res_y/2;
+
 	return;
+}
+
+static void
+tp_init_range_warnings(struct tp_dispatch *tp,
+		       struct evdev_device *device,
+		       int width,
+		       int height)
+{
+	const struct input_absinfo *x, *y;
+
+	x = device->abs.absinfo_x;
+	y = device->abs.absinfo_y;
+
+	tp->warning_range.min.x = x->minimum - 0.05 * width;
+	tp->warning_range.min.y = y->minimum - 0.05 * height;
+	tp->warning_range.max.x = x->maximum + 0.05 * width;
+	tp->warning_range.max.y = y->maximum + 0.05 * height;
+
+	/* One warning every 5 min is enough */
+	ratelimit_init(&tp->warning_range.range_warn_limit, s2us(3000), 1);
 }
 
 static int
@@ -2082,6 +2115,8 @@ tp_init(struct tp_dispatch *tp,
 	width = device->abs.dimensions.x;
 	height = device->abs.dimensions.y;
 	diagonal = sqrt(width*width + height*height);
+
+	tp_init_range_warnings(tp, device, width, height);
 
 	tp->reports_distance = libevdev_has_event_code(device->evdev,
 						       EV_ABS,

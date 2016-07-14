@@ -155,7 +155,6 @@ struct tp_touch {
 	uint64_t millis;
 	int distance;				/* distance == 0 means touch */
 	int pressure;
-	int pressure_delta;
 
 	struct {
 		/* A quirk mostly used on Synaptics touchpads. In a
@@ -243,6 +242,11 @@ struct tp_dispatch {
 	unsigned int fake_touches;
 
 	struct device_coords hysteresis_margin;
+
+	struct {
+		struct device_coords min, max;
+		struct ratelimit range_warn_limit;
+	} warning_range;
 
 	struct {
 		double x_scale_coeff;
