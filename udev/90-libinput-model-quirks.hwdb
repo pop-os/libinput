@@ -37,12 +37,22 @@ libinput:touchpad:input:b0005v05ACp*
 libinput:name:*Apple Inc. Apple Internal Keyboard*:dmi:*
  LIBINPUT_MODEL_APPLE_INTERNAL_KEYBOARD=1
 
+libinput:mouse:input:b0005v05ACp030D*
+ LIBINPUT_MODEL_APPLE_MAGICMOUSE=1
+
 ##########################################
 # Cyborg
 ##########################################
 # Saitek Cyborg R.A.T.5 Mouse
 libinput:mouse:input:b0003v06A3p0CD5*
  LIBINPUT_MODEL_CYBORG_RAT=1
+
+##########################################
+# Dell
+##########################################
+libinput:name:SynPS/2 Synaptics TouchPad:dmi:*svnDellInc.:*
+libinput:name:* Touchpad:dmi:*svnDellInc.:*
+ LIBINPUT_MODEL_DELL_TOUCHPAD=1
 
 ##########################################
 # Elantech
@@ -104,6 +114,12 @@ libinput:name:SynPS/2 Synaptics TouchPad:dmi:*svnLENOVO:*:pvrThinkPadX1Carbon3rd
  LIBINPUT_MODEL_LENOVO_T450_TOUCHPAD=1
 
 ##########################################
+# Logitech
+##########################################
+libinput:name:*Logitech M570*:dmi:*
+ LIBINPUT_MODEL_TRACKBALL=1
+
+##########################################
 # Synaptics
 ##########################################
 libinput:touchpad:input:b0011v0002p0007*
@@ -134,3 +150,9 @@ libinput:name:SynPS/2 Synaptics TouchPad:dmi:*svnSystem76*pvrkudp1*
 ##########################################
 libinput:touchpad:input:b0003v056Ap*
  LIBINPUT_MODEL_WACOM_TOUCHPAD=1
+
+##########################################
+# Anything that has trackball in the name
+##########################################
+libinput:name:*Trackball*:dmi:*
+ LIBINPUT_MODEL_TRACKBALL=1

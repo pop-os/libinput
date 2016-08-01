@@ -380,7 +380,7 @@ struct tp_dispatch {
 static inline struct libinput*
 tp_libinput_context(const struct tp_dispatch *tp)
 {
-	return tp->device->base.seat->libinput;
+	return evdev_libinput_context(tp->device);
 }
 
 static inline struct normalized_coords
@@ -526,5 +526,8 @@ tp_gesture_stop_twofinger_scroll(struct tp_dispatch *tp, uint64_t time);
 
 bool
 tp_palm_tap_is_palm(const struct tp_dispatch *tp, const struct tp_touch *t);
+
+void
+tp_clickpad_middlebutton_apply_config(struct evdev_device *device);
 
 #endif

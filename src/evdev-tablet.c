@@ -161,7 +161,7 @@ tablet_process_absolute(struct tablet_dispatch *tablet,
 	case ABS_WHEEL:
 		axis = evcode_to_axis(e->code);
 		if (axis == LIBINPUT_TABLET_TOOL_AXIS_NONE) {
-			log_bug_libinput(device->base.seat->libinput,
+			log_bug_libinput(tablet_libinput_context(tablet),
 					 "Invalid ABS event code %#x\n",
 					 e->code);
 			break;
@@ -192,7 +192,7 @@ tablet_process_absolute(struct tablet_dispatch *tablet,
 	   */
 	case ABS_THROTTLE:
 	default:
-		log_info(device->base.seat->libinput,
+		log_info(tablet_libinput_context(tablet),
 			 "Unhandled ABS event code %#x\n", e->code);
 		break;
 	}
@@ -386,22 +386,23 @@ tablet_handle_xy(struct tablet_dispatch *tablet,
 }
 
 static inline struct normalized_coords
-tablet_process_delta(struct tablet_dispatch *tablet,
-		     const struct evdev_device *device,
-		     const struct device_coords *delta,
-		     uint64_t time)
+tool_process_delta(struct libinput_tablet_tool *tool,
+		   const struct evdev_device *device,
+		   const struct device_coords *delta,
+		   uint64_t time)
 {
 	struct normalized_coords accel;
 
-	/* The tablet accel code uses mm as input */
-	accel.x = 1.0 * delta->x/device->abs.absinfo_x->resolution;
-	accel.y = 1.0 * delta->y/device->abs.absinfo_y->resolution;
+	accel.x = 1.0 * delta->x;
+	accel.y = 1.0 * delta->y;
 
 	if (normalized_is_zero(accel))
 		return accel;
 
 	return filter_dispatch(device->pointer.filter,
-			       &accel, tablet, time);
+			       &accel,
+			       tool,
+			       time);
 }
 
 static inline double
@@ -548,7 +549,7 @@ tablet_check_notify_axes(struct tablet_dispatch *tablet,
 	axes.distance = tablet_handle_distance(tablet, device);
 	axes.slider = tablet_handle_slider(tablet, device);
 	axes.tilt = tablet_handle_tilt(tablet, device);
-	axes.delta = tablet_process_delta(tablet, device, &delta, time);
+	axes.delta = tool_process_delta(tool, device, &delta, time);
 
 	/* We must check ROTATION_Z after TILT_X/Y so that the tilt axes are
 	 * already normalized and set if we have the mouse/lens tool */
@@ -595,7 +596,7 @@ tablet_update_button(struct tablet_dispatch *tablet,
 	case BTN_STYLUS2:
 		break;
 	default:
-		log_info(tablet->device->base.seat->libinput,
+		log_info(tablet_libinput_context(tablet),
 			 "Unhandled button %s (%#x)\n",
 			 libevdev_event_code_get_name(EV_KEY, evcode), evcode);
 		return;
@@ -638,7 +639,7 @@ tablet_process_key(struct tablet_dispatch *tablet,
 {
 	switch (e->code) {
 	case BTN_TOOL_FINGER:
-		log_bug_libinput(device->base.seat->libinput,
+		log_bug_libinput(tablet_libinput_context(tablet),
 				 "Invalid tool 'finger' on tablet interface\n");
 		break;
 	case BTN_TOOL_PEN:
@@ -692,7 +693,7 @@ tablet_process_relative(struct tablet_dispatch *tablet,
 	case REL_WHEEL:
 		axis = rel_evcode_to_axis(e->code);
 		if (axis == LIBINPUT_TABLET_TOOL_AXIS_NONE) {
-			log_bug_libinput(device->base.seat->libinput,
+			log_bug_libinput(tablet_libinput_context(tablet),
 					 "Invalid ABS event code %#x\n",
 					 e->code);
 			break;
@@ -702,7 +703,7 @@ tablet_process_relative(struct tablet_dispatch *tablet,
 		tablet_set_status(tablet, TABLET_AXES_UPDATED);
 		break;
 	default:
-		log_info(tablet->device->base.seat->libinput,
+		log_info(tablet_libinput_context(tablet),
 			 "Unhandled relative axis %s (%#x)\n",
 			 libevdev_event_code_get_name(EV_REL, e->code),
 			 e->code);
@@ -723,7 +724,7 @@ tablet_process_misc(struct tablet_dispatch *tablet,
 
 		break;
 	default:
-		log_info(device->base.seat->libinput,
+		log_info(tablet_libinput_context(tablet),
 			 "Unhandled MSC event code %s (%#x)\n",
 			 libevdev_event_code_get_name(EV_MSC, e->code),
 			 e->code);
@@ -757,7 +758,7 @@ tool_set_bits_from_libwacom(const struct tablet_dispatch *tablet,
 	int rc = 1;
 
 #if HAVE_LIBWACOM
-	struct libinput *libinput = tablet->device->base.seat->libinput;
+	struct libinput *libinput = tablet_libinput_context(tablet);
 	WacomDeviceDatabase *db;
 	const WacomStylus *s = NULL;
 	int code;
@@ -902,7 +903,8 @@ tablet_get_tool(struct tablet_dispatch *tablet,
 	struct list *tool_list;
 
 	if (serial) {
-		tool_list = &tablet->device->base.seat->libinput->tool_list;
+		struct libinput *libinput = tablet_libinput_context(tablet);
+		tool_list = &libinput->tool_list;
 
 		/* Check if we already have the tool in our list of tools */
 		list_for_each(t, tool_list, link) {
@@ -1124,7 +1126,7 @@ detect_pressure_offset(struct tablet_dispatch *tablet,
 		return;
 
 	if (offset > axis_range_percentage(pressure, 20)) {
-		log_error(device->base.seat->libinput,
+		log_error(tablet_libinput_context(tablet),
 			 "Ignoring pressure offset greater than 20%% detected on tool %s (serial %#x). "
 			 "See http://wayland.freedesktop.org/libinput/doc/%s/tablet-support.html\n",
 			 tablet_tool_type_to_string(tool->type),
@@ -1133,7 +1135,7 @@ detect_pressure_offset(struct tablet_dispatch *tablet,
 		return;
 	}
 
-	log_info(device->base.seat->libinput,
+	log_info(tablet_libinput_context(tablet),
 		 "Pressure offset detected on tool %s (serial %#x).  "
 		 "See http://wayland.freedesktop.org/libinput/doc/%s/tablet-support.html\n",
 		 tablet_tool_type_to_string(tool->type),
@@ -1156,16 +1158,16 @@ detect_tool_contact(struct tablet_dispatch *tablet,
 
 	/* if we have pressure, always use that for contact, not BTN_TOUCH */
 	if (tablet_has_status(tablet, TABLET_TOOL_ENTERING_CONTACT))
-		log_bug_libinput(device->base.seat->libinput,
+		log_bug_libinput(tablet_libinput_context(tablet),
 				 "Invalid status: entering contact\n");
 	if (tablet_has_status(tablet, TABLET_TOOL_LEAVING_CONTACT) &&
 	    !tablet_has_status(tablet, TABLET_TOOL_LEAVING_PROXIMITY))
-		log_bug_libinput(device->base.seat->libinput,
+		log_bug_libinput(tablet_libinput_context(tablet),
 				 "Invalid status: leaving contact\n");
 
 	p = libevdev_get_abs_info(tablet->device->evdev, ABS_PRESSURE);
 	if (!p) {
-		log_bug_libinput(device->base.seat->libinput,
+		log_bug_libinput(tablet_libinput_context(tablet),
 				 "Missing pressure axis\n");
 		return;
 	}
@@ -1455,7 +1457,7 @@ tablet_process(struct evdev_dispatch *dispatch,
 		tablet_reset_state(tablet);
 		break;
 	default:
-		log_error(device->base.seat->libinput,
+		log_error(tablet_libinput_context(tablet),
 			  "Unexpected event type %s (%#x)\n",
 			  libevdev_event_type_get_name(e->type),
 			  e->type);
@@ -1597,6 +1599,8 @@ tablet_init_accel(struct tablet_dispatch *tablet, struct evdev_device *device)
 
 	filter = create_pointer_accelerator_filter_tablet(x->resolution,
 							  y->resolution);
+	if (!filter)
+		return -1;
 
 	rc = evdev_device_init_pointer_acceleration(device, filter);
 	if (rc != 0)
@@ -1637,7 +1641,7 @@ tablet_reject_device(struct evdev_device *device)
 
 out:
 	if (rc) {
-		log_bug_libinput(device->base.seat->libinput,
+		log_bug_libinput(evdev_libinput_context(device),
 				 "Device '%s' does not meet tablet criteria. "
 				 "Ignoring this device.\n",
 				 device->devname);
