@@ -1,6 +1,7 @@
 libinput (1.4.0-1) UNRELEASED; urgency=medium
 
   * New upstream release.
+  * debian/libinput10.symbols: add new symbols.
 
  -- Emilio Pozuelo Monfort <pochu@debian.org>  Mon, 01 Aug 2016 17:06:27 +0200
 
