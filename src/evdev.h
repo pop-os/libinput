@@ -68,8 +68,9 @@ enum evdev_device_seat_capability {
 enum evdev_device_tags {
 	EVDEV_TAG_EXTERNAL_MOUSE = (1 << 0),
 	EVDEV_TAG_INTERNAL_TOUCHPAD = (1 << 1),
-	EVDEV_TAG_TRACKPOINT = (1 << 2),
-	EVDEV_TAG_KEYBOARD = (1 << 3),
+	EVDEV_TAG_EXTERNAL_TOUCHPAD = (1 << 2),
+	EVDEV_TAG_TRACKPOINT = (1 << 3),
+	EVDEV_TAG_KEYBOARD = (1 << 4),
 };
 
 enum evdev_middlebutton_state {
@@ -114,6 +115,9 @@ enum evdev_device_model {
 	EVDEV_MODEL_CYBORG_RAT = (1 << 14),
 	EVDEV_MODEL_CYAPA = (1 << 15),
 	EVDEV_MODEL_LENOVO_T450_TOUCHPAD= (1 << 17),
+	EVDEV_MODEL_DELL_TOUCHPAD = (1 << 18),
+	EVDEV_MODEL_TRACKBALL = (1 << 19),
+	EVDEV_MODEL_APPLE_MAGICMOUSE = (1 << 20),
 };
 
 struct mt_slot {
@@ -287,6 +291,13 @@ struct evdev_dispatch {
 	struct libinput_device_config_calibration calibration;
 
 	struct {
+		bool is_enabled;
+		int angle;
+		struct matrix matrix;
+		struct libinput_device_config_rotation config;
+	} rotation;
+
+	struct {
 		struct libinput_device_config_send_events config;
 		enum libinput_config_send_events_mode current_mode;
 	} sendevents;
@@ -325,10 +336,6 @@ struct evdev_dispatch *
 evdev_tablet_pad_create(struct evdev_device *device);
 
 void
-evdev_tag_touchpad(struct evdev_device *device,
-		   struct udev_device *udev_device);
-
-void
 evdev_device_led_update(struct evdev_device *device, enum libinput_led leds);
 
 int
@@ -364,7 +371,7 @@ evdev_device_has_capability(struct evdev_device *device,
 			    enum libinput_device_capability capability);
 
 int
-evdev_device_get_size(struct evdev_device *device,
+evdev_device_get_size(const struct evdev_device *device,
 		      double *w,
 		      double *h);
 
@@ -382,6 +389,22 @@ evdev_device_tablet_pad_get_num_rings(struct evdev_device *device);
 
 int
 evdev_device_tablet_pad_get_num_strips(struct evdev_device *device);
+
+int
+evdev_device_tablet_pad_get_num_mode_groups(struct evdev_device *device);
+
+struct libinput_tablet_pad_mode_group *
+evdev_device_tablet_pad_get_mode_group(struct evdev_device *device,
+				       unsigned int index);
+
+unsigned int
+evdev_device_tablet_pad_mode_group_get_button_target(
+				     struct libinput_tablet_pad_mode_group *g,
+				     unsigned int button_index);
+
+struct libinput_tablet_pad_led *
+evdev_device_tablet_pad_get_led(struct evdev_device *device,
+				unsigned int led);
 
 double
 evdev_device_transform_x(struct evdev_device *device,
@@ -459,6 +482,15 @@ evdev_init_middlebutton(struct evdev_device *device,
 			bool enabled,
 			bool want_config);
 
+enum libinput_config_middle_emulation_state
+evdev_middlebutton_get(struct libinput_device *device);
+
+int
+evdev_middlebutton_is_available(struct libinput_device *device);
+
+enum libinput_config_middle_emulation_state
+evdev_middlebutton_get_default(struct libinput_device *device);
+
 static inline double
 evdev_convert_to_mm(const struct input_absinfo *absinfo, double v)
 {
@@ -497,6 +529,12 @@ evdev_hysteresis(int in, int center, int margin)
 		return center + diff - margin;
 	else
 		return center + diff + margin;
+}
+
+static inline struct libinput *
+evdev_libinput_context(const struct evdev_device *device)
+{
+	return device->base.seat->libinput;
 }
 
 #endif /* EVDEV_H */

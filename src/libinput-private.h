@@ -258,6 +258,15 @@ struct libinput_device_config_dwt {
 			 struct libinput_device *device);
 };
 
+struct libinput_device_config_rotation {
+	int (*is_available)(struct libinput_device *device);
+	enum libinput_config_status (*set_angle)(
+			 struct libinput_device *device,
+			 unsigned int degrees_cw);
+	unsigned int (*get_angle)(struct libinput_device *device);
+	unsigned int (*get_default_angle)(struct libinput_device *device);
+};
+
 struct libinput_device_config {
 	struct libinput_device_config_tap *tap;
 	struct libinput_device_config_calibration *calibration;
@@ -269,6 +278,7 @@ struct libinput_device_config {
 	struct libinput_device_config_click_method *click_method;
 	struct libinput_device_config_middle_emulation *middle_emulation;
 	struct libinput_device_config_dwt *dwt;
+	struct libinput_device_config_rotation *rotation;
 };
 
 struct libinput_device_group {
@@ -317,6 +327,25 @@ struct libinput_tablet_tool {
 	struct threshold pressure_threshold;
 	int pressure_offset; /* in device coordinates */
 	bool has_pressure_offset;
+};
+
+struct libinput_tablet_pad_mode_group {
+	struct libinput_device *device;
+	struct list link;
+	int refcount;
+	void *user_data;
+
+	unsigned int index;
+	unsigned int num_modes;
+	unsigned int current_mode;
+
+	uint32_t button_mask;
+	uint32_t ring_mask;
+	uint32_t strip_mask;
+
+	uint32_t toggle_button_mask;
+
+	void (*destroy)(struct libinput_tablet_pad_mode_group *group);
 };
 
 struct libinput_event {
@@ -556,19 +585,22 @@ void
 tablet_pad_notify_button(struct libinput_device *device,
 			 uint64_t time,
 			 int32_t button,
-			 enum libinput_button_state state);
+			 enum libinput_button_state state,
+			 struct libinput_tablet_pad_mode_group *group);
 void
 tablet_pad_notify_ring(struct libinput_device *device,
 		       uint64_t time,
 		       unsigned int number,
 		       double value,
-		       enum libinput_tablet_pad_ring_axis_source source);
+		       enum libinput_tablet_pad_ring_axis_source source,
+		       struct libinput_tablet_pad_mode_group *group);
 void
 tablet_pad_notify_strip(struct libinput_device *device,
 			uint64_t time,
 			unsigned int number,
 			double value,
-			enum libinput_tablet_pad_strip_axis_source source);
+			enum libinput_tablet_pad_strip_axis_source source,
+			struct libinput_tablet_pad_mode_group *group);
 
 static inline uint64_t
 libinput_now(struct libinput *libinput)

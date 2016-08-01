@@ -17,6 +17,7 @@ liblitest_la_SOURCES = \
 	litest-device-alps-dualpoint.c \
 	litest-device-anker-mouse-kbd.c \
 	litest-device-apple-internal-keyboard.c \
+	litest-device-apple-magicmouse.c \
 	litest-device-asus-rog-gladius.c \
 	litest-device-atmel-hover.c \
 	litest-device-bcm5974.c \
@@ -25,6 +26,7 @@ liblitest_la_SOURCES = \
 	litest-device-generic-singletouch.c \
 	litest-device-huion-pentablet.c \
 	litest-device-keyboard.c \
+	litest-device-keyboard-all-codes.c \
 	litest-device-keyboard-razer-blackwidow.c \
 	litest-device-logitech-trackball.c \
 	litest-device-nexus4-touch-screen.c \
@@ -47,7 +49,12 @@ liblitest_la_SOURCES = \
 	litest-device-touchscreen-fuzz.c \
 	litest-device-wacom-bamboo-tablet.c \
 	litest-device-wacom-cintiq-tablet.c \
+	litest-device-wacom-cintiq-13hdt-finger.c \
+	litest-device-wacom-cintiq-13hdt-pad.c \
+	litest-device-wacom-cintiq-13hdt-pen.c \
 	litest-device-wacom-cintiq-24hd.c \
+	litest-device-wacom-cintiq-24hdt-pad.c \
+	litest-device-wacom-ekr.c \
 	litest-device-wacom-intuos-tablet.c \
 	litest-device-wacom-intuos3-pad.c \
 	litest-device-wacom-intuos5-pad.c \
@@ -80,6 +87,7 @@ run_tests = \
 	test-gestures \
 	test-pointer \
 	test-touch \
+	test-trackball \
 	test-trackpoint \
 	test-udev \
 	test-path \
@@ -144,6 +152,10 @@ test_trackpoint_SOURCES = trackpoint.c
 test_trackpoint_LDADD = $(TEST_LIBS)
 test_trackpoint_LDFLAGS = -no-install
 
+test_trackball_SOURCES = trackball.c
+test_trackball_LDADD = $(TEST_LIBS)
+test_trackball_LDFLAGS = -no-install
+
 test_misc_SOURCES = misc.c
 test_misc_CFLAGS= $(AM_CFLAGS) -DLIBINPUT_LT_VERSION="\"$(LIBINPUT_LT_VERSION)\""
 test_misc_LDADD = $(TEST_LIBS)
@@ -194,8 +206,8 @@ VALGRIND_FLAGS=--leak-check=full \
 	       --error-exitcode=3 \
 	       --suppressions=$(srcdir)/valgrind.suppressions
 
-valgrind:
-	$(MAKE) check-TESTS LOG_COMPILER="$(VALGRIND)" LOG_FLAGS="$(VALGRIND_FLAGS)" CK_FORK=no USING_VALGRIND=yes
+valgrind: all
+	$(MAKE) check-TESTS TEST_SUITE_LOG="test-suite-valgrind.log" LOG_COMPILER="$(VALGRIND)" LOG_FLAGS="$(VALGRIND_FLAGS)" CK_FORK=no USING_VALGRIND=yes
 
 check: valgrind
 

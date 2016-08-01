@@ -199,6 +199,13 @@ enum litest_device_type {
 	LITEST_MULTITOUCH_FUZZ_SCREEN,
 	LITEST_WACOM_INTUOS3_PAD,
 	LITEST_WACOM_INTUOS5_PAD,
+	LITEST_KEYBOARD_ALL_CODES,
+	LITEST_MAGICMOUSE,
+	LITEST_WACOM_EKR,
+	LITEST_WACOM_CINTIQ_24HDT_PAD,
+	LITEST_WACOM_CINTIQ_13HDT_PEN,
+	LITEST_WACOM_CINTIQ_13HDT_PAD,
+	LITEST_WACOM_CINTIQ_13HDT_FINGER,
 };
 
 enum litest_device_feature {
@@ -228,6 +235,7 @@ enum litest_device_feature {
 	LITEST_TABLET_PAD = 1 << 21,
 	LITEST_RING = 1 << 22,
 	LITEST_STRIP = 1 << 23,
+	LITEST_TRACKBALL = 1 << 24,
 };
 
 struct litest_device {
@@ -792,6 +800,32 @@ litest_disable_drag_lock(struct libinput_device *device)
 	expected = LIBINPUT_CONFIG_STATUS_SUCCESS;
 	status = libinput_device_config_tap_set_drag_lock_enabled(device,
 								  LIBINPUT_CONFIG_DRAG_LOCK_DISABLED);
+
+	litest_assert_int_eq(status, expected);
+}
+
+static inline void
+litest_enable_middleemu(struct litest_device *dev)
+{
+	struct libinput_device *device = dev->libinput_device;
+	enum libinput_config_status status, expected;
+
+	expected = LIBINPUT_CONFIG_STATUS_SUCCESS;
+	status = libinput_device_config_middle_emulation_set_enabled(device,
+								     LIBINPUT_CONFIG_MIDDLE_EMULATION_ENABLED);
+
+	litest_assert_int_eq(status, expected);
+}
+
+static inline void
+litest_disable_middleemu(struct litest_device *dev)
+{
+	struct libinput_device *device = dev->libinput_device;
+	enum libinput_config_status status, expected;
+
+	expected = LIBINPUT_CONFIG_STATUS_SUCCESS;
+	status = libinput_device_config_middle_emulation_set_enabled(device,
+								     LIBINPUT_CONFIG_MIDDLE_EMULATION_DISABLED);
 
 	litest_assert_int_eq(status, expected);
 }
