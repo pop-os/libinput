@@ -1,8 +1,8 @@
 AC_PREREQ([2.64])
 
 m4_define([libinput_major_version], [1])
-m4_define([libinput_minor_version], [4])
-m4_define([libinput_micro_version], [1])
+m4_define([libinput_minor_version], [5])
+m4_define([libinput_micro_version], [0])
 m4_define([libinput_version],
           [libinput_major_version.libinput_minor_version.libinput_micro_version])
 
@@ -35,7 +35,7 @@ AM_INIT_AUTOMAKE([1.11 foreign no-dist-gzip dist-xz])
 # b) If interfaces have been changed or added, but binary compatibility has
 #    been preserved, change to C+1:0:A+1
 # c) If the interface is the same as the previous version, change to C:R+1:A
-LIBINPUT_LT_VERSION=19:2:9
+LIBINPUT_LT_VERSION=20:1:10
 AC_SUBST(LIBINPUT_LT_VERSION)
 
 AM_SILENT_RULES([yes])
@@ -194,9 +194,6 @@ if test "x$build_tests" = "xyes"; then
 		AC_DEFINE_UNQUOTED(HAVE_ADDR2LINE, 1, [addr2line found])
 		AC_DEFINE_UNQUOTED(ADDR2LINE, ["$ADDR2LINE"], [Path to addr2line])
 	fi
-
-	AC_DEFINE(LITEST_UDEV_LOCKFILE, ["/tmp/litest-udev.lock"],
-		  [Lock file used to restrict udev reloads during tests])
 fi
 AM_CONDITIONAL(HAVE_LIBUNWIND, [test "x$HAVE_LIBUNWIND" = xyes])
 
@@ -208,7 +205,26 @@ AC_ARG_ENABLE(libwacom,
 if test "x$use_libwacom" = "xyes"; then
 	PKG_CHECK_MODULES(LIBWACOM, [libwacom >= 0.12], [HAVE_LIBWACOM="yes"])
 	AC_DEFINE(HAVE_LIBWACOM, 1, [Build with libwacom])
+
+	OLD_LIBS=$LIBS
+	OLD_CFLAGS=$CFLAGS
+	LIBS="$LIBS $LIBWACOM_LIBS"
+	CFLAGS="$CFLAGS $LIBWACOM_CFLAGS"
+	AC_MSG_CHECKING([if libwacom_get_paired_device is available])
+	AC_LINK_IFELSE(
+		       [AC_LANG_PROGRAM([[#include <libwacom/libwacom.h>]],
+					[[libwacom_get_paired_device(NULL)]])],
+		       [AC_MSG_RESULT([yes])
+			AC_DEFINE(HAVE_LIBWACOM_GET_PAIRED_DEVICE, [1],
+				  [libwacom_get_paired_device() is available])
+		        [libwacom_have_get_paired_device=yes]],
+		       [AC_MSG_RESULT([no])
+		        [libwacom_have_get_paired_device=no]])
+	LIBS=$OLD_LIBS
+	CFLAGS=$OLD_CFLAGS
 fi
+AM_CONDITIONAL(HAVE_LIBWACOM_GET_PAIRED_DEVICE,
+	       [test "x$libwacom_have_get_paired_device" == "xyes"])
 
 AM_CONDITIONAL(HAVE_VALGRIND, [test "x$VALGRIND" != "x"])
 AM_CONDITIONAL(BUILD_TESTS, [test "x$build_tests" = "xyes"])
@@ -225,6 +241,7 @@ AC_CONFIG_FILES([Makefile
 		 doc/libinput.doxygen
 		 src/Makefile
 		 src/libinput.pc
+		 src/libinput-uninstalled.pc
 		 src/libinput-version.h
 		 test/Makefile
 		 tools/Makefile

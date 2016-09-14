@@ -45,7 +45,7 @@ static void close_restricted(int fd, void *data)
 	close(fd);
 }
 
-const struct libinput_interface simple_interface = {
+static const struct libinput_interface simple_interface = {
 	.open_restricted = open_restricted,
 	.close_restricted = close_restricted,
 };
@@ -141,7 +141,7 @@ START_TEST(log_priority)
 END_TEST
 
 void
-litest_setup_tests(void)
+litest_setup_tests_log(void)
 {
 	litest_add_no_device("log:defaults", log_default_priority);
 	litest_add_no_device("log:logging", log_handler_invoked);

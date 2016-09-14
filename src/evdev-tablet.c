@@ -76,7 +76,7 @@ tablet_force_button_presses(struct tablet_dispatch *tablet)
 	}
 }
 
-static int
+static bool
 tablet_device_has_axis(struct tablet_dispatch *tablet,
 		       enum libinput_tablet_tool_axis axis)
 {
@@ -226,8 +226,9 @@ tablet_update_tool(struct tablet_dispatch *tablet,
 		tablet_set_status(tablet, TABLET_TOOL_ENTERING_PROXIMITY);
 		tablet_unset_status(tablet, TABLET_TOOL_OUT_OF_PROXIMITY);
 	}
-	else if (!tablet_has_status(tablet, TABLET_TOOL_OUT_OF_PROXIMITY))
+	else if (!tablet_has_status(tablet, TABLET_TOOL_OUT_OF_PROXIMITY)) {
 		tablet_set_status(tablet, TABLET_TOOL_LEAVING_PROXIMITY);
+	}
 }
 
 static inline double
@@ -334,7 +335,7 @@ normalize_wheel(struct tablet_dispatch *tablet,
 {
 	struct evdev_device *device = tablet->device;
 
-	return value * device->scroll.wheel_click_angle;
+	return value * device->scroll.wheel_click_angle.x;
 }
 
 static inline void
@@ -899,13 +900,12 @@ tablet_get_tool(struct tablet_dispatch *tablet,
 		uint32_t tool_id,
 		uint32_t serial)
 {
+	struct libinput *libinput = tablet_libinput_context(tablet);
 	struct libinput_tablet_tool *tool = NULL, *t;
 	struct list *tool_list;
 
 	if (serial) {
-		struct libinput *libinput = tablet_libinput_context(tablet);
 		tool_list = &libinput->tool_list;
-
 		/* Check if we already have the tool in our list of tools */
 		list_for_each(t, tool_list, link) {
 			if (type == t->type && serial == t->serial) {
@@ -913,20 +913,32 @@ tablet_get_tool(struct tablet_dispatch *tablet,
 				break;
 			}
 		}
-	} else {
+	}
+
+	/* If we get a tool with a delayed serial number, we already created
+	 * a 0-serial number tool for it earlier. Re-use that, even though
+	 * it means we can't distinguish this tool from others.
+	 * https://bugs.freedesktop.org/show_bug.cgi?id=97526
+	 */
+	if (!tool) {
+		tool_list = &tablet->tool_list;
 		/* We can't guarantee that tools without serial numbers are
 		 * unique, so we keep them local to the tablet that they come
 		 * into proximity of instead of storing them in the global tool
-		 * list */
-		tool_list = &tablet->tool_list;
-
-		/* Same as above, but don't bother checking the serial number */
+		 * list
+		 * Same as above, but don't bother checking the serial number
+		 */
 		list_for_each(t, tool_list, link) {
 			if (type == t->type) {
 				tool = t;
 				break;
 			}
 		}
+
+		/* Didn't find the tool but we have a serial. Switch
+		 * tool_list back so we create in the correct list */
+		if (!tool && serial)
+			tool_list = &libinput->tool_list;
 	}
 
 	/* If we didn't already have the new_tool in our list of tools,
@@ -1422,6 +1434,39 @@ tablet_flush(struct tablet_dispatch *tablet,
 }
 
 static inline void
+tablet_set_touch_device_enabled(struct evdev_device *touch_device,
+				bool enable)
+{
+	struct evdev_dispatch *dispatch;
+
+	if (touch_device == NULL)
+		return;
+
+	dispatch = touch_device->dispatch;
+	if (dispatch->interface->toggle_touch)
+		dispatch->interface->toggle_touch(dispatch,
+						  touch_device,
+						  enable);
+}
+
+static inline void
+tablet_toggle_touch_device(struct tablet_dispatch *tablet,
+			   struct evdev_device *tablet_device)
+{
+	bool enable_events;
+
+	enable_events = tablet_has_status(tablet,
+					  TABLET_TOOL_OUT_OF_RANGE) ||
+			tablet_has_status(tablet, TABLET_NONE) ||
+			tablet_has_status(tablet,
+					  TABLET_TOOL_LEAVING_PROXIMITY) ||
+			tablet_has_status(tablet,
+					  TABLET_TOOL_OUT_OF_PROXIMITY);
+
+	tablet_set_touch_device_enabled(tablet->touch_device, enable_events);
+}
+
+static inline void
 tablet_reset_state(struct tablet_dispatch *tablet)
 {
 	/* Update state */
@@ -1454,6 +1499,7 @@ tablet_process(struct evdev_dispatch *dispatch,
 		break;
 	case EV_SYN:
 		tablet_flush(tablet, device, time);
+		tablet_toggle_touch_device(tablet, device);
 		tablet_reset_state(tablet);
 		break;
 	default:
@@ -1463,6 +1509,16 @@ tablet_process(struct evdev_dispatch *dispatch,
 			  e->type);
 		break;
 	}
+}
+
+static void
+tablet_suspend(struct evdev_dispatch *dispatch,
+	       struct evdev_device *device)
+{
+	struct tablet_dispatch *tablet =
+		(struct tablet_dispatch *)dispatch;
+
+	tablet_set_touch_device_enabled(tablet->touch_device, true);
 }
 
 static void
@@ -1477,6 +1533,35 @@ tablet_destroy(struct evdev_dispatch *dispatch)
 	}
 
 	free(tablet);
+}
+
+static void
+tablet_device_added(struct evdev_device *device,
+		    struct evdev_device *added_device)
+{
+	struct tablet_dispatch *tablet =
+		(struct tablet_dispatch*)device->dispatch;
+
+	if (libinput_device_get_device_group(&device->base) !=
+	    libinput_device_get_device_group(&added_device->base))
+		return;
+
+	/* Touch screens or external touchpads only */
+	if (evdev_device_has_capability(added_device, LIBINPUT_DEVICE_CAP_TOUCH) ||
+	    (evdev_device_has_capability(added_device, LIBINPUT_DEVICE_CAP_POINTER) &&
+	     (added_device->tags & EVDEV_TAG_EXTERNAL_TOUCHPAD)))
+	    tablet->touch_device = added_device;
+}
+
+static void
+tablet_device_removed(struct evdev_device *device,
+		      struct evdev_device *removed_device)
+{
+	struct tablet_dispatch *tablet =
+		(struct tablet_dispatch*)device->dispatch;
+
+	if (tablet->touch_device == removed_device)
+		tablet->touch_device = NULL;
 }
 
 static void
@@ -1520,14 +1605,15 @@ tablet_check_initial_proximity(struct evdev_device *device,
 
 static struct evdev_dispatch_interface tablet_interface = {
 	tablet_process,
-	NULL, /* suspend */
+	tablet_suspend,
 	NULL, /* remove */
 	tablet_destroy,
-	NULL, /* device_added */
-	NULL, /* device_removed */
+	tablet_device_added,
+	tablet_device_removed,
 	NULL, /* device_suspended */
 	NULL, /* device_resumed */
 	tablet_check_initial_proximity,
+	NULL, /* toggle_touch */
 };
 
 static void
@@ -1535,7 +1621,7 @@ tablet_init_calibration(struct tablet_dispatch *tablet,
 			struct evdev_device *device)
 {
 	if (libevdev_has_property(device->evdev, INPUT_PROP_DIRECT))
-		evdev_init_calibration(device, &tablet->base);
+		evdev_init_calibration(device, &tablet->calibration);
 }
 
 static void
@@ -1592,7 +1678,6 @@ tablet_init_accel(struct tablet_dispatch *tablet, struct evdev_device *device)
 {
 	const struct input_absinfo *x, *y;
 	struct motion_filter *filter;
-	int rc;
 
 	x = device->abs.absinfo_x;
 	y = device->abs.absinfo_y;
@@ -1602,9 +1687,7 @@ tablet_init_accel(struct tablet_dispatch *tablet, struct evdev_device *device)
 	if (!filter)
 		return -1;
 
-	rc = evdev_device_init_pointer_acceleration(device, filter);
-	if (rc != 0)
-		return rc;
+	evdev_device_init_pointer_acceleration(device, filter);
 
 	/* we override the profile hooks for accel configuration with hooks
 	 * that don't allow selection of profiles */

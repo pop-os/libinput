@@ -105,14 +105,17 @@ tp_tap_notify(struct tp_dispatch *tp,
 	      enum libinput_button_state state)
 {
 	int32_t button;
+	int32_t button_map[2][3] = {
+		{ BTN_LEFT, BTN_RIGHT, BTN_MIDDLE },
+		{ BTN_LEFT, BTN_MIDDLE, BTN_RIGHT },
+	};
 
-	switch (nfingers) {
-	case 1: button = BTN_LEFT; break;
-	case 2: button = BTN_RIGHT; break;
-	case 3: button = BTN_MIDDLE; break;
-	default:
+	assert(tp->tap.map < ARRAY_LENGTH(button_map));
+
+	if (nfingers > 3)
 		return;
-	}
+
+	button = button_map[tp->tap.map][nfingers - 1];
 
 	if (state == LIBINPUT_BUTTON_STATE_PRESSED)
 		tp->tap.buttons_pressed |= (1 << nfingers);
@@ -186,12 +189,18 @@ tp_tap_touch_handle_event(struct tp_dispatch *tp,
 		tp_tap_set_timer(tp, time);
 		break;
 	case TAP_EVENT_RELEASE:
-		tp_tap_notify(tp, tp->tap.first_press_time, 1, LIBINPUT_BUTTON_STATE_PRESSED);
+		tp_tap_notify(tp,
+			      tp->tap.first_press_time,
+			      1,
+			      LIBINPUT_BUTTON_STATE_PRESSED);
 		if (tp->tap.drag_enabled) {
 			tp->tap.state = TAP_STATE_TAPPED;
 			tp_tap_set_timer(tp, time);
 		} else {
-			tp_tap_notify(tp, time, 1, LIBINPUT_BUTTON_STATE_RELEASED);
+			tp_tap_notify(tp,
+				      time,
+				      1,
+				      LIBINPUT_BUTTON_STATE_RELEASED);
 			tp->tap.state = TAP_STATE_IDLE;
 		}
 		break;
@@ -827,6 +836,22 @@ tp_tap_handle_state(struct tp_dispatch *tp, uint64_t time)
 	return filter_motion;
 }
 
+static inline void
+tp_tap_update_map(struct tp_dispatch *tp)
+{
+	if (tp->tap.state != TAP_STATE_IDLE)
+		return;
+
+	if (tp->tap.map != tp->tap.want_map)
+		tp->tap.map = tp->tap.want_map;
+}
+
+void
+tp_tap_post_process_state(struct tp_dispatch *tp)
+{
+	tp_tap_update_map(tp);
+}
+
 static void
 tp_tap_handle_timeout(uint64_t time, void *data)
 {
@@ -935,6 +960,38 @@ tp_tap_config_get_default(struct libinput_device *device)
 }
 
 static enum libinput_config_status
+tp_tap_config_set_map(struct libinput_device *device,
+		      enum libinput_config_tap_button_map map)
+{
+	struct evdev_dispatch *dispatch = ((struct evdev_device *) device)->dispatch;
+	struct tp_dispatch *tp = NULL;
+
+	tp = container_of(dispatch, tp, base);
+	tp->tap.want_map = map;
+
+	tp_tap_update_map(tp);
+
+	return LIBINPUT_CONFIG_STATUS_SUCCESS;
+}
+
+static enum libinput_config_tap_button_map
+tp_tap_config_get_map(struct libinput_device *device)
+{
+	struct evdev_dispatch *dispatch = ((struct evdev_device *) device)->dispatch;
+	struct tp_dispatch *tp = NULL;
+
+	tp = container_of(dispatch, tp, base);
+
+	return tp->tap.want_map;
+}
+
+static enum libinput_config_tap_button_map
+tp_tap_config_get_default_map(struct libinput_device *device)
+{
+	return LIBINPUT_CONFIG_TAP_MAP_LRM;
+}
+
+static enum libinput_config_status
 tp_tap_config_set_drag_enabled(struct libinput_device *device,
 			       enum libinput_config_drag_state enabled)
 {
@@ -1010,13 +1067,16 @@ tp_tap_config_get_default_draglock_enabled(struct libinput_device *device)
 	return tp_drag_lock_default(evdev);
 }
 
-int
+void
 tp_init_tap(struct tp_dispatch *tp)
 {
 	tp->tap.config.count = tp_tap_config_count;
 	tp->tap.config.set_enabled = tp_tap_config_set_enabled;
 	tp->tap.config.get_enabled = tp_tap_config_is_enabled;
 	tp->tap.config.get_default = tp_tap_config_get_default;
+	tp->tap.config.set_map = tp_tap_config_set_map;
+	tp->tap.config.get_map = tp_tap_config_get_map;
+	tp->tap.config.get_default_map = tp_tap_config_get_default_map;
 	tp->tap.config.set_drag_enabled = tp_tap_config_set_drag_enabled;
 	tp->tap.config.get_drag_enabled = tp_tap_config_get_drag_enabled;
 	tp->tap.config.get_default_drag_enabled = tp_tap_config_get_default_drag_enabled;
@@ -1027,14 +1087,14 @@ tp_init_tap(struct tp_dispatch *tp)
 
 	tp->tap.state = TAP_STATE_IDLE;
 	tp->tap.enabled = tp_tap_default(tp->device);
+	tp->tap.map = LIBINPUT_CONFIG_TAP_MAP_LRM;
+	tp->tap.want_map = tp->tap.map;
 	tp->tap.drag_enabled = tp_drag_default(tp->device);
 	tp->tap.drag_lock_enabled = tp_drag_lock_default(tp->device);
 
 	libinput_timer_init(&tp->tap.timer,
 			    tp_libinput_context(tp),
 			    tp_tap_handle_timeout, tp);
-
-	return 0;
 }
 
 void

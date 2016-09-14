@@ -34,6 +34,7 @@
 #include <fnmatch.h>
 #include <getopt.h>
 #include <poll.h>
+#include <signal.h>
 #include <stdint.h>
 #include <stdio.h>
 #include <stdlib.h>
@@ -62,14 +63,23 @@
 #define UDEV_TEST_DEVICE_RULE_FILE UDEV_RULES_D \
 	"/91-litest-test-device-REMOVEME.rules"
 
+static int jobs = 8;
 static int in_debugger = -1;
 static int verbose = 0;
 const char *filter_test = NULL;
 const char *filter_device = NULL;
 const char *filter_group = NULL;
 
-static inline void litest_remove_model_quirks(void);
-static void litest_init_udev_rules(void);
+struct created_file {
+	struct list link;
+	char *path;
+};
+
+struct list created_files_list; /* list of all files to remove at the end of
+				   the test run */
+
+static void litest_init_udev_rules(struct list *created_files_list);
+static void litest_remove_udev_rules(struct list *created_files_list);
 
 /* defined for the litest selftest */
 #ifndef LITEST_DISABLE_BACKTRACE_LOGGING
@@ -316,6 +326,7 @@ struct suite {
 	struct list tests;
 	char *name;
 	Suite *suite;
+	bool used;
 };
 
 static struct litest_device *current_device;
@@ -389,6 +400,7 @@ extern struct litest_test_device litest_wacom_cintiq_24hdt_pad_device;
 extern struct litest_test_device litest_wacom_cintiq_13hdt_finger_device;
 extern struct litest_test_device litest_wacom_cintiq_13hdt_pen_device;
 extern struct litest_test_device litest_wacom_cintiq_13hdt_pad_device;
+extern struct litest_test_device litest_wacom_hid4800_tablet_device;
 
 struct litest_test_device* devices[] = {
 	&litest_synaptics_clickpad_device,
@@ -444,6 +456,7 @@ struct litest_test_device* devices[] = {
 	&litest_wacom_cintiq_13hdt_finger_device,
 	&litest_wacom_cintiq_13hdt_pen_device,
 	&litest_wacom_cintiq_13hdt_pad_device,
+	&litest_wacom_hid4800_tablet_device,
 	NULL,
 };
 
@@ -477,49 +490,6 @@ litest_reload_udev_rules(void)
 	litest_system("udevadm hwdb --update");
 }
 
-static int
-litest_udev_rule_filter(const struct dirent *entry)
-{
-	return strneq(entry->d_name,
-		      UDEV_RULE_PREFIX,
-		      strlen(UDEV_RULE_PREFIX));
-}
-
-static void
-litest_drop_udev_rules(void)
-{
-	int n;
-	int rc;
-	struct dirent **entries;
-	char path[PATH_MAX];
-
-	n = scandir(UDEV_RULES_D,
-		    &entries,
-		    litest_udev_rule_filter,
-		    alphasort);
-	if (n <= 0)
-		return;
-
-	while (n--) {
-		rc = snprintf(path, sizeof(path),
-			      "%s/%s",
-			      UDEV_RULES_D,
-			      entries[n]->d_name);
-		if (rc > 0 &&
-		    (size_t)rc == strlen(UDEV_RULES_D) +
-			    strlen(entries[n]->d_name) + 1)
-			unlink(path);
-		else
-			fprintf(stderr,
-				"Failed to delete %s. Remaining tests are unreliable\n",
-				entries[n]->d_name);
-		free(entries[n]);
-	}
-	free(entries);
-
-	litest_reload_udev_rules();
-}
-
 static void
 litest_add_tcase_for_device(struct suite *suite,
 			    const char *funcname,
@@ -549,13 +519,6 @@ litest_add_tcase_for_device(struct suite *suite,
 	t->name = strdup(test_name);
 	t->tc = tcase_create(test_name);
 	list_insert(&suite->tests, &t->node);
-	/* we can't guarantee that we clean up properly if a test fails, the
-	   udev rules used for a previous test may still be in place. Add an
-	   unchecked fixture to always clean up all rules before/after a
-	   test case completes */
-	tcase_add_unchecked_fixture(t->tc,
-				    litest_drop_udev_rules,
-				    litest_drop_udev_rules);
 	tcase_add_checked_fixture(t->tc, dev->setup,
 				  dev->teardown ? dev->teardown : litest_generic_device_teardown);
 	if (range)
@@ -617,6 +580,7 @@ get_suite(const char *name)
 	assert(s != NULL);
 	s->name = strdup(name);
 	s->suite = suite_create(s->name);
+	s->used = false;
 
 	list_init(&s->tests);
 	list_insert(&all_tests, &s->node);
@@ -684,7 +648,10 @@ litest_add_tcase(const char *suite_name,
 		}
 	}
 
-	if (!added) {
+	if (!added &&
+	    filter_test == NULL &&
+	    filter_device == NULL &&
+	    filter_group == NULL) {
 		fprintf(stderr, "Test '%s' does not match any devices. Aborting.\n", funcname);
 		abort();
 	}
@@ -789,35 +756,6 @@ _litest_add_ranged_for_device(const char *name,
 		litest_abort_msg("Invalid test device type");
 }
 
-static int
-is_debugger_attached(void)
-{
-	int status;
-	int rc;
-	int pid = fork();
-
-	if (pid == -1)
-		return 0;
-
-	if (pid == 0) {
-		int ppid = getppid();
-		if (ptrace(PTRACE_ATTACH, ppid, NULL, NULL) == 0) {
-			waitpid(ppid, NULL, 0);
-			ptrace(PTRACE_CONT, NULL, NULL);
-			ptrace(PTRACE_DETACH, ppid, NULL, NULL);
-			rc = 0;
-		} else {
-			rc = 1;
-		}
-		_exit(rc);
-	} else {
-		waitpid(pid, &status, 0);
-		rc = WEXITSTATUS(status);
-	}
-
-	return rc;
-}
-
 static void
 litest_log_handler(struct libinput *libinput,
 		   enum libinput_log_priority pri,
@@ -842,6 +780,28 @@ litest_log_handler(struct libinput *libinput,
 		litest_abort_msg("libinput bug triggered, aborting.\n");
 }
 
+static char *
+litest_init_device_udev_rules(struct litest_test_device *dev);
+
+static void
+litest_init_all_device_udev_rules(struct list *created_files)
+{
+	struct litest_test_device **dev = devices;
+
+	while (*dev) {
+		char *udev_file;
+
+		udev_file = litest_init_device_udev_rules(*dev);
+		if (udev_file) {
+			struct created_file *file = zalloc(sizeof(*file));
+			litest_assert(file);
+			file->path = udev_file;
+			list_insert(created_files, &file->link);
+		}
+		dev++;
+	}
+}
+
 static int
 open_restricted(const char *path, int flags, void *userdata)
 {
@@ -860,42 +820,61 @@ struct libinput_interface interface = {
 	.close_restricted = close_restricted,
 };
 
-static inline int
-litest_run(int argc, char **argv)
+static void
+litest_signal(int sig)
+{
+	struct created_file *f, *tmp;
+
+	list_for_each_safe(f, tmp, &created_files_list, link) {
+		list_remove(&f->link);
+		unlink(f->path);
+		/* in the sighandler, we can't free */
+	}
+
+	if (fork() == 0) {
+		/* child, we can run system() */
+		litest_reload_udev_rules();
+		exit(0);
+	}
+
+	exit(1);
+}
+
+static inline void
+litest_setup_sighandler(int sig)
+{
+	struct sigaction act, oact;
+	int rc;
+
+	sigemptyset(&act.sa_mask);
+	sigaddset(&act.sa_mask, sig);
+	act.sa_flags = 0;
+	act.sa_handler = litest_signal;
+	rc = sigaction(sig, &act, &oact);
+	litest_assert_int_ne(rc, -1);
+}
+
+static void
+litest_free_test_list(struct list *tests)
 {
 	struct suite *s, *snext;
-	int failed;
 	SRunner *sr = NULL;
 
-	if (list_empty(&all_tests)) {
-		fprintf(stderr,
-			"Error: filters are too strict, no tests to run.\n");
-		return 1;
-	}
+	/* quirk needed for check: test suites can only get freed by adding
+	 * them to a test runner and freeing the runner. Without this,
+	 * valgrind complains */
+	list_for_each(s, tests, node) {
+		if (s->used)
+			continue;
 
-	if (in_debugger == -1) {
-		in_debugger = is_debugger_attached();
-		if (in_debugger)
-			setenv("CK_FORK", "no", 0);
-	}
-
-	list_for_each(s, &all_tests, node) {
 		if (!sr)
 			sr = srunner_create(s->suite);
 		else
 			srunner_add_suite(sr, s->suite);
 	}
-
-	if (getenv("LITEST_VERBOSE"))
-		verbose = 1;
-
-	litest_init_udev_rules();
-
-	srunner_run_all(sr, CK_ENV);
-	failed = srunner_ntests_failed(sr);
 	srunner_free(sr);
 
-	list_for_each_safe(s, snext, &all_tests, node) {
+	list_for_each_safe(s, snext, tests, node) {
 		struct test *t, *tnext;
 
 		list_for_each_safe(t, tnext, &s->tests, node) {
@@ -908,9 +887,98 @@ litest_run(int argc, char **argv)
 		free(s->name);
 		free(s);
 	}
+}
 
-	litest_remove_model_quirks();
-	litest_reload_udev_rules();
+static int
+litest_run_suite(char *argv0, struct list *tests, int which, int max)
+{
+	int failed = 0;
+	SRunner *sr = NULL;
+	struct suite *s;
+	int argvlen = strlen(argv0);
+	int count = -1;
+
+	if (max > 1)
+		snprintf(argv0, argvlen, "libinput-test-%-50d", which);
+
+	list_for_each(s, tests, node) {
+		++count;
+		if (max != 1 && (count % max) != which) {
+			continue;
+		}
+
+		if (!sr)
+			sr = srunner_create(s->suite);
+		else
+			srunner_add_suite(sr, s->suite);
+
+		s->used = true;
+	}
+
+	if (!sr)
+		return 0;
+
+	srunner_run_all(sr, CK_ENV);
+	failed = srunner_ntests_failed(sr);
+	srunner_free(sr);
+	return failed;
+}
+
+static int
+litest_fork_subtests(char *argv0, struct list *tests, int max_forks)
+{
+	int failed = 0;
+	int status;
+	pid_t pid;
+	int f;
+
+	for (f = 0; f < max_forks; f++) {
+		pid = fork();
+		if (pid == 0) {
+			failed = litest_run_suite(argv0, tests, f, max_forks);
+			litest_free_test_list(&all_tests);
+			exit(failed);
+			/* child always exits here */
+		}
+	}
+
+	/* parent process only */
+	while (wait(&status) != -1 && errno != ECHILD) {
+		if (WEXITSTATUS(status) != 0)
+			failed = 1;
+	}
+
+	return failed;
+}
+
+static inline int
+litest_run(int argc, char **argv)
+{
+	int failed = 0;
+
+	list_init(&created_files_list);
+
+	if (list_empty(&all_tests)) {
+		fprintf(stderr,
+			"Error: filters are too strict, no tests to run.\n");
+		return 1;
+	}
+
+	if (getenv("LITEST_VERBOSE"))
+		verbose = 1;
+
+	litest_init_udev_rules(&created_files_list);
+
+	litest_setup_sighandler(SIGINT);
+
+	if (jobs == 1)
+		failed = litest_run_suite(argv[0], &all_tests, 1, 1);
+	else
+		failed = litest_fork_subtests(argv[0], &all_tests, jobs);
+
+	litest_free_test_list(&all_tests);
+
+	litest_remove_udev_rules(&created_files_list);
 
 	return failed;
 }
@@ -984,10 +1052,16 @@ merge_events(const int *orig, const int *override)
 	return events;
 }
 
-static inline void
+static inline struct created_file *
 litest_copy_file(const char *dest, const char *src, const char *header)
 {
 	int in, out, length;
+	struct created_file *file;
+
+	file = zalloc(sizeof(*file));
+	litest_assert(file);
+	file->path = strdup(dest);
+	litest_assert(file->path);
 
 	out = open(dest, O_CREAT|O_WRONLY, 0644);
 	litest_assert_int_gt(out, -1);
@@ -1003,10 +1077,12 @@ litest_copy_file(const char *dest, const char *src, const char *header)
 	litest_assert_int_gt(sendfile(out, in, NULL, 40960), 0);
 	close(out);
 	close(in);
+
+	return file;
 }
 
 static inline void
-litest_install_model_quirks(void)
+litest_install_model_quirks(struct list *created_files_list)
 {
 	const char *warning =
 			 "#################################################################\n"
@@ -1016,27 +1092,26 @@ litest_install_model_quirks(void)
 			 "# running, remove this file and update your hwdb: \n"
 			 "#       sudo udevadm hwdb --update\n"
 			 "#################################################################\n\n";
-	litest_copy_file(UDEV_MODEL_QUIRKS_RULE_FILE,
-			 LIBINPUT_MODEL_QUIRKS_UDEV_RULES_FILE,
-			 warning);
-	litest_copy_file(UDEV_MODEL_QUIRKS_HWDB_FILE,
-			 LIBINPUT_MODEL_QUIRKS_UDEV_HWDB_FILE,
-			 warning);
-	litest_copy_file(UDEV_TEST_DEVICE_RULE_FILE,
-			 LIBINPUT_TEST_DEVICE_RULES_FILE,
-			 warning);
-}
+	struct created_file *file;
 
-static inline void
-litest_remove_model_quirks(void)
-{
-	unlink(UDEV_MODEL_QUIRKS_RULE_FILE);
-	unlink(UDEV_MODEL_QUIRKS_HWDB_FILE);
-	unlink(UDEV_TEST_DEVICE_RULE_FILE);
+	file = litest_copy_file(UDEV_MODEL_QUIRKS_RULE_FILE,
+				LIBINPUT_MODEL_QUIRKS_UDEV_RULES_FILE,
+				warning);
+	list_insert(created_files_list, &file->link);
+
+	file = litest_copy_file(UDEV_MODEL_QUIRKS_HWDB_FILE,
+				LIBINPUT_MODEL_QUIRKS_UDEV_HWDB_FILE,
+				warning);
+	list_insert(created_files_list, &file->link);
+
+	file = litest_copy_file(UDEV_TEST_DEVICE_RULE_FILE,
+				LIBINPUT_TEST_DEVICE_RULES_FILE,
+				warning);
+	list_insert(created_files_list, &file->link);
 }
 
 static void
-litest_init_udev_rules(void)
+litest_init_udev_rules(struct list *created_files)
 {
 	int rc;
 
@@ -1050,7 +1125,23 @@ litest_init_udev_rules(void)
 		ck_abort_msg("Failed to create udev hwdb directory (%s)\n",
 			     strerror(errno));
 
-	litest_install_model_quirks();
+	litest_install_model_quirks(created_files);
+	litest_init_all_device_udev_rules(created_files);
+	litest_reload_udev_rules();
+}
+
+static void
+litest_remove_udev_rules(struct list *created_files_list)
+{
+	struct created_file *f, *tmp;
+
+	list_for_each_safe(f, tmp, created_files_list, link) {
+		list_remove(&f->link);
+		unlink(f->path);
+		free(f->path);
+		free(f);
+	}
+
 	litest_reload_udev_rules();
 }
 
@@ -1079,8 +1170,6 @@ litest_init_device_udev_rules(struct litest_test_device *dev)
 	litest_assert_int_ge(fputs(dev->udev_rule, f), 0);
 	fclose(f);
 
-	litest_reload_udev_rules();
-
 	return path;
 }
 
@@ -1097,7 +1186,6 @@ litest_create(enum litest_device_type which,
 	const struct input_id *id;
 	struct input_absinfo *abs;
 	int *events;
-	char *udev_file;
 
 	dev = devices;
 	while (*dev) {
@@ -1112,17 +1200,13 @@ litest_create(enum litest_device_type which,
 	d = zalloc(sizeof(*d));
 	litest_assert(d != NULL);
 
-	udev_file = litest_init_device_udev_rules(*dev);
 	/* device has custom create method */
 	if ((*dev)->create) {
 		(*dev)->create(d);
 		if (abs_override || events_override) {
-			if (udev_file)
-				unlink(udev_file);
 			litest_abort_msg("Custom create cannot be overridden");
 		}
 
-		d->udev_rule_file = udev_file;
 		return d;
 	}
 
@@ -1136,7 +1220,6 @@ litest_create(enum litest_device_type which,
 								 abs,
 								 events);
 	d->interface = (*dev)->interface;
-	d->udev_rule_file = udev_file;
 	free(abs);
 	free(events);
 
@@ -1170,58 +1253,6 @@ litest_restore_log_handler(struct libinput *libinput)
 	libinput_log_set_handler(libinput, litest_log_handler);
 }
 
-static inline int
-create_udev_lock_file(void)
-{
-	int lfd;
-
-	/* Running the multiple tests in parallel usually trips over udev
-	 * not being  up-to-date. We change the udev rules for every device
-	 * created, sometimes this means we end up getting the wrong udev
-	 * device, or having wrong properties applied.
-	 *
-	 * litests use the path interface and there is a window between
-	 * creating the device (which triggers udev reloads) and adding the
-	 * device to the libinput context where another udev reload may
-	 * upset things.
-	 *
-	 * To avoid this, create a lockfile on device add and device delete
-	 * to make sure that we have exclusive access to udev while
-	 * the udev rules are reloaded.
-	 */
-	do {
-		lfd = open(LITEST_UDEV_LOCKFILE, O_CREAT|O_EXCL, O_RDWR);
-
-		if (lfd == -1) {
-			struct stat st;
-			time_t now = time(NULL);
-
-			litest_assert_int_eq(errno, EEXIST);
-			msleep(10);
-
-			/* If the lock file is older than 10s, it's a
-			   leftover from some aborted test */
-			if (stat(LITEST_UDEV_LOCKFILE, &st) != -1) {
-				if (st.st_mtime < now - 10) {
-					fprintf(stderr,
-						"Removing stale lock file %s.\n",
-						LITEST_UDEV_LOCKFILE);
-					unlink(LITEST_UDEV_LOCKFILE);
-				}
-			}
-		}
-	} while (lfd < 0);
-
-	return lfd;
-}
-
-static inline void
-delete_udev_lock_file(int lfd)
-{
-	close(lfd);
-	unlink(LITEST_UDEV_LOCKFILE);
-}
-
 struct litest_device *
 litest_add_device_with_overrides(struct libinput *libinput,
 				 enum litest_device_type which,
@@ -1234,8 +1265,6 @@ litest_add_device_with_overrides(struct libinput *libinput,
 	int fd;
 	int rc;
 	const char *path;
-
-	int lfd = create_udev_lock_file();
 
 	d = litest_create(which,
 			  name_override,
@@ -1262,9 +1291,6 @@ litest_add_device_with_overrides(struct libinput *libinput,
 		d->interface->min[ABS_Y] = libevdev_get_abs_minimum(d->evdev, ABS_Y);
 		d->interface->max[ABS_Y] = libevdev_get_abs_maximum(d->evdev, ABS_Y);
 	}
-
-	delete_udev_lock_file(lfd);
-
 	return d;
 }
 
@@ -1321,19 +1347,8 @@ litest_handle_events(struct litest_device *d)
 void
 litest_delete_device(struct litest_device *d)
 {
-	int lfd;
-
 	if (!d)
 		return;
-
-	lfd = create_udev_lock_file();
-
-	if (d->udev_rule_file) {
-		unlink(d->udev_rule_file);
-		free(d->udev_rule_file);
-		d->udev_rule_file = NULL;
-		litest_reload_udev_rules();
-	}
 
 	libinput_device_unref(d->libinput_device);
 	libinput_path_remove_device(d->libinput_device);
@@ -1345,8 +1360,6 @@ litest_delete_device(struct litest_device *d)
 	free(d->private);
 	memset(d,0, sizeof(*d));
 	free(d);
-
-	delete_udev_lock_file(lfd);
 }
 
 void
@@ -2074,11 +2087,11 @@ litest_drain_events(struct libinput *li)
 }
 
 static const char *
-litest_event_type_str(struct libinput_event *event)
+litest_event_type_str(enum libinput_event_type type)
 {
 	const char *str = NULL;
 
-	switch (libinput_event_get_type(event)) {
+	switch (type) {
 	case LIBINPUT_EVENT_NONE:
 		abort();
 	case LIBINPUT_EVENT_DEVICE_ADDED:
@@ -2160,6 +2173,12 @@ litest_event_type_str(struct libinput_event *event)
 	return str;
 }
 
+static const char *
+litest_event_get_type_str(struct libinput_event *event)
+{
+	return litest_event_type_str(libinput_event_get_type(event));
+}
+
 static void
 litest_print_event(struct libinput_event *event)
 {
@@ -2176,7 +2195,7 @@ litest_print_event(struct libinput_event *event)
 	fprintf(stderr,
 		"device %s type %s ",
 		libinput_device_get_sysname(dev),
-		litest_event_type_str(event));
+		litest_event_get_type_str(event));
 	switch (type) {
 	case LIBINPUT_EVENT_POINTER_MOTION:
 		p = libinput_event_get_pointer_event(event);
@@ -2252,6 +2271,23 @@ litest_print_event(struct libinput_event *event)
 	}
 
 	fprintf(stderr, "\n");
+}
+
+void
+litest_assert_event_type(struct libinput_event *event,
+			 enum libinput_event_type want)
+{
+	if (libinput_event_get_type(event) == want)
+		return;
+
+	fprintf(stderr,
+		"FAILED EVENT TYPE: have %s (%d) but want %s (%d)\n",
+		litest_event_get_type_str(event),
+		libinput_event_get_type(event),
+		litest_event_type_str(want),
+		want);
+	litest_backtrace();
+	abort();
 }
 
 void
@@ -2493,7 +2529,7 @@ litest_is_button_event(struct libinput_event *event,
 	enum libinput_event_type type = LIBINPUT_EVENT_POINTER_BUTTON;
 
 	litest_assert(event != NULL);
-	litest_assert_int_eq(libinput_event_get_type(event), type);
+	litest_assert_event_type(event, type);
 	ptrev = libinput_event_get_pointer_event(event);
 	litest_assert_int_eq(libinput_event_pointer_get_button(ptrev),
 			     button);
@@ -2512,7 +2548,7 @@ litest_is_axis_event(struct libinput_event *event,
 	enum libinput_event_type type = LIBINPUT_EVENT_POINTER_AXIS;
 
 	litest_assert(event != NULL);
-	litest_assert_int_eq(libinput_event_get_type(event), type);
+	litest_assert_event_type(event, type);
 	ptrev = libinput_event_get_pointer_event(event);
 	litest_assert(libinput_event_pointer_has_axis(ptrev, axis));
 
@@ -2531,7 +2567,7 @@ litest_is_motion_event(struct libinput_event *event)
 	double x, y, ux, uy;
 
 	litest_assert(event != NULL);
-	litest_assert_int_eq(libinput_event_get_type(event), type);
+	litest_assert_event_type(event, type);
 	ptrev = libinput_event_get_pointer_event(event);
 
 	x = libinput_event_pointer_get_dx(ptrev);
@@ -2576,7 +2612,7 @@ litest_is_touch_event(struct libinput_event *event,
 	case LIBINPUT_EVENT_TOUCH_UP:
 	case LIBINPUT_EVENT_TOUCH_MOTION:
 	case LIBINPUT_EVENT_TOUCH_FRAME:
-		litest_assert_int_eq(libinput_event_get_type(event), type);
+		litest_assert_event_type(event, type);
 		break;
 	default:
 		ck_abort_msg("%s: invalid touch type %d\n", __func__, type);
@@ -2596,7 +2632,7 @@ litest_is_keyboard_event(struct libinput_event *event,
 	enum libinput_event_type type = LIBINPUT_EVENT_KEYBOARD_KEY;
 
 	litest_assert(event != NULL);
-	litest_assert_int_eq(libinput_event_get_type(event), type);
+	litest_assert_event_type(event, type);
 
 	kevent = libinput_event_get_keyboard_event(event);
 	litest_assert(kevent != NULL);
@@ -2615,7 +2651,7 @@ litest_is_gesture_event(struct libinput_event *event,
 	struct libinput_event_gesture *gevent;
 
 	litest_assert(event != NULL);
-	litest_assert_int_eq(libinput_event_get_type(event), type);
+	litest_assert_event_type(event, type);
 
 	gevent = libinput_event_get_gesture_event(event);
 	litest_assert(gevent != NULL);
@@ -2633,7 +2669,7 @@ litest_is_tablet_event(struct libinput_event *event,
 	struct libinput_event_tablet_tool *tevent;
 
 	litest_assert(event != NULL);
-	litest_assert_int_eq(libinput_event_get_type(event), type);
+	litest_assert_event_type(event, type);
 
 	tevent = libinput_event_get_tablet_tool_event(event);
 	litest_assert(tevent != NULL);
@@ -2653,7 +2689,7 @@ litest_assert_tablet_button_event(struct libinput *li, unsigned int button,
 	event = libinput_get_event(li);
 
 	litest_assert_notnull(event);
-	litest_assert_int_eq(libinput_event_get_type(event), type);
+	litest_assert_event_type(event, type);
 	tev = libinput_event_get_tablet_tool_event(event);
 	litest_assert_int_eq(libinput_event_tablet_tool_get_button(tev),
 			     button);
@@ -2673,7 +2709,7 @@ void litest_assert_tablet_proximity_event(struct libinput *li,
 	event = libinput_get_event(li);
 
 	litest_assert_notnull(event);
-	litest_assert_int_eq(libinput_event_get_type(event), type);
+	litest_assert_event_type(event, type);
 	tev = libinput_event_get_tablet_tool_event(event);
 	litest_assert_int_eq(libinput_event_tablet_tool_get_proximity_state(tev),
 			     state);
@@ -2689,7 +2725,7 @@ litest_is_pad_button_event(struct libinput_event *event,
 	enum libinput_event_type type = LIBINPUT_EVENT_TABLET_PAD_BUTTON;
 
 	litest_assert(event != NULL);
-	litest_assert_int_eq(libinput_event_get_type(event), type);
+	litest_assert_event_type(event, type);
 
 	p = libinput_event_get_tablet_pad_event(event);
 	litest_assert(p != NULL);
@@ -2709,7 +2745,7 @@ litest_is_pad_ring_event(struct libinput_event *event,
 	enum libinput_event_type type = LIBINPUT_EVENT_TABLET_PAD_RING;
 
 	litest_assert(event != NULL);
-	litest_assert_int_eq(libinput_event_get_type(event), type);
+	litest_assert_event_type(event, type);
 	p = libinput_event_get_tablet_pad_event(event);
 
 	litest_assert_int_eq(libinput_event_tablet_pad_get_ring_number(p),
@@ -2729,7 +2765,7 @@ litest_is_pad_strip_event(struct libinput_event *event,
 	enum libinput_event_type type = LIBINPUT_EVENT_TABLET_PAD_STRIP;
 
 	litest_assert(event != NULL);
-	litest_assert_int_eq(libinput_event_get_type(event), type);
+	litest_assert_event_type(event, type);
 	p = libinput_event_get_tablet_pad_event(event);
 
 	litest_assert_int_eq(libinput_event_tablet_pad_get_strip_number(p),
@@ -2814,6 +2850,39 @@ litest_assert_only_typed_events(struct libinput *li,
 }
 
 void
+litest_assert_touch_sequence(struct libinput *li)
+{
+	struct libinput_event *event;
+
+	event = libinput_get_event(li);
+	litest_is_touch_event(event, LIBINPUT_EVENT_TOUCH_DOWN);
+	libinput_event_destroy(event);
+
+	event = libinput_get_event(li);
+	litest_is_touch_event(event, LIBINPUT_EVENT_TOUCH_FRAME);
+	libinput_event_destroy(event);
+
+	event = libinput_get_event(li);
+	do {
+		litest_is_touch_event(event, LIBINPUT_EVENT_TOUCH_MOTION);
+		libinput_event_destroy(event);
+
+		event = libinput_get_event(li);
+		litest_is_touch_event(event, LIBINPUT_EVENT_TOUCH_FRAME);
+		libinput_event_destroy(event);
+
+		event = libinput_get_event(li);
+		litest_assert_notnull(event);
+	} while (libinput_event_get_type(event) != LIBINPUT_EVENT_TOUCH_UP);
+
+	litest_is_touch_event(event, LIBINPUT_EVENT_TOUCH_UP);
+	libinput_event_destroy(event);
+	event = libinput_get_event(li);
+	litest_is_touch_event(event, LIBINPUT_EVENT_TOUCH_FRAME);
+	libinput_event_destroy(event);
+}
+
+void
 litest_timeout_tap(void)
 {
 	msleep(200);
@@ -2871,6 +2940,12 @@ void
 litest_timeout_gesture(void)
 {
 	msleep(120);
+}
+
+void
+litest_timeout_trackpoint(void)
+{
+	msleep(320);
 }
 
 void
@@ -3042,6 +3117,7 @@ litest_parse_argv(int argc, char **argv)
 		OPT_FILTER_TEST,
 		OPT_FILTER_DEVICE,
 		OPT_FILTER_GROUP,
+		OPT_JOBS,
 		OPT_LIST,
 		OPT_VERBOSE,
 	};
@@ -3049,27 +3125,48 @@ litest_parse_argv(int argc, char **argv)
 		{ "filter-test", 1, 0, OPT_FILTER_TEST },
 		{ "filter-device", 1, 0, OPT_FILTER_DEVICE },
 		{ "filter-group", 1, 0, OPT_FILTER_GROUP },
+		{ "jobs", 1, 0, OPT_JOBS },
 		{ "list", 0, 0, OPT_LIST },
 		{ "verbose", 0, 0, OPT_VERBOSE },
 		{ 0, 0, 0, 0}
 	};
 
+	enum {
+		JOBS_DEFAULT,
+		JOBS_SINGLE,
+		JOBS_CUSTOM
+	} want_jobs = JOBS_DEFAULT;
+
+	if (in_debugger)
+		want_jobs = JOBS_SINGLE;
+
 	while(1) {
 		int c;
 		int option_index = 0;
 
-		c = getopt_long(argc, argv, "", opts, &option_index);
+		c = getopt_long(argc, argv, "j:", opts, &option_index);
 		if (c == -1)
 			break;
 		switch(c) {
 		case OPT_FILTER_TEST:
 			filter_test = optarg;
+			if (want_jobs == JOBS_DEFAULT)
+				want_jobs = JOBS_SINGLE;
 			break;
 		case OPT_FILTER_DEVICE:
 			filter_device = optarg;
+			if (want_jobs == JOBS_DEFAULT)
+				want_jobs = JOBS_SINGLE;
 			break;
 		case OPT_FILTER_GROUP:
 			filter_group = optarg;
+			if (want_jobs == JOBS_DEFAULT)
+				want_jobs = JOBS_SINGLE;
+			break;
+		case 'j':
+		case OPT_JOBS:
+			jobs = atoi(optarg);
+			want_jobs = JOBS_CUSTOM;
 			break;
 		case OPT_LIST:
 			return LITEST_MODE_LIST;
@@ -3082,10 +3179,42 @@ litest_parse_argv(int argc, char **argv)
 		}
 	}
 
+	if (want_jobs == JOBS_SINGLE)
+		jobs = 1;
+
 	return LITEST_MODE_TEST;
 }
 
 #ifndef LITEST_NO_MAIN
+static int
+is_debugger_attached(void)
+{
+	int status;
+	int rc;
+	int pid = fork();
+
+	if (pid == -1)
+		return 0;
+
+	if (pid == 0) {
+		int ppid = getppid();
+		if (ptrace(PTRACE_ATTACH, ppid, NULL, NULL) == 0) {
+			waitpid(ppid, NULL, 0);
+			ptrace(PTRACE_CONT, NULL, NULL);
+			ptrace(PTRACE_DETACH, ppid, NULL, NULL);
+			rc = 0;
+		} else {
+			rc = 1;
+		}
+		_exit(rc);
+	} else {
+		waitpid(pid, &status, 0);
+		rc = WEXITSTATUS(status);
+	}
+
+	return rc;
+}
+
 static void
 litest_list_tests(struct list *tests)
 {
@@ -3110,11 +3239,30 @@ main(int argc, char **argv)
 	setenv("CK_DEFAULT_TIMEOUT", "30", 0);
 	setenv("LIBINPUT_RUNNING_TEST_SUITE", "1", 1);
 
+	in_debugger = is_debugger_attached();
+	if (in_debugger)
+		setenv("CK_FORK", "no", 0);
+
 	mode = litest_parse_argv(argc, argv);
 	if (mode == LITEST_MODE_ERROR)
 		return EXIT_FAILURE;
 
-	litest_setup_tests();
+	litest_setup_tests_udev();
+	litest_setup_tests_path();
+	litest_setup_tests_pointer();
+	litest_setup_tests_touch();
+	litest_setup_tests_log();
+	litest_setup_tests_tablet();
+	litest_setup_tests_pad();
+	litest_setup_tests_touchpad();
+	litest_setup_tests_touchpad_tap();
+	litest_setup_tests_touchpad_buttons();
+	litest_setup_tests_trackpoint();
+	litest_setup_tests_trackball();
+	litest_setup_tests_misc();
+	litest_setup_tests_keyboard();
+	litest_setup_tests_device();
+	litest_setup_tests_gestures();
 
 	if (mode == LITEST_MODE_LIST) {
 		litest_list_tests(&all_tests);

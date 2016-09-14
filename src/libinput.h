@@ -3773,6 +3773,88 @@ libinput_device_config_tap_get_default_enabled(struct libinput_device *device);
 
 /**
  * @ingroup config
+ */
+enum libinput_config_tap_button_map {
+	/** 1/2/3 finger tap maps to left/right/middle */
+	LIBINPUT_CONFIG_TAP_MAP_LRM,
+	/** 1/2/3 finger tap maps to left/middle/right*/
+	LIBINPUT_CONFIG_TAP_MAP_LMR,
+};
+
+/**
+ * @ingroup config
+ *
+ * Set the finger number to button number mapping for tap-to-click. The
+ * default mapping on most devices is to have a 1, 2 and 3 finger tap to map
+ * to the left, right and middle button, respectively.
+ * A device may permit changing the button mapping but disallow specific
+ * maps. In this case @ref LIBINPUT_CONFIG_STATUS_UNSUPPORTED is returned,
+ * the caller is expected to handle this case correctly.
+ *
+ * Changing the button mapping may not take effect immediately,
+ * the device may wait until it is in a neutral state before applying any
+ * changes.
+ *
+ * The mapping may be changed when tap-to-click is disabled. The new mapping
+ * takes effect when tap-to-click is enabled in the future.
+ *
+ * @note It is an application bug to call this function for devices where
+ * libinput_device_config_tap_get_finger_count() returns 0.
+ *
+ * @param device The device to configure
+ * @param map The new finger-to-button number mapping
+ * @return A config status code. Changing the order on a device that does not
+ * support tapping always fails with @ref LIBINPUT_CONFIG_STATUS_UNSUPPORTED.
+ *
+ * @see libinput_device_config_tap_get_button_map
+ * @see libinput_device_config_tap_get_default_button_map
+ */
+enum libinput_config_status
+libinput_device_config_tap_set_button_map(struct libinput_device *device,
+					    enum libinput_config_tap_button_map map);
+
+/**
+ * @ingroup config
+ *
+ * Get the finger number to button number mapping for tap-to-click.
+ *
+ * The return value for a device that does not support tapping is always
+ * @ref LIBINPUT_CONFIG_TAP_MAP_LRM.
+ *
+ * @note It is an application bug to call this function for devices where
+ * libinput_device_config_tap_get_finger_count() returns 0.
+ *
+ * @param device The device to configure
+ * @return The current finger-to-button number mapping
+ *
+ * @see libinput_device_config_tap_set_button_map
+ * @see libinput_device_config_tap_get_default_button_map
+ */
+enum libinput_config_tap_button_map
+libinput_device_config_tap_get_button_map(struct libinput_device *device);
+
+/**
+ * @ingroup config
+ *
+ * Get the default finger number to button number mapping for tap-to-click.
+ *
+ * The return value for a device that does not support tapping is always
+ * @ref LIBINPUT_CONFIG_TAP_MAP_LRM.
+ *
+ * @note It is an application bug to call this function for devices where
+ * libinput_device_config_tap_get_finger_count() returns 0.
+ *
+ * @param device The device to configure
+ * @return The current finger-to-button number mapping
+ *
+ * @see libinput_device_config_tap_set_button_map
+ * @see libinput_device_config_tap_get_default_button_map
+ */
+enum libinput_config_tap_button_map
+libinput_device_config_tap_get_default_button_map(struct libinput_device *device);
+
+/**
+ * @ingroup config
  *
  * A config status to distinguish or set dragging on a device. Currently
  * implemented for tap-and-drag only, see
@@ -4569,8 +4651,7 @@ enum libinput_config_middle_emulation_state {
  * @ingroup config
  *
  * Check if middle mouse button emulation configuration is available on this
- * device. See libinput_device_config_middle_emulation_set_enabled() for
- * details.
+ * device. See @ref middle_button_emulation for details.
  *
  * @note Some devices provide middle mouse button emulation but do not allow
  * enabling/disabling that emulation. These devices return zero in
@@ -4597,19 +4678,7 @@ libinput_device_config_middle_emulation_is_available(
  * button event. Releasing the buttons generates a middle mouse button
  * release, the left and right button events are discarded otherwise.
  *
- * The middle button release event may be generated when either button is
- * released, or when both buttons have been released. The exact behavior is
- * device-dependent.
- *
- * The middle button emulation behavior when combined with other device
- * buttons, including a physical middle button is device-dependent.
- * For example, @ref clickpad_softbuttons provides a middle button area when
- * middle button emulation is disabled. That middle button area disappears
- * when middle button emulation is enabled - a middle click can then only be
- * triggered by a simultaneous left + right click.
- *
- * @note Some devices provide middle mouse button emulation but do not allow
- * enabling/disabling that emulation.
+ * See @ref middle_button_emulation for details.
  *
  * @param device The device to configure
  * @param enable @ref LIBINPUT_CONFIG_MIDDLE_EMULATION_DISABLED to
@@ -4632,6 +4701,8 @@ libinput_device_config_middle_emulation_set_enabled(
  * @ingroup config
  *
  * Check if configurable middle button emulation is enabled on this device.
+ * See @ref middle_button_emulation for details.
+ *
  * If the device does not have configurable middle button emulation, this
  * function returns @ref LIBINPUT_CONFIG_MIDDLE_EMULATION_DISABLED.
  *
@@ -4656,7 +4727,9 @@ libinput_device_config_middle_emulation_get_enabled(
  * @ingroup config
  *
  * Check if configurable middle button emulation is enabled by default on
- * this device. If the device does not have configurable middle button
+ * this device. See @ref middle_button_emulation for details.
+ *
+ * If the device does not have configurable middle button
  * emulation, this function returns @ref
  * LIBINPUT_CONFIG_MIDDLE_EMULATION_DISABLED.
  *
