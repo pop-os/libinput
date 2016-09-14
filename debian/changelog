@@ -1,9 +1,9 @@
-libinput (1.5.0-1) UNRELEASED; urgency=medium
+libinput (1.5.0-1) unstable; urgency=medium
 
   * New upstream release.
   * debian/libinput10.symbols: add new symbols.
 
- -- Emilio Pozuelo Monfort <pochu@debian.org>  Wed, 14 Sep 2016 11:31:33 +0200
+ -- Emilio Pozuelo Monfort <pochu@debian.org>  Wed, 14 Sep 2016 11:45:02 +0200
 
 libinput (1.4.1-1) unstable; urgency=medium
 
