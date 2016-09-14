@@ -17,6 +17,7 @@
 @page pointers Mice, Trackballs, etc.
 
 - @subpage motion_normalization
+- @subpage middle_button_emulation
 
 @page tablets Graphics Tablets
 
@@ -35,6 +36,7 @@
 
 @page developers Developers
 
+- @subpage building_libinput
 - @subpage test-suite
 - @subpage tools
 - @subpage pointer-acceleration

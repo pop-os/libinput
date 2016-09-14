@@ -541,7 +541,7 @@ tp_pin_fingers(struct tp_dispatch *tp)
 	}
 }
 
-int
+bool
 tp_touch_active(const struct tp_dispatch *tp, const struct tp_touch *t)
 {
 	return (t->state == TOUCH_BEGIN || t->state == TOUCH_UPDATE) &&
@@ -573,15 +573,17 @@ tp_palm_tap_is_palm(const struct tp_dispatch *tp, const struct tp_touch *t)
 	return false;
 }
 
-static int
-tp_palm_detect_dwt(struct tp_dispatch *tp, struct tp_touch *t, uint64_t time)
+static bool
+tp_palm_detect_dwt_triggered(struct tp_dispatch *tp,
+			     struct tp_touch *t,
+			     uint64_t time)
 {
 	if (tp->dwt.dwt_enabled &&
 	    tp->dwt.keyboard_active &&
 	    t->state == TOUCH_BEGIN) {
 		t->palm.state = PALM_TYPING;
 		t->palm.first = t->point;
-		return 1;
+		return true;
 	} else if (!tp->dwt.keyboard_active &&
 		   t->state == TOUCH_UPDATE &&
 		   t->palm.state == PALM_TYPING) {
@@ -599,22 +601,22 @@ tp_palm_detect_dwt(struct tp_dispatch *tp, struct tp_touch *t, uint64_t time)
 		}
 	}
 
-	return 0;
+	return false;
 }
 
-static int
-tp_palm_detect_trackpoint(struct tp_dispatch *tp,
-			  struct tp_touch *t,
-			  uint64_t time)
+static bool
+tp_palm_detect_trackpoint_triggered(struct tp_dispatch *tp,
+				    struct tp_touch *t,
+				    uint64_t time)
 {
 	if (!tp->palm.monitor_trackpoint)
-		return 0;
+		return false;
 
 	if (t->palm.state == PALM_NONE &&
 	    t->state == TOUCH_BEGIN &&
 	    tp->palm.trackpoint_active) {
 		t->palm.state = PALM_TRACKPOINT;
-		return 1;
+		return true;
 	} else if (t->palm.state == PALM_TRACKPOINT &&
 		   t->state == TOUCH_UPDATE &&
 		   !tp->palm.trackpoint_active) {
@@ -627,7 +629,7 @@ tp_palm_detect_trackpoint(struct tp_dispatch *tp,
 		}
 	}
 
-	return 0;
+	return false;
 }
 
 static inline bool
@@ -684,10 +686,10 @@ static void
 tp_palm_detect(struct tp_dispatch *tp, struct tp_touch *t, uint64_t time)
 {
 
-	if (tp_palm_detect_dwt(tp, t, time))
+	if (tp_palm_detect_dwt_triggered(tp, t, time))
 		goto out;
 
-	if (tp_palm_detect_trackpoint(tp, t, time))
+	if (tp_palm_detect_trackpoint_triggered(tp, t, time))
 		goto out;
 
 	if (t->palm.state == PALM_EDGE) {
@@ -955,8 +957,11 @@ tp_need_motion_history_reset(struct tp_dispatch *tp)
 {
 	bool rc = false;
 
-	/* semi-mt finger postions may "jump" when nfingers changes */
-	if (tp->semi_mt && tp->nfingers_down != tp->old_nfingers_down)
+	/* Changing the numbers of fingers can cause a jump in the
+	 * coordinates, always reset the motion history for all touches when
+	 * that happens.
+	 */
+	if (tp->nfingers_down != tp->old_nfingers_down)
 		return true;
 
 	/* if we're transitioning between slots and fake touches in either
@@ -1108,6 +1113,8 @@ tp_post_process_state(struct tp_dispatch *tp, uint64_t time)
 	tp->buttons.old_state = tp->buttons.state;
 
 	tp->queued = TOUCHPAD_EVENT_NONE;
+
+	tp_tap_post_process_state(tp);
 }
 
 static void
@@ -1116,7 +1123,7 @@ tp_post_events(struct tp_dispatch *tp, uint64_t time)
 	int filter_motion = 0;
 
 	/* Only post (top) button events while suspended */
-	if (tp->device->suspended) {
+	if (tp->device->is_suspended) {
 		tp_post_button_events(tp, time);
 		return;
 	}
@@ -1157,6 +1164,9 @@ tp_interface_process(struct evdev_dispatch *dispatch,
 {
 	struct tp_dispatch *tp =
 		(struct tp_dispatch *)dispatch;
+
+	if (tp->ignore_events)
+		return;
 
 	switch (e->type) {
 	case EV_ABS:
@@ -1295,6 +1305,7 @@ tp_trackpoint_timeout(uint64_t now, void *data)
 
 	tp_tap_resume(tp, now);
 	tp->palm.trackpoint_active = false;
+	tp->palm.trackpoint_event_count = 0;
 }
 
 static void
@@ -1307,6 +1318,13 @@ tp_trackpoint_event(uint64_t time, struct libinput_event *event, void *data)
 	if (event->type == LIBINPUT_EVENT_POINTER_BUTTON)
 		return;
 
+	tp->palm.trackpoint_last_event_time = time;
+	tp->palm.trackpoint_event_count++;
+
+	/* Require at least three events before enabling palm detection */
+	if (tp->palm.trackpoint_event_count < 3)
+		return;
+
 	if (!tp->palm.trackpoint_active) {
 		tp_edge_scroll_stop_events(tp, time);
 		tp_gesture_cancel(tp, time);
@@ -1314,7 +1332,6 @@ tp_trackpoint_event(uint64_t time, struct libinput_event *event, void *data)
 		tp->palm.trackpoint_active = true;
 	}
 
-	tp->palm.trackpoint_last_event_time = time;
 	libinput_timer_set(&tp->palm.trackpoint_timer,
 			   time + DEFAULT_TRACKPOINT_ACTIVITY_TIMEOUT);
 }
@@ -1342,7 +1359,7 @@ tp_keyboard_timeout(uint64_t now, void *data)
 }
 
 static inline bool
-tp_key_ignore_for_dwt(unsigned int keycode)
+tp_key_is_modifier(unsigned int keycode)
 {
 	switch (keycode) {
 	/* Ignore modifiers to be responsive to ctrl-click, alt-tab, etc. */
@@ -1360,16 +1377,21 @@ tp_key_ignore_for_dwt(unsigned int keycode)
 	case KEY_LEFTMETA:
 		return true;
 	default:
-		break;
+		return false;
 	}
+}
 
+static inline bool
+tp_key_ignore_for_dwt(unsigned int keycode)
+{
 	/* Ignore keys not part of the "typewriter set", i.e. F-keys,
 	 * multimedia keys, numpad, etc.
 	 */
-	if (keycode >= KEY_F1)
-		return true;
 
-	return false;
+	if (tp_key_is_modifier(keycode))
+		return false;
+
+	return keycode >= KEY_F1;
 }
 
 static void
@@ -1379,6 +1401,7 @@ tp_keyboard_event(uint64_t time, struct libinput_event *event, void *data)
 	struct libinput_event_keyboard *kbdev;
 	unsigned int timeout;
 	unsigned int key;
+	bool is_modifier;
 
 	if (event->type != LIBINPUT_EVENT_KEYBOARD_KEY)
 		return;
@@ -1390,18 +1413,34 @@ tp_keyboard_event(uint64_t time, struct libinput_event *event, void *data)
 	if (libinput_event_keyboard_get_key_state(kbdev) !=
 	    LIBINPUT_KEY_STATE_PRESSED) {
 		long_clear_bit(tp->dwt.key_mask, key);
+		long_clear_bit(tp->dwt.mod_mask, key);
 		return;
 	}
 
 	if (!tp->dwt.dwt_enabled)
 		return;
 
-	/* modifier keys don't trigger disable-while-typing so things like
-	 * ctrl+zoom or ctrl+click are possible */
 	if (tp_key_ignore_for_dwt(key))
 		return;
 
+	/* modifier keys don't trigger disable-while-typing so things like
+	 * ctrl+zoom or ctrl+click are possible */
+	is_modifier = tp_key_is_modifier(key);
+	if (is_modifier) {
+		long_set_bit(tp->dwt.mod_mask, key);
+		return;
+	}
+
 	if (!tp->dwt.keyboard_active) {
+		/* This is the first non-modifier key press. Check if the
+		 * modifier mask is set. If any modifier is down we don't
+		 * trigger dwt because it's likely to be combination like
+		 * Ctrl+S or similar */
+
+		if (long_any_bit_set(tp->dwt.mod_mask,
+				     ARRAY_LENGTH(tp->dwt.mod_mask)))
+		    return;
+
 		tp_edge_scroll_stop_events(tp, time);
 		tp_gesture_cancel(tp, time);
 		tp_tap_suspend(tp, time);
@@ -1480,6 +1519,7 @@ tp_dwt_pair_keyboard(struct evdev_device *touchpad,
 			return;
 
 		memset(tp->dwt.key_mask, 0, sizeof(tp->dwt.key_mask));
+		memset(tp->dwt.mod_mask, 0, sizeof(tp->dwt.mod_mask));
 		libinput_device_remove_event_listener(&tp->dwt.keyboard_listener);
 	}
 
@@ -1649,6 +1689,23 @@ evdev_tag_touchpad(struct evdev_device *device,
 	}
 }
 
+static void
+tp_interface_toggle_touch(struct evdev_dispatch *dispatch,
+			  struct evdev_device *device,
+			  bool enable)
+{
+	struct tp_dispatch *tp = (struct tp_dispatch*)dispatch;
+	bool ignore_events = !enable;
+
+	if (ignore_events == tp->ignore_events)
+		return;
+
+	if (ignore_events)
+		tp_clear_state(tp);
+
+	tp->ignore_events = ignore_events;
+}
+
 static struct evdev_dispatch_interface tp_interface = {
 	tp_interface_process,
 	tp_interface_suspend,
@@ -1659,6 +1716,7 @@ static struct evdev_dispatch_interface tp_interface = {
 	tp_interface_device_removed, /* device_suspended, treat as remove */
 	tp_interface_device_added,   /* device_resumed, treat as add */
 	NULL,                        /* post_added */
+	tp_interface_toggle_touch,
 };
 
 static void
@@ -1691,7 +1749,7 @@ tp_sync_touch(struct tp_dispatch *tp,
 	libevdev_fetch_slot_value(evdev, slot, ABS_MT_DISTANCE, &t->distance);
 }
 
-static int
+static bool
 tp_init_slots(struct tp_dispatch *tp,
 	      struct evdev_device *device)
 {
@@ -1754,7 +1812,7 @@ tp_init_slots(struct tp_dispatch *tp,
 	tp->ntouches = max(tp->num_slots, n_btn_tool_touches);
 	tp->touches = calloc(tp->ntouches, sizeof(struct tp_touch));
 	if (!tp->touches)
-		return -1;
+		return false;
 
 	for (i = 0; i < tp->ntouches; i++)
 		tp_init_touch(tp, &tp->touches[i]);
@@ -1765,7 +1823,7 @@ tp_init_slots(struct tp_dispatch *tp,
 	for (i = 1; i < tp->num_slots; i++)
 		tp_sync_touch(tp, device, &tp->touches[i], i);
 
-	return 0;
+	return true;
 }
 
 static uint32_t
@@ -1793,13 +1851,12 @@ tp_accel_config_get_default_profile(struct libinput_device *libinput_device)
 	return LIBINPUT_CONFIG_ACCEL_PROFILE_NONE;
 }
 
-static int
+static bool
 tp_init_accel(struct tp_dispatch *tp)
 {
 	struct evdev_device *device = tp->device;
 	int res_x, res_y;
 	struct motion_filter *filter;
-	int rc;
 
 	res_x = tp->device->abs.absinfo_x->resolution;
 	res_y = tp->device->abs.absinfo_y->resolution;
@@ -1821,11 +1878,9 @@ tp_init_accel(struct tp_dispatch *tp)
 		filter = create_pointer_accelerator_filter_touchpad(tp->device->dpi);
 
 	if (!filter)
-		return -1;
+		return false;
 
-	rc = evdev_device_init_pointer_acceleration(tp->device, filter);
-	if (rc != 0)
-		return rc;
+	evdev_device_init_pointer_acceleration(tp->device, filter);
 
 	/* we override the profile hooks for accel configuration with hooks
 	 * that don't allow selection of profiles */
@@ -1834,7 +1889,7 @@ tp_init_accel(struct tp_dispatch *tp)
 	device->pointer.config.get_profile = tp_accel_config_get_profile;
 	device->pointer.config.get_default_profile = tp_accel_config_get_default_profile;
 
-	return 0;
+	return true;
 }
 
 static uint32_t
@@ -1914,11 +1969,10 @@ tp_scroll_config_scroll_method_get_default_method(struct libinput_device *device
 	return tp_scroll_get_default_method(tp);
 }
 
-static int
+static void
 tp_init_scroll(struct tp_dispatch *tp, struct evdev_device *device)
 {
-	if (tp_edge_scroll_init(tp, device) != 0)
-		return -1;
+	tp_edge_scroll_init(tp, device);
 
 	evdev_init_natural_scroll(device);
 
@@ -1932,8 +1986,6 @@ tp_init_scroll(struct tp_dispatch *tp, struct evdev_device *device)
 	 /* In mm for touchpads with valid resolution, see tp_init_accel() */
 	tp->device->scroll.threshold = 0.0;
 	tp->device->scroll.direction_lock_threshold = 5.0;
-
-	return 0;
 }
 
 static int
@@ -1990,12 +2042,12 @@ tp_dwt_config_get_default(struct libinput_device *device)
 		LIBINPUT_CONFIG_DWT_DISABLED;
 }
 
-static int
+static void
 tp_init_dwt(struct tp_dispatch *tp,
 	    struct evdev_device *device)
 {
 	if (tp_dwt_device_is_blacklisted(device))
-		return 0;
+		return;
 
 	tp->dwt.config.is_available = tp_dwt_config_is_available;
 	tp->dwt.config.set_enabled = tp_dwt_config_set;
@@ -2004,39 +2056,44 @@ tp_init_dwt(struct tp_dispatch *tp,
 	tp->dwt.dwt_enabled = tp_dwt_default_enabled(tp);
 	device->base.config.dwt = &tp->dwt.config;
 
-	return 0;
+	return;
 }
 
-static int
+static void
 tp_init_palmdetect(struct tp_dispatch *tp,
 		   struct evdev_device *device)
 {
-	int width;
+	double width, height;
+	struct phys_coords mm = { 0.0, 0.0 };
+	struct device_coords edges;
 
 	tp->palm.right_edge = INT_MAX;
 	tp->palm.left_edge = INT_MIN;
 
-	width = device->abs.dimensions.x;
-
 	/* Wacom doesn't have internal touchpads */
 	if (device->model_flags & EVDEV_MODEL_WACOM_TOUCHPAD)
-		return 0;
+		return;
+
+	evdev_device_get_size(device, &width, &height);
 
 	/* Enable palm detection on touchpads >= 70 mm. Anything smaller
 	   probably won't need it, until we find out it does */
-	if (width/device->abs.absinfo_x->resolution < 70)
-		return 0;
+	if (width < 70.0)
+		return;
 
 	/* palm edges are 5% of the width on each side */
-	tp->palm.right_edge = device->abs.absinfo_x->maximum - width * 0.05;
-	tp->palm.left_edge = device->abs.absinfo_x->minimum + width * 0.05;
+	mm.x = width * 0.05;
+	edges = evdev_device_mm_to_units(device, &mm);
+	tp->palm.left_edge = edges.x;
+
+	mm.x = width * 0.95;
+	edges = evdev_device_mm_to_units(device, &mm);
+	tp->palm.right_edge = edges.x;
 
 	tp->palm.monitor_trackpoint = true;
-
-	return 0;
 }
 
-static int
+static void
 tp_init_sendevents(struct tp_dispatch *tp,
 		   struct evdev_device *device)
 {
@@ -2047,38 +2104,41 @@ tp_init_sendevents(struct tp_dispatch *tp,
 	libinput_timer_init(&tp->dwt.keyboard_timer,
 			    tp_libinput_context(tp),
 			    tp_keyboard_timeout, tp);
-	return 0;
 }
 
-static int
+static void
 tp_init_thumb(struct tp_dispatch *tp)
 {
 	struct evdev_device *device = tp->device;
 	const struct input_absinfo *abs;
 	double w = 0.0, h = 0.0;
+	struct device_coords edges;
+	struct phys_coords mm = { 0.0, 0.0 };
 	int xres, yres;
-	int ymax;
 	double threshold;
 
 	if (!tp->buttons.is_clickpad)
-		return 0;
+		return;
 
 	/* if the touchpad is less than 50mm high, skip thumb detection.
 	 * it's too small to meaningfully interact with a thumb on the
 	 * touchpad */
 	evdev_device_get_size(device, &w, &h);
 	if (h < 50)
-		return 0;
+		return;
 
 	tp->thumb.detect_thumbs = true;
 	tp->thumb.threshold = INT_MAX;
 
 	/* detect thumbs by pressure in the bottom 15mm, detect thumbs by
 	 * lingering in the bottom 8mm */
-	ymax = tp->device->abs.absinfo_y->maximum;
-	yres = tp->device->abs.absinfo_y->resolution;
-	tp->thumb.upper_thumb_line = ymax - yres * 15;
-	tp->thumb.lower_thumb_line = ymax - yres * 8;
+	mm.y = h * 0.85;
+	edges = evdev_device_mm_to_units(device, &mm);
+	tp->thumb.upper_thumb_line = edges.y;
+
+	mm.y = h * 0.92;
+	edges = evdev_device_mm_to_units(device, &mm);
+	tp->thumb.lower_thumb_line = edges.y;
 
 	abs = libevdev_get_abs_info(device->evdev, ABS_MT_PRESSURE);
 	if (!abs)
@@ -2104,13 +2164,11 @@ out:
 		  "thumb: enabled thumb detection%s on '%s'\n",
 		  tp->thumb.threshold != INT_MAX ? " (+pressure)" : "",
 		  device->devname);
-
-	return 0;
 }
 
-static int
-tp_sanity_check(struct tp_dispatch *tp,
-		struct evdev_device *device)
+static bool
+tp_pass_sanity_check(struct tp_dispatch *tp,
+		     struct evdev_device *device)
 {
 	struct libevdev *evdev = device->evdev;
 	struct libinput *libinput = tp_libinput_context(tp);
@@ -2124,16 +2182,16 @@ tp_sanity_check(struct tp_dispatch *tp,
 	if (!libevdev_has_event_code(evdev, EV_KEY, BTN_TOOL_FINGER))
 		goto error;
 
-	return 0;
+	return true;
 
 error:
 	log_bug_kernel(libinput,
 		       "device %s failed touchpad sanity checks\n",
 		       device->devname);
-	return -1;
+	return false;
 }
 
-static int
+static void
 tp_init_default_resolution(struct tp_dispatch *tp,
 			   struct evdev_device *device)
 {
@@ -2141,8 +2199,8 @@ tp_init_default_resolution(struct tp_dispatch *tp,
 		  touchpad_height_mm = 50;
 	int xres, yres;
 
-	if (!device->abs.fake_resolution)
-		return 0 ;
+	if (!device->abs.is_fake_resolution)
+		return;
 
 	/* we only get here if
 	 * - the touchpad provides no resolution
@@ -2165,9 +2223,7 @@ tp_init_default_resolution(struct tp_dispatch *tp,
 	libevdev_set_abs_resolution(device->evdev, ABS_Y, yres);
 	libevdev_set_abs_resolution(device->evdev, ABS_MT_POSITION_X, xres);
 	libevdev_set_abs_resolution(device->evdev, ABS_MT_POSITION_Y, yres);
-	device->abs.fake_resolution = 0;
-
-	return 0;
+	device->abs.is_fake_resolution = false;
 }
 
 static inline void
@@ -2212,14 +2268,13 @@ tp_init(struct tp_dispatch *tp,
 	tp->base.interface = &tp_interface;
 	tp->device = device;
 
-	if (tp_sanity_check(tp, device) != 0)
-		return -1;
+	if (!tp_pass_sanity_check(tp, device))
+		return false;
 
-	if (tp_init_default_resolution(tp, device) != 0)
-		return -1;
+	tp_init_default_resolution(tp, device);
 
-	if (tp_init_slots(tp, device) != 0)
-		return -1;
+	if (!tp_init_slots(tp, device))
+		return false;
 
 	width = device->abs.dimensions.x;
 	height = device->abs.dimensions.y;
@@ -2232,38 +2287,23 @@ tp_init(struct tp_dispatch *tp,
 
 	tp_init_hysteresis(tp);
 
-	if (tp_init_accel(tp) != 0)
-		return -1;
+	if (!tp_init_accel(tp))
+		return false;
 
-	if (tp_init_tap(tp) != 0)
-		return -1;
-
-	if (tp_init_buttons(tp, device) != 0)
-		return -1;
-
-	if (tp_init_dwt(tp, device) != 0)
-		return -1;
-
-	if (tp_init_palmdetect(tp, device) != 0)
-		return -1;
-
-	if (tp_init_sendevents(tp, device) != 0)
-		return -1;
-
-	if (tp_init_scroll(tp, device) != 0)
-		return -1;
-
-	if (tp_init_gesture(tp) != 0)
-		return -1;
-
-	if (tp_init_thumb(tp) != 0)
-		return -1;
+	tp_init_tap(tp);
+	tp_init_buttons(tp, device);
+	tp_init_dwt(tp, device);
+	tp_init_palmdetect(tp, device);
+	tp_init_sendevents(tp, device);
+	tp_init_scroll(tp, device);
+	tp_init_gesture(tp);
+	tp_init_thumb(tp);
 
 	device->seat_caps |= EVDEV_DEVICE_POINTER;
 	if (tp->gesture.enabled)
 		device->seat_caps |= EVDEV_DEVICE_GESTURE;
 
-	return 0;
+	return true;
 }
 
 static uint32_t
@@ -2370,7 +2410,7 @@ evdev_mt_touchpad_create(struct evdev_device *device)
 	if (!tp)
 		return NULL;
 
-	if (tp_init(tp, device) != 0) {
+	if (!tp_init(tp, device)) {
 		tp_interface_destroy(&tp->base);
 		return NULL;
 	}
@@ -2385,5 +2425,5 @@ evdev_mt_touchpad_create(struct evdev_device *device)
 
 	evdev_init_left_handed(device, tp_change_to_left_handed);
 
-	return  &tp->base;
+	return &tp->base;
 }

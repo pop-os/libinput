@@ -35,6 +35,23 @@
 #include <libinput.h>
 #include <math.h>
 
+extern void litest_setup_tests_udev(void);
+extern void litest_setup_tests_path(void);
+extern void litest_setup_tests_pointer(void);
+extern void litest_setup_tests_touch(void);
+extern void litest_setup_tests_log(void);
+extern void litest_setup_tests_tablet(void);
+extern void litest_setup_tests_pad(void);
+extern void litest_setup_tests_touchpad(void);
+extern void litest_setup_tests_touchpad_tap(void);
+extern void litest_setup_tests_touchpad_buttons(void);
+extern void litest_setup_tests_trackpoint(void);
+extern void litest_setup_tests_trackball(void);
+extern void litest_setup_tests_misc(void);
+extern void litest_setup_tests_keyboard(void);
+extern void litest_setup_tests_device(void);
+extern void litest_setup_tests_gestures(void);
+
 void
 litest_fail_condition(const char *file,
 		      int line,
@@ -153,7 +170,7 @@ litest_fail_comparison_ptr(const char *file,
 
 enum litest_device_type {
 	LITEST_NO_DEVICE = -1,
-	LITEST_SYNAPTICS_CLICKPAD = -1000,
+	LITEST_SYNAPTICS_CLICKPAD_X220 = -1000,
 	LITEST_SYNAPTICS_TOUCHPAD,
 	LITEST_SYNAPTICS_TOPBUTTONPAD,
 	LITEST_BCM5974,
@@ -206,6 +223,7 @@ enum litest_device_type {
 	LITEST_WACOM_CINTIQ_13HDT_PEN,
 	LITEST_WACOM_CINTIQ_13HDT_PAD,
 	LITEST_WACOM_CINTIQ_13HDT_FINGER,
+	LITEST_WACOM_HID4800_PEN,
 };
 
 enum litest_device_feature {
@@ -250,8 +268,6 @@ struct litest_device {
 	bool skip_ev_syn;
 
 	void *private; /* device-specific data */
-
-	char *udev_rule_file;
 };
 
 struct axis_replacement {
@@ -333,9 +349,6 @@ _litest_add_ranged_no_device(const char *name,
 			     const char *funcname,
 			     void *func,
 			     const struct range *range);
-
-extern void
-litest_setup_tests(void);
 
 struct litest_device *
 litest_create_device(enum litest_device_type which);
@@ -517,7 +530,14 @@ void
 litest_drain_events(struct libinput *li);
 
 void
+litest_assert_event_type(struct libinput_event *event,
+			 enum libinput_event_type want);
+
+void
 litest_assert_empty_queue(struct libinput *li);
+
+void
+litest_assert_touch_sequence(struct libinput *li);
 
 struct libinput_event_pointer *
 litest_is_button_event(struct libinput_event *event,
@@ -632,6 +652,9 @@ void
 litest_timeout_gesture(void);
 
 void
+litest_timeout_trackpoint(void);
+
+void
 litest_push_event_frame(struct litest_device *dev);
 
 void
@@ -694,6 +717,17 @@ litest_disable_tap(struct libinput_device *device)
 	status = libinput_device_config_tap_set_enabled(device,
 							LIBINPUT_CONFIG_TAP_DISABLED);
 
+	litest_assert_int_eq(status, expected);
+}
+
+static inline void
+litest_set_tap_map(struct libinput_device *device,
+		   enum libinput_config_tap_button_map map)
+{
+	enum libinput_config_status status, expected;
+
+	expected = LIBINPUT_CONFIG_STATUS_SUCCESS;
+	status = libinput_device_config_tap_set_button_map(device, map);
 	litest_assert_int_eq(status, expected);
 }
 

@@ -30,7 +30,7 @@
 #include "evdev-mt-touchpad.h"
 
 #define DEFAULT_GESTURE_SWITCH_TIMEOUT ms2us(100)
-#define DEFAULT_GESTURE_2FG_SCROLL_TIMEOUT ms2us(500)
+#define DEFAULT_GESTURE_2FG_SCROLL_TIMEOUT ms2us(150)
 
 static inline const char*
 gesture_state_to_str(enum tp_gesture_state state)
@@ -621,7 +621,7 @@ tp_gesture_handle_state(struct tp_dispatch *tp, uint64_t time)
 	}
 }
 
-int
+void
 tp_init_gesture(struct tp_dispatch *tp)
 {
 	/* two-finger scrolling is always enabled, this flag just
@@ -634,7 +634,6 @@ tp_init_gesture(struct tp_dispatch *tp)
 	libinput_timer_init(&tp->gesture.finger_count_switch_timer,
 			    tp_libinput_context(tp),
 			    tp_gesture_finger_count_switch_timeout, tp);
-	return 0;
 }
 
 void

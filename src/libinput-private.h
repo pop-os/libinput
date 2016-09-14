@@ -72,6 +72,11 @@ struct normalized_range_coords {
 };
 
 /* A pair of angles in degrees */
+struct wheel_angle {
+	int x, y;
+};
+
+/* A pair of angles in degrees */
 struct tilt_degrees {
 	double x, y;
 };
@@ -80,6 +85,12 @@ struct tilt_degrees {
 struct threshold {
 	int upper;
 	int lower;
+};
+
+/* A pair of coordinates in mm */
+struct phys_coords {
+	double x;
+	double y;
 };
 
 struct tablet_axes {
@@ -157,6 +168,11 @@ struct libinput_device_config_tap {
 						   enum libinput_config_tap_state enable);
 	enum libinput_config_tap_state (*get_enabled)(struct libinput_device *device);
 	enum libinput_config_tap_state (*get_default)(struct libinput_device *device);
+
+	enum libinput_config_status (*set_map)(struct libinput_device *device,
+						   enum libinput_config_tap_button_map map);
+	enum libinput_config_tap_button_map (*get_map)(struct libinput_device *device);
+	enum libinput_config_tap_button_map (*get_default_map)(struct libinput_device *device);
 
 	enum libinput_config_status (*set_drag_enabled)(struct libinput_device *device,
 							enum libinput_config_drag_state);
@@ -665,7 +681,7 @@ normalized_length(struct normalized_coords norm)
 	return hypot(norm.x, norm.y);
 }
 
-static inline int
+static inline bool
 normalized_is_zero(struct normalized_coords norm)
 {
 	return norm.x == 0.0 && norm.y == 0.0;

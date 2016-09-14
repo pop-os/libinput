@@ -281,32 +281,33 @@ tp_edge_scroll_handle_timeout(uint64_t now, void *data)
 	tp_edge_scroll_handle_event(t->tp, t, SCROLL_EVENT_TIMEOUT);
 }
 
-int
+void
 tp_edge_scroll_init(struct tp_dispatch *tp, struct evdev_device *device)
 {
 	struct tp_touch *t;
-	int edge_width, edge_height;
 	double width, height;
 	bool want_horiz_scroll = true;
+	struct device_coords edges;
+	struct phys_coords mm = { 0.0, 0.0 };
 
+	evdev_device_get_size(device, &width, &height);
 	/* Touchpads smaller than 50mm are not tall enough to have a
 	   horizontal scroll area, it takes too much space away. But
 	   clickpads have enough space here anyway because of the
 	   software button area (and all these tiny clickpads were built
 	   when software buttons were a thing, e.g. Lenovo *20 series)
 	 */
-	if (!tp->buttons.is_clickpad) {
-	    evdev_device_get_size(device, &width, &height);
+	if (!tp->buttons.is_clickpad)
 	    want_horiz_scroll = (height >= 50);
-	}
 
 	/* 7mm edge size */
-	edge_width = device->abs.absinfo_x->resolution * 7;
-	edge_height = device->abs.absinfo_y->resolution * 7;
+	mm.x = width - 7;
+	mm.y = height - 7;
+	edges = evdev_device_mm_to_units(device, &mm);
 
-	tp->scroll.right_edge = device->abs.absinfo_x->maximum - edge_width;
+	tp->scroll.right_edge = edges.x;
 	if (want_horiz_scroll)
-		tp->scroll.bottom_edge = device->abs.absinfo_y->maximum - edge_height;
+		tp->scroll.bottom_edge = edges.y;
 	else
 		tp->scroll.bottom_edge = INT_MAX;
 
@@ -316,8 +317,6 @@ tp_edge_scroll_init(struct tp_dispatch *tp, struct evdev_device *device)
 				    tp_libinput_context(tp),
 				    tp_edge_scroll_handle_timeout, t);
 	}
-
-	return 0;
 }
 
 void
@@ -339,6 +338,9 @@ tp_edge_scroll_handle_state(struct tp_dispatch *tp, uint64_t time)
 			if (t->state == TOUCH_BEGIN)
 				t->scroll.edge_state =
 					EDGE_SCROLL_TOUCH_STATE_AREA;
+			else if (t->state == TOUCH_END)
+				t->scroll.edge_state =
+					EDGE_SCROLL_TOUCH_STATE_NONE;
 		}
 		return;
 	}

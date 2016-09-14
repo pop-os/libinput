@@ -44,7 +44,7 @@ static void close_restricted(int fd, void *data)
 	close(fd);
 }
 
-const struct libinput_interface simple_interface = {
+static const struct libinput_interface simple_interface = {
 	.open_restricted = open_restricted,
 	.close_restricted = close_restricted,
 };
@@ -507,7 +507,7 @@ START_TEST(udev_seat_recycle)
 END_TEST
 
 void
-litest_setup_tests(void)
+litest_setup_tests_udev(void)
 {
 	litest_add_no_device("udev:create", udev_create_NULL);
 	litest_add_no_device("udev:create", udev_create_seat0);
@@ -517,9 +517,9 @@ litest_setup_tests(void)
 	litest_add_no_device("udev:seat", udev_added_seat_default);
 	litest_add_no_device("udev:seat", udev_change_seat);
 
-	litest_add_for_device("udev:suspend", udev_double_suspend, LITEST_SYNAPTICS_CLICKPAD);
-	litest_add_for_device("udev:suspend", udev_double_resume, LITEST_SYNAPTICS_CLICKPAD);
-	litest_add_for_device("udev:suspend", udev_suspend_resume, LITEST_SYNAPTICS_CLICKPAD);
-	litest_add_for_device("udev:device events", udev_device_sysname, LITEST_SYNAPTICS_CLICKPAD);
-	litest_add_for_device("udev:seat", udev_seat_recycle, LITEST_SYNAPTICS_CLICKPAD);
+	litest_add_for_device("udev:suspend", udev_double_suspend, LITEST_SYNAPTICS_CLICKPAD_X220);
+	litest_add_for_device("udev:suspend", udev_double_resume, LITEST_SYNAPTICS_CLICKPAD_X220);
+	litest_add_for_device("udev:suspend", udev_suspend_resume, LITEST_SYNAPTICS_CLICKPAD_X220);
+	litest_add_for_device("udev:device events", udev_device_sysname, LITEST_SYNAPTICS_CLICKPAD_X220);
+	litest_add_for_device("udev:seat", udev_seat_recycle, LITEST_SYNAPTICS_CLICKPAD_X220);
 }
