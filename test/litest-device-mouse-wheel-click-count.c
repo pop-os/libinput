@@ -1,5 +1,5 @@
 /*
- * Copyright © 2015 Red Hat, Inc.
+ * Copyright © 2016 Red Hat, Inc.
  *
  * Permission is hereby granted, free of charge, to any person obtaining a
  * copy of this software and associated documentation files (the "Software"),
@@ -30,7 +30,7 @@
 
 static void litest_mouse_setup(void)
 {
-	struct litest_device *d = litest_create_device(LITEST_MOUSE_WHEEL_CLICK_ANGLE);
+	struct litest_device *d = litest_create_device(LITEST_MOUSE_WHEEL_CLICK_COUNT);
 	litest_set_current_device(d);
 }
 
@@ -51,23 +51,25 @@ static int events[] = {
 };
 
 static const char udev_rule[] =
-"ACTION==\"remove\", GOTO=\"wheel_click_angle_end\"\n"
-"KERNEL!=\"event*\", GOTO=\"wheel_click_angle_end\"\n"
+"ACTION==\"remove\", GOTO=\"wheel_click_count_end\"\n"
+"KERNEL!=\"event*\", GOTO=\"wheel_click_count_end\"\n"
 "\n"
-"ATTRS{name}==\"litest Wheel Click Angle Mouse*\",\\\n"
-"    ENV{MOUSE_WHEEL_CLICK_ANGLE}=\"-7\",\n"
-"    ENV{MOUSE_WHEEL_CLICK_ANGLE_HORIZONTAL}=\"13\"\n"
+"ATTRS{name}==\"litest Wheel Click Count Mouse*\",\\\n"
+"    ENV{MOUSE_WHEEL_CLICK_ANGLE}=\"-15\",\n"
+"    ENV{MOUSE_WHEEL_CLICK_ANGLE_HORIZONTAL}=\"13\",\n\\"
+"    ENV{MOUSE_WHEEL_CLICK_COUNT}=\"-14\",\n"
+"    ENV{MOUSE_WHEEL_CLICK_COUNT_HORIZONTAL}=\"27\"\\\n"
 "\n"
-"LABEL=\"wheel_click_angle_end\"";
+"LABEL=\"wheel_click_count_end\"";
 
-struct litest_test_device litest_mouse_wheel_click_angle_device = {
-	.type = LITEST_MOUSE_WHEEL_CLICK_ANGLE,
+struct litest_test_device litest_mouse_wheel_click_count_device = {
+	.type = LITEST_MOUSE_WHEEL_CLICK_COUNT,
 	.features = LITEST_RELATIVE | LITEST_BUTTON | LITEST_WHEEL,
-	.shortname = "mouse-wheelclickangle",
+	.shortname = "mouse-wheelclickcount",
 	.setup = litest_mouse_setup,
 	.interface = NULL,
 
-	.name = "Wheel Click Angle Mouse",
+	.name = "Wheel Click Count Mouse",
 	.id = &input_id,
 	.absinfo = NULL,
 	.events = events,

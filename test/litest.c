@@ -263,6 +263,7 @@ litest_backtrace(void)
 }
 #endif
 
+LIBINPUT_ATTRIBUTE_PRINTF(5, 6)
 void
 litest_fail_condition(const char *file,
 		      int line,
@@ -401,6 +402,7 @@ extern struct litest_test_device litest_wacom_cintiq_13hdt_finger_device;
 extern struct litest_test_device litest_wacom_cintiq_13hdt_pen_device;
 extern struct litest_test_device litest_wacom_cintiq_13hdt_pad_device;
 extern struct litest_test_device litest_wacom_hid4800_tablet_device;
+extern struct litest_test_device litest_mouse_wheel_click_count_device;
 
 struct litest_test_device* devices[] = {
 	&litest_synaptics_clickpad_device,
@@ -457,6 +459,7 @@ struct litest_test_device* devices[] = {
 	&litest_wacom_cintiq_13hdt_pen_device,
 	&litest_wacom_cintiq_13hdt_pad_device,
 	&litest_wacom_hid4800_tablet_device,
+	&litest_mouse_wheel_click_count_device,
 	NULL,
 };
 
@@ -756,6 +759,7 @@ _litest_add_ranged_for_device(const char *name,
 		litest_abort_msg("Invalid test device type");
 }
 
+LIBINPUT_ATTRIBUTE_PRINTF(3, 0)
 static void
 litest_log_handler(struct libinput *libinput,
 		   enum libinput_log_priority pri,

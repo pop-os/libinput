@@ -2008,7 +2008,7 @@ evdev_device_init_pointer_acceleration(struct evdev_device *device,
 static inline bool
 evdev_read_wheel_click_prop(struct evdev_device *device,
 			    const char *prop,
-			    int *angle)
+			    double *angle)
 {
 	int val;
 
@@ -2024,10 +2024,37 @@ evdev_read_wheel_click_prop(struct evdev_device *device,
 	}
 
 	log_error(evdev_libinput_context(device),
-		  "Mouse wheel click angle '%s' is present but invalid,"
+		  "Mouse wheel click angle '%s' is present but invalid, "
 		  "using %d degrees instead\n",
 		  device->devname,
 		  DEFAULT_WHEEL_CLICK_ANGLE);
+
+	return false;
+}
+
+static inline bool
+evdev_read_wheel_click_count_prop(struct evdev_device *device,
+				  const char *prop,
+				  double *angle)
+{
+	int val;
+
+	prop = udev_device_get_property_value(device->udev_device, prop);
+	if (!prop)
+		return false;
+
+	val = parse_mouse_wheel_click_angle_property(prop);
+	if (val) {
+		*angle = 360.0/val;
+		return true;
+	}
+
+	log_error(evdev_libinput_context(device),
+		  "Mouse wheel click count '%s' is present but invalid, "
+		  "using %d degrees for angle instead instead\n",
+		  device->devname,
+		  DEFAULT_WHEEL_CLICK_ANGLE);
+	*angle = DEFAULT_WHEEL_CLICK_ANGLE;
 
 	return false;
 }
@@ -2037,13 +2064,21 @@ evdev_read_wheel_click_props(struct evdev_device *device)
 {
 	struct wheel_angle angles;
 
-	evdev_read_wheel_click_prop(device,
-				    "MOUSE_WHEEL_CLICK_ANGLE",
-				    &angles.x);
-	if (!evdev_read_wheel_click_prop(device,
-					 "MOUSE_WHEEL_CLICK_ANGLE_HORIZONTAL",
-					 &angles.y))
-		angles.y = angles.x;
+	/* CLICK_COUNT overrides CLICK_ANGLE */
+	if (!evdev_read_wheel_click_count_prop(device,
+					      "MOUSE_WHEEL_CLICK_COUNT",
+					      &angles.x))
+		evdev_read_wheel_click_prop(device,
+					    "MOUSE_WHEEL_CLICK_ANGLE",
+					    &angles.x);
+	if (!evdev_read_wheel_click_count_prop(device,
+					      "MOUSE_WHEEL_CLICK_COUNT_HORIZONTAL",
+					      &angles.y)) {
+		if (!evdev_read_wheel_click_prop(device,
+						 "MOUSE_WHEEL_CLICK_ANGLE_HORIZONTAL",
+						 &angles.y))
+			angles.y = angles.x;
+	}
 
 	return angles;
 }
@@ -2143,6 +2178,7 @@ evdev_read_model_flags(struct evdev_device *device)
 		MODEL(TRACKBALL),
 		MODEL(APPLE_MAGICMOUSE),
 		MODEL(HP8510_TOUCHPAD),
+		MODEL(HP6910_TOUCHPAD),
 #undef MODEL
 		{ "ID_INPUT_TRACKBALL", EVDEV_MODEL_TRACKBALL },
 		{ NULL, EVDEV_MODEL_DEFAULT },
@@ -2468,7 +2504,7 @@ evdev_configure_device(struct evdev_device *device)
 
 	/* libwacom *adds* TABLET, TOUCHPAD but leaves JOYSTICK in place, so
 	   make sure we only ignore real joystick devices */
-	if ((udev_tags & EVDEV_UDEV_TAG_JOYSTICK) == udev_tags) {
+	if (udev_tags == (EVDEV_UDEV_TAG_INPUT|EVDEV_UDEV_TAG_JOYSTICK)) {
 		log_info(libinput,
 			 "input device '%s', %s is a joystick, ignoring\n",
 			 device->devname, devnode);
@@ -2712,9 +2748,11 @@ evdev_pre_configure_model_quirks(struct evdev_device *device)
 		libevdev_disable_event_type(device->evdev, EV_ABS);
 
 	/* Claims to have double/tripletap but doesn't actually send it
-	 * https://bugzilla.redhat.com/show_bug.cgi?id=1351285
+	 * https://bugzilla.redhat.com/show_bug.cgi?id=1351285 and
+	 * https://bugs.freedesktop.org/show_bug.cgi?id=98538
 	 */
-	if (device->model_flags & EVDEV_MODEL_HP8510_TOUCHPAD) {
+	if (device->model_flags &
+	    (EVDEV_MODEL_HP8510_TOUCHPAD|EVDEV_MODEL_HP6910_TOUCHPAD)) {
 		libevdev_disable_event_code(device->evdev, EV_KEY, BTN_TOOL_DOUBLETAP);
 		libevdev_disable_event_code(device->evdev, EV_KEY, BTN_TOOL_TRIPLETAP);
 	}
