@@ -1,9 +1,9 @@
-libinput (1.5.2-1) UNRELEASED; urgency=medium
+libinput (1.5.2-1) unstable; urgency=medium
 
   * New upstream release.
   * control: Add libudev-dev to libinput-dev depends. (Closes: #846506)
 
- -- Timo Aaltonen <tjaalton@debian.org>  Fri, 02 Dec 2016 10:04:26 +0200
+ -- Timo Aaltonen <tjaalton@debian.org>  Fri, 02 Dec 2016 10:07:40 +0200
 
 libinput (1.5.1-1) unstable; urgency=medium
 
