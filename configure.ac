@@ -2,7 +2,7 @@ AC_PREREQ([2.64])
 
 m4_define([libinput_major_version], [1])
 m4_define([libinput_minor_version], [5])
-m4_define([libinput_micro_version], [1])
+m4_define([libinput_micro_version], [2])
 m4_define([libinput_version],
           [libinput_major_version.libinput_minor_version.libinput_micro_version])
 
@@ -35,7 +35,7 @@ AM_INIT_AUTOMAKE([1.11 foreign no-dist-gzip dist-xz])
 # b) If interfaces have been changed or added, but binary compatibility has
 #    been preserved, change to C+1:0:A+1
 # c) If the interface is the same as the previous version, change to C:R+1:A
-LIBINPUT_LT_VERSION=20:2:10
+LIBINPUT_LT_VERSION=20:3:10
 AC_SUBST(LIBINPUT_LT_VERSION)
 
 AM_SILENT_RULES([yes])
@@ -83,6 +83,9 @@ fi
 AC_SUBST(GCC_CFLAGS)
 AC_SUBST(GCC_CXXFLAGS)
 
+######################
+# udev configuration #
+######################
 udev_dir_default="$libdir/udev"
 AC_ARG_WITH(udev-dir,
             AS_HELP_STRING([--with-udev-dir=DIR],
@@ -96,6 +99,9 @@ AS_CASE($with_udev_dir,
 UDEV_DIR=${udevdir}
 AC_SUBST(UDEV_DIR)
 
+################################
+# enable/disable documentation #
+################################
 AC_ARG_ENABLE([documentation],
 	      [AC_HELP_STRING([--enable-documentation],
 		              [Enable building the documentation (default=auto)])],
@@ -146,6 +152,9 @@ if test "x$build_documentation" = "xyes" -o "x$build_documentation" = "xauto"; t
 	fi
 fi
 
+###########################################
+# enable/disable event gui debugging tool #
+###########################################
 AC_ARG_ENABLE(event-gui,
 	      AS_HELP_STRING([--enable-event-gui], [Build the GUI event viewer (default=auto)]),
 	      [build_eventgui="$enableval"],
@@ -159,8 +168,10 @@ if test "x$build_eventgui" = "xyes"; then
 	PKG_CHECK_MODULES(CAIRO, [cairo])
 	PKG_CHECK_MODULES(GTK, [glib-2.0 gtk+-3.0])
 fi
-AM_CONDITIONAL(BUILD_EVENTGUI, [test "x$build_eventgui" = "xyes"])
 
+########################
+# enable/disable tests #
+########################
 AC_ARG_ENABLE(tests,
 	      AS_HELP_STRING([--enable-tests], [Build the tests (default=auto)]),
 	      [build_tests="$enableval"],
@@ -199,7 +210,21 @@ if test "x$build_tests" = "xyes"; then
 		AC_DEFINE_UNQUOTED(ADDR2LINE, ["$ADDR2LINE"], [Path to addr2line])
 	fi
 fi
-AM_CONDITIONAL(HAVE_LIBUNWIND, [test "x$HAVE_LIBUNWIND" = xyes])
+
+AC_ARG_ENABLE(test-run,
+	      AS_HELP_STRING([--enable-test-run], [For internal use only]),
+	      [run_tests="$enableval"],
+	      [run_tests="yes"])
+
+# Used by the udev rules so we can use callouts during testing without
+# installing everything first. Default is the empty string so the installed
+# rule will use udev's default path. Override is in udev/Makefile.am
+AC_SUBST(UDEV_TEST_PATH, "")
+AC_PATH_PROG(SED, [sed])
+
+###########################
+# enable/disable libwacom #
+###########################
 
 AC_ARG_ENABLE(libwacom,
 	      AS_HELP_STRING([--enable-libwacom],
@@ -227,18 +252,15 @@ if test "x$use_libwacom" = "xyes"; then
 	LIBS=$OLD_LIBS
 	CFLAGS=$OLD_CFLAGS
 fi
+
 AM_CONDITIONAL(HAVE_LIBWACOM_GET_PAIRED_DEVICE,
 	       [test "x$libwacom_have_get_paired_device" == "xyes"])
-
 AM_CONDITIONAL(HAVE_VALGRIND, [test "x$VALGRIND" != "x"])
 AM_CONDITIONAL(BUILD_TESTS, [test "x$build_tests" = "xyes"])
+AM_CONDITIONAL(RUN_TESTS, [test "x$run_tests" = "xyes"])
 AM_CONDITIONAL(BUILD_DOCS, [test "x$build_documentation" = "xyes"])
-
-# Used by the udev rules so we can use callouts during testing without
-# installing everything first. Default is the empty string so the installed
-# rule will use udev's default path. Override is in udev/Makefile.am
-AC_SUBST(UDEV_TEST_PATH, "")
-AC_PATH_PROG(SED, [sed])
+AM_CONDITIONAL(HAVE_LIBUNWIND, [test "x$HAVE_LIBUNWIND" = xyes])
+AM_CONDITIONAL(BUILD_EVENTGUI, [test "x$build_eventgui" = "xyes"])
 
 AC_CONFIG_FILES([Makefile
 		 doc/Makefile

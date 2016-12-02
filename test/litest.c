@@ -264,6 +264,7 @@ litest_backtrace(void)
 #endif
 
 LIBINPUT_ATTRIBUTE_PRINTF(5, 6)
+__attribute__((noreturn))
 void
 litest_fail_condition(const char *file,
 		      int line,
@@ -286,6 +287,7 @@ litest_fail_condition(const char *file,
 	abort();
 }
 
+__attribute__((noreturn))
 void
 litest_fail_comparison_int(const char *file,
 			   int line,
@@ -303,6 +305,7 @@ litest_fail_comparison_int(const char *file,
 	abort();
 }
 
+__attribute__((noreturn))
 void
 litest_fail_comparison_ptr(const char *file,
 			   int line,
@@ -1600,7 +1603,7 @@ litest_touch_move_to(struct litest_device *d,
 		     double x_to, double y_to,
 		     int steps, int sleep_ms)
 {
-	for (int i = 0; i < steps - 1; i++) {
+	for (int i = 1; i < steps - 1; i++) {
 		litest_touch_move(d, slot,
 				  x_from + (x_to - x_from)/steps * i,
 				  y_from + (y_to - y_from)/steps * i);
@@ -1696,7 +1699,7 @@ litest_touch_move_two_touches(struct litest_device *d,
 			      double dx, double dy,
 			      int steps, int sleep_ms)
 {
-	for (int i = 0; i < steps - 1; i++) {
+	for (int i = 1; i < steps; i++) {
 		litest_push_event_frame(d);
 		litest_touch_move(d, 0, x0 + dx / steps * i,
 					y0 + dy / steps * i);
@@ -2803,6 +2806,7 @@ litest_assert_scroll(struct libinput *li,
 	struct libinput_event *event, *next_event;
 	struct libinput_event_pointer *ptrev;
 	int value;
+	int nevents = 0;
 
 	event = libinput_get_event(li);
 	next_event = libinput_get_event(li);
@@ -2810,16 +2814,26 @@ litest_assert_scroll(struct libinput *li,
 
 	while (event) {
 		ptrev = litest_is_axis_event(event, axis, 0);
+		nevents++;
 
 		if (next_event) {
+			int min = minimum_movement;
+
 			value = libinput_event_pointer_get_axis_value(ptrev,
 								      axis);
+			/* Due to how the hysteresis works on touchpad
+			 * events, the first event is reduced by the
+			 * hysteresis margin that can cause the first event
+			 * go under the minimum we expect for all other
+			 * events */
+			if (nevents == 1)
+				min = minimum_movement/2;
+
 			/* Normal scroll event, check dir */
-			if (minimum_movement > 0) {
-				litest_assert_int_ge(value, minimum_movement);
-			} else {
-				litest_assert_int_le(value, minimum_movement);
-			}
+			if (minimum_movement > 0)
+				litest_assert_int_ge(value, min);
+			else
+				litest_assert_int_le(value, min);
 		} else {
 			/* Last scroll event, must be 0 */
 			ck_assert_double_eq(
