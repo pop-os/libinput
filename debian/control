@@ -70,6 +70,7 @@ Architecture: any
 Multi-Arch: same
 Depends:
  libinput10 (= ${binary:Version}),
+ libudev-dev,
  ${shlibs:Depends},
  ${misc:Depends},
 Description: input device management and event handling library - development files
