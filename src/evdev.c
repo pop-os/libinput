@@ -2180,6 +2180,7 @@ evdev_read_model_flags(struct evdev_device *device)
 		MODEL(HP8510_TOUCHPAD),
 		MODEL(HP6910_TOUCHPAD),
 		MODEL(HP_ZBOOK_STUDIO_G3),
+		MODEL(HP_PAVILION_DM4_TOUCHPAD),
 #undef MODEL
 		{ "ID_INPUT_TRACKBALL", EVDEV_MODEL_TRACKBALL },
 		{ NULL, EVDEV_MODEL_DEFAULT },
@@ -2973,6 +2974,51 @@ evdev_device_calibrate(struct evdev_device *device,
 
 	/* store final matrix in device */
 	matrix_mult(&device->abs.calibration, &transform, &scale);
+}
+
+void
+evdev_read_calibration_prop(struct evdev_device *device)
+{
+	const char *calibration_values;
+	float calibration[6];
+	int idx;
+	char **strv;
+
+	calibration_values =
+		udev_device_get_property_value(device->udev_device,
+					       "LIBINPUT_CALIBRATION_MATRIX");
+
+	if (calibration_values == NULL)
+		return;
+
+	if (!device->abs.absinfo_x || !device->abs.absinfo_y)
+		return;
+
+	strv = strv_from_string(calibration_values, " ");
+	if (!strv)
+		return;
+
+	for (idx = 0; idx < 6; idx++) {
+		double v;
+		if (strv[idx] == NULL || !safe_atod(strv[idx], &v)) {
+			strv_free(strv);
+			return;
+		}
+
+		calibration[idx] = v;
+	}
+
+	strv_free(strv);
+
+	evdev_device_set_default_calibration(device, calibration);
+	log_info(evdev_libinput_context(device),
+		 "Applying calibration: %f %f %f %f %f %f\n",
+		 calibration[0],
+		 calibration[1],
+		 calibration[2],
+		 calibration[3],
+		 calibration[4],
+		 calibration[5]);
 }
 
 bool

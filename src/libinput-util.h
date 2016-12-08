@@ -28,14 +28,16 @@
 #include "config.h"
 
 #include <assert.h>
-#include <unistd.h>
+#include <errno.h>
 #include <limits.h>
+#include <locale.h>
 #include <math.h>
 #include <stdarg.h>
 #include <stdbool.h>
 #include <stdio.h>
 #include <string.h>
 #include <time.h>
+#include <unistd.h>
 
 #include "libinput.h"
 
@@ -407,20 +409,69 @@ us2ms(uint64_t us)
 static inline bool
 safe_atoi(const char *str, int *val)
 {
-        char *endptr;
-        long v;
+	char *endptr;
+	long v;
 
-        v = strtol(str, &endptr, 10);
-        if (str == endptr)
-                return false;
-        if (*str != '\0' && *endptr != '\0')
-                return false;
+	errno = 0;
+	v = strtol(str, &endptr, 10);
+	if (errno > 0)
+		return false;
+	if (str == endptr)
+		return false;
+	if (*str != '\0' && *endptr != '\0')
+		return false;
 
-        if (v > INT_MAX || v < INT_MIN)
-                return false;
+	if (v > INT_MAX || v < INT_MIN)
+		return false;
 
-        *val = v;
-        return true;
+	*val = v;
+	return true;
+}
+
+static inline bool
+safe_atod(const char *str, double *val)
+{
+	char *endptr;
+	double v;
+	locale_t c_locale;
+
+	/* Create a "C" locale to force strtod to use '.' as separator */
+	c_locale = newlocale(LC_NUMERIC_MASK, "C", (locale_t)0);
+	if (c_locale == (locale_t)0)
+		return false;
+
+	errno = 0;
+	v = strtod_l(str, &endptr, c_locale);
+	freelocale(c_locale);
+	if (errno > 0)
+		return false;
+	if (str == endptr)
+		return false;
+	if (*str != '\0' && *endptr != '\0')
+		return false;
+	if (isnan(v) || isinf(v))
+		return false;
+
+	*val = v;
+	return true;
+}
+
+char **strv_from_string(const char *string, const char *separator);
+
+static inline void
+strv_free(char **strv) {
+	char **s = strv;
+
+	if (!strv)
+		return;
+
+	while (*s != NULL) {
+		free(*s);
+		*s = (char*)0x1; /* detect use-after-free */
+		s++;
+	}
+
+	free (strv);
 }
 
 #endif /* LIBINPUT_UTIL_H */

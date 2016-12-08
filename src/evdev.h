@@ -122,6 +122,7 @@ enum evdev_device_model {
 	EVDEV_MODEL_HP8510_TOUCHPAD = (1 << 21),
 	EVDEV_MODEL_HP6910_TOUCHPAD = (1 << 22),
 	EVDEV_MODEL_HP_ZBOOK_STUDIO_G3 = (1 << 23),
+	EVDEV_MODEL_HP_PAVILION_DM4_TOUCHPAD = (1 << 24),
 };
 
 struct mt_slot {
@@ -336,6 +337,9 @@ evdev_transform_relative(struct evdev_device *device,
 void
 evdev_init_calibration(struct evdev_device *device,
 		        struct libinput_device_config_calibration *calibration);
+
+void
+evdev_read_calibration_prop(struct evdev_device *device);
 
 void
 evdev_device_init_pointer_acceleration(struct evdev_device *device,
