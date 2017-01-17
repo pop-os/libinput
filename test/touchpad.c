@@ -2079,7 +2079,7 @@ START_TEST(touchpad_hover_down_up)
 	litest_hover_start(dev, 0, 50, 50);
 	litest_hover_start(dev, 1, 50, 50);
 	litest_touch_down(dev, 2, 50, 50);
-	litest_pop_event_frame(dev);;
+	litest_pop_event_frame(dev);
 
 	litest_assert_empty_queue(li);
 
@@ -2088,7 +2088,7 @@ START_TEST(touchpad_hover_down_up)
 	litest_hover_move(dev, 0, 55, 55);
 	litest_hover_end(dev, 1);
 	litest_touch_up(dev, 2);
-	litest_pop_event_frame(dev);;
+	litest_pop_event_frame(dev);
 
 	litest_assert_empty_queue(li);
 
@@ -2112,14 +2112,14 @@ START_TEST(touchpad_hover_2fg_noevent)
 	litest_push_event_frame(dev);
 	litest_hover_start(dev, 0, 25, 25);
 	litest_hover_start(dev, 1, 50, 50);
-	litest_pop_event_frame(dev);;
+	litest_pop_event_frame(dev);
 
 	litest_hover_move_two_touches(dev, 25, 25, 50, 50, 50, 50, 10, 0);
 
 	litest_push_event_frame(dev);
 	litest_hover_end(dev, 0);
 	litest_hover_end(dev, 1);
-	litest_pop_event_frame(dev);;
+	litest_pop_event_frame(dev);
 
 	litest_assert_empty_queue(li);
 }
@@ -2137,19 +2137,19 @@ START_TEST(touchpad_hover_2fg_1fg_down)
 	litest_push_event_frame(dev);
 	litest_hover_start(dev, 0, 25, 25);
 	litest_touch_down(dev, 1, 50, 50);
-	litest_pop_event_frame(dev);;
+	litest_pop_event_frame(dev);
 
 	for (i = 0; i < 10; i++) {
 		litest_push_event_frame(dev);
 		litest_hover_move(dev, 0, 25 + 5 * i, 25 + 5 * i);
 		litest_touch_move(dev, 1, 50 + 5 * i, 50 - 5 * i);
-		litest_pop_event_frame(dev);;
+		litest_pop_event_frame(dev);
 	}
 
 	litest_push_event_frame(dev);
 	litest_hover_end(dev, 0);
 	litest_touch_up(dev, 1);
-	litest_pop_event_frame(dev);;
+	litest_pop_event_frame(dev);
 
 	litest_assert_only_typed_events(li, LIBINPUT_EVENT_POINTER_MOTION);
 }
@@ -2500,6 +2500,9 @@ dwt_init_paired_keyboard(struct libinput *li,
 
 	if (libevdev_get_id_vendor(touchpad->evdev) == VENDOR_ID_APPLE)
 		which = LITEST_APPLE_KEYBOARD;
+
+	if (libevdev_get_id_vendor(touchpad->evdev) == VENDOR_ID_CHICONY)
+		which = LITEST_ACER_HAWAII_KEYBOARD;
 
 	return litest_add_device(li, which);
 }
@@ -3774,6 +3777,45 @@ START_TEST(touchpad_dwt_apple)
 }
 END_TEST
 
+START_TEST(touchpad_dwt_acer_hawaii)
+{
+	struct litest_device *touchpad = litest_current_device();
+	struct litest_device *keyboard, *hawaii_keyboard;
+	struct libinput *li = touchpad->libinput;
+
+	ck_assert(has_disable_while_typing(touchpad));
+
+	/* Only the hawaii keyboard can trigger DWT */
+	keyboard = litest_add_device(li, LITEST_KEYBOARD);
+	litest_drain_events(li);
+
+	litest_keyboard_key(keyboard, KEY_A, true);
+	litest_keyboard_key(keyboard, KEY_A, false);
+	litest_assert_only_typed_events(li, LIBINPUT_EVENT_KEYBOARD_KEY);
+
+	litest_touch_down(touchpad, 0, 50, 50);
+	litest_touch_move_to(touchpad, 0, 50, 50, 70, 50, 10, 1);
+	litest_touch_up(touchpad, 0);
+	litest_assert_only_typed_events(li, LIBINPUT_EVENT_POINTER_MOTION);
+
+	hawaii_keyboard = litest_add_device(li, LITEST_ACER_HAWAII_KEYBOARD);
+	litest_drain_events(li);
+
+	litest_keyboard_key(hawaii_keyboard, KEY_A, true);
+	litest_keyboard_key(hawaii_keyboard, KEY_A, false);
+	litest_assert_only_typed_events(li, LIBINPUT_EVENT_KEYBOARD_KEY);
+
+	litest_touch_down(touchpad, 0, 50, 50);
+	litest_touch_move_to(touchpad, 0, 50, 50, 70, 50, 10, 1);
+	litest_touch_up(touchpad, 0);
+	libinput_dispatch(li);
+	litest_assert_empty_queue(li);
+
+	litest_delete_device(keyboard);
+	litest_delete_device(hawaii_keyboard);
+}
+END_TEST
+
 static int
 has_thumb_detect(struct litest_device *dev)
 {
@@ -4750,6 +4792,7 @@ litest_setup_tests_touchpad(void)
 	litest_add("touchpad:dwt", touchpad_dwt_enable_before_touch, LITEST_TOUCHPAD, LITEST_ANY);
 	litest_add("touchpad:dwt", touchpad_dwt_enable_during_tap, LITEST_TOUCHPAD, LITEST_ANY);
 	litest_add_for_device("touchpad:dwt", touchpad_dwt_apple, LITEST_BCM5974);
+	litest_add_for_device("touchpad:dwt", touchpad_dwt_acer_hawaii, LITEST_ACER_HAWAII_TOUCHPAD);
 
 	litest_add("touchpad:thumb", touchpad_thumb_begin_no_motion, LITEST_CLICKPAD, LITEST_ANY);
 	litest_add("touchpad:thumb", touchpad_thumb_update_no_motion, LITEST_CLICKPAD, LITEST_ANY);
