@@ -248,11 +248,6 @@ struct tp_dispatch {
 	struct device_coords hysteresis_margin;
 
 	struct {
-		struct device_coords min, max;
-		struct ratelimit range_warn_limit;
-	} warning_range;
-
-	struct {
 		double x_scale_coeff;
 		double y_scale_coeff;
 	} accel;
@@ -393,7 +388,8 @@ tp_libinput_context(const struct tp_dispatch *tp)
 }
 
 static inline struct normalized_coords
-tp_normalize_delta(struct tp_dispatch *tp, struct device_float_coords delta)
+tp_normalize_delta(const struct tp_dispatch *tp,
+		   struct device_float_coords delta)
 {
 	struct normalized_coords normalized;
 
@@ -408,7 +404,8 @@ tp_normalize_delta(struct tp_dispatch *tp, struct device_float_coords delta)
  * in the x-axis' coordinate space.
  */
 static inline struct device_float_coords
-tp_unnormalize_for_xaxis(struct tp_dispatch *tp, struct normalized_coords delta)
+tp_unnormalize_for_xaxis(const struct tp_dispatch *tp,
+			 struct normalized_coords delta)
 {
 	struct device_float_coords raw;
 

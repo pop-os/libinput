@@ -21,7 +21,6 @@
  * DEALINGS IN THE SOFTWARE.
  */
 
-#define _GNU_SOURCE
 #include <config.h>
 
 #include <errno.h>
@@ -76,7 +75,7 @@ log_handler(struct libinput *li,
 }
 
 void
-tools_usage()
+tools_usage(void)
 {
 	printf("Usage: %s [options] [--udev [<seat>]|--device /dev/input/event0]\n"
 	       "--udev <seat>.... Use udev device discovery (default).\n"
@@ -173,7 +172,7 @@ tools_parse_args(int argc, char **argv, struct tools_context *context)
 			{ "set-scroll-button", 1, 0, OPT_SCROLL_BUTTON },
 			{ "set-profile", 1, 0, OPT_PROFILE },
 			{ "set-tap-map", 1, 0, OPT_TAP_MAP },
-			{ "speed", 1, 0, OPT_SPEED },
+			{ "set-speed", 1, 0, OPT_SPEED },
 			{ 0, 0, 0, 0}
 		};
 
@@ -470,7 +469,7 @@ tools_device_apply_config(struct libinput_device *device,
 {
 	if (options->tapping != -1)
 		libinput_device_config_tap_set_enabled(device, options->tapping);
-	if (options->tap_map != -1)
+	if (options->tap_map != (enum libinput_config_tap_button_map)-1)
 		libinput_device_config_tap_set_button_map(device,
 							  options->tap_map);
 	if (options->drag != -1)
@@ -491,10 +490,10 @@ tools_device_apply_config(struct libinput_device *device,
 	if (options->dwt != -1)
 		libinput_device_config_dwt_set_enabled(device, options->dwt);
 
-	if (options->click_method != -1)
+	if (options->click_method != (enum libinput_config_click_method)-1)
 		libinput_device_config_click_set_method(device, options->click_method);
 
-	if (options->scroll_method != -1)
+	if (options->scroll_method != (enum libinput_config_scroll_method)-1)
 		libinput_device_config_scroll_set_method(device,
 							 options->scroll_method);
 	if (options->scroll_button != -1)

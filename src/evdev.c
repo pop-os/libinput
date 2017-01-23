@@ -93,6 +93,28 @@ static const struct evdev_udev_tag_match evdev_udev_tag_matches[] = {
 	{ 0 },
 };
 
+static inline bool
+parse_udev_flag(struct evdev_device *device,
+		struct udev_device *udev_device,
+		const char *property)
+{
+	const char *val;
+
+	val = udev_device_get_property_value(udev_device, property);
+	if (!val)
+		return false;
+
+	if (streq(val, "1"))
+		return true;
+	if (!streq(val, "0"))
+		log_error(evdev_libinput_context(device),
+			  "%s: property %s has invalid value '%s'\n",
+			  evdev_device_get_sysname(device),
+			  property,
+			  val);
+	return false;
+}
+
 static void
 hw_set_key_down(struct fallback_dispatch *dispatch, int code, int pressed)
 {
@@ -249,7 +271,7 @@ void
 evdev_device_led_update(struct evdev_device *device, enum libinput_led leds)
 {
 	static const struct {
-		enum libinput_led weston;
+		enum libinput_led libinput;
 		int evdev;
 	} map[] = {
 		{ LIBINPUT_LED_NUM_LOCK, LED_NUML },
@@ -266,7 +288,7 @@ evdev_device_led_update(struct evdev_device *device, enum libinput_led leds)
 	for (i = 0; i < ARRAY_LENGTH(map); i++) {
 		ev[i].type = EV_LED;
 		ev[i].code = map[i].evdev;
-		ev[i].value = !!(leds & map[i].weston);
+		ev[i].value = !!(leds & map[i].libinput);
 	}
 	ev[i].type = EV_SYN;
 	ev[i].code = SYN_REPORT;
@@ -419,7 +441,7 @@ fallback_flush_relative_motion(struct fallback_dispatch *dispatch,
 	if (device->pointer.filter) {
 		/* Apply pointer acceleration. */
 		accel = filter_dispatch(device->pointer.filter,
-					&unaccel,
+					&raw,
 					device,
 					time);
 	} else {
@@ -852,11 +874,13 @@ fallback_process_touch(struct fallback_dispatch *dispatch,
 			dispatch->pending_event = EVDEV_ABSOLUTE_MT_UP;
 		break;
 	case ABS_MT_POSITION_X:
+		evdev_device_check_abs_axis_range(device, e->code, e->value);
 		dispatch->mt.slots[dispatch->mt.slot].point.x = e->value;
 		if (dispatch->pending_event == EVDEV_NONE)
 			dispatch->pending_event = EVDEV_ABSOLUTE_MT_MOTION;
 		break;
 	case ABS_MT_POSITION_Y:
+		evdev_device_check_abs_axis_range(device, e->code, e->value);
 		dispatch->mt.slots[dispatch->mt.slot].point.y = e->value;
 		if (dispatch->pending_event == EVDEV_NONE)
 			dispatch->pending_event = EVDEV_ABSOLUTE_MT_MOTION;
@@ -870,11 +894,13 @@ fallback_process_absolute_motion(struct fallback_dispatch *dispatch,
 {
 	switch (e->code) {
 	case ABS_X:
+		evdev_device_check_abs_axis_range(device, e->code, e->value);
 		dispatch->abs.point.x = e->value;
 		if (dispatch->pending_event == EVDEV_NONE)
 			dispatch->pending_event = EVDEV_ABSOLUTE_MOTION;
 		break;
 	case ABS_Y:
+		evdev_device_check_abs_axis_range(device, e->code, e->value);
 		dispatch->abs.point.y = e->value;
 		if (dispatch->pending_event == EVDEV_NONE)
 			dispatch->pending_event = EVDEV_ABSOLUTE_MOTION;
@@ -1022,8 +1048,7 @@ evdev_tag_trackpoint(struct evdev_device *device,
 {
 	if (libevdev_has_property(device->evdev,
 				  INPUT_PROP_POINTING_STICK) ||
-	    udev_device_get_property_value(udev_device,
-					   "ID_INPUT_POINTINGSTICK"))
+	    parse_udev_flag(device, udev_device, "ID_INPUT_POINTINGSTICK"))
 		device->tags |= EVDEV_TAG_TRACKPOINT;
 }
 
@@ -1466,7 +1491,7 @@ evdev_scroll_get_default_button(struct libinput_device *device)
 {
 	struct evdev_device *evdev = (struct evdev_device *)device;
 
-	if( libevdev_has_event_code(evdev->evdev, EV_KEY, BTN_MIDDLE))
+	if (libevdev_has_event_code(evdev->evdev, EV_KEY, BTN_MIDDLE))
 		return BTN_MIDDLE;
 
 	return 0;
@@ -1716,6 +1741,8 @@ fallback_dispatch_init_abs(struct fallback_dispatch *dispatch,
 	dispatch->abs.point.x = device->abs.absinfo_x->value;
 	dispatch->abs.point.y = device->abs.absinfo_y->value;
 	dispatch->abs.seat_slot = -1;
+
+	evdev_device_init_abs_range_warnings(device);
 }
 
 static struct evdev_dispatch *
@@ -2187,12 +2214,11 @@ evdev_read_model_flags(struct evdev_device *device)
 	};
 	const struct model_map *m = model_map;
 	uint32_t model_flags = 0;
-	const char *val;
 
 	while (m->property) {
-		val = udev_device_get_property_value(device->udev_device,
-						     m->property);
-		if (val && !streq(val, "0")) {
+		if (parse_udev_flag(device,
+				    device->udev_device,
+				    m->property)) {
 			log_debug(evdev_libinput_context(device),
 				  "%s: tagged as %s\n",
 				  evdev_device_get_sysname(device),
@@ -2288,7 +2314,6 @@ static enum evdev_device_udev_tags
 evdev_device_get_udev_tags(struct evdev_device *device,
 			   struct udev_device *udev_device)
 {
-	const char *prop;
 	enum evdev_device_udev_tags tags = 0;
 	const struct evdev_udev_tag_match *match;
 	int i;
@@ -2296,10 +2321,9 @@ evdev_device_get_udev_tags(struct evdev_device *device,
 	for (i = 0; i < 2 && udev_device; i++) {
 		match = evdev_udev_tag_matches;
 		while (match->name) {
-			prop = udev_device_get_property_value(
-						      udev_device,
-						      match->name);
-			if (prop)
+			if (parse_udev_flag(device,
+					    udev_device,
+					    match->name))
 				tags |= match->tag;
 
 			match++;
@@ -2737,7 +2761,7 @@ evdev_pre_configure_model_quirks(struct evdev_device *device)
 	 *
 	 * Disable the event codes to avoid stuck buttons.
 	 */
-	if(device->model_flags & EVDEV_MODEL_CYBORG_RAT) {
+	if (device->model_flags & EVDEV_MODEL_CYBORG_RAT) {
 		libevdev_disable_event_code(device->evdev, EV_KEY, 0x118);
 		libevdev_disable_event_code(device->evdev, EV_KEY, 0x119);
 		libevdev_disable_event_code(device->evdev, EV_KEY, 0x11a);
