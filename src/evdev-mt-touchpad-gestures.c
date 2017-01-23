@@ -181,7 +181,7 @@ tp_gesture_get_active_touches(const struct tp_dispatch *tp,
 	return n;
 }
 
-static int
+static uint32_t
 tp_gesture_get_direction(struct tp_dispatch *tp, struct tp_touch *touch,
 			 unsigned int nfingers)
 {
@@ -313,7 +313,7 @@ tp_gesture_same_directions(int dir1, int dir2)
 }
 
 static inline void
-tp_gesture_init_pinch( struct tp_dispatch *tp)
+tp_gesture_init_pinch(struct tp_dispatch *tp)
 {
 	tp_gesture_get_pinch_info(tp,
 				  &tp->gesture.initial_distance,
@@ -327,7 +327,7 @@ tp_gesture_handle_state_unknown(struct tp_dispatch *tp, uint64_t time)
 {
 	struct tp_touch *first = tp->gesture.touches[0],
 			*second = tp->gesture.touches[1];
-	int dir1, dir2;
+	uint32_t dir1, dir2;
 	int yres = tp->device->abs.absinfo_y->resolution;
 	int vert_distance;
 

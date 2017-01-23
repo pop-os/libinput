@@ -728,8 +728,6 @@ START_TEST(wheel_click_parser)
 		{ "10", 10 },
 		{ "-12", -12 },
 		{ "360", 360 },
-		{ "66 ", 66 },
-		{ "   100 ", 100 },
 
 		{ "0", 0 },
 		{ "-0", 0 },
@@ -757,8 +755,6 @@ START_TEST(wheel_click_count_parser)
 		{ "10", 10 },
 		{ "-12", -12 },
 		{ "360", 360 },
-		{ "66 ", 66 },
-		{ "   100 ", 100 },
 
 		{ "0", 0 },
 		{ "-0", 0 },
@@ -858,6 +854,47 @@ START_TEST(time_conversion)
 	ck_assert_int_eq(ms2us(10), 10000);
 	ck_assert_int_eq(s2us(1), 1000000);
 	ck_assert_int_eq(us2ms(10000), 10);
+}
+END_TEST
+
+struct atoi_test {
+	char *str;
+	bool success;
+	int val;
+};
+
+START_TEST(safe_atoi_test)
+{
+	struct atoi_test tests[] = {
+		{ "10", true, 10 },
+		{ "20", true, 20 },
+		{ "-1", true, -1 },
+		{ "2147483647", true, 2147483647 },
+		{ "-2147483648", true, -2147483648 },
+		{ "4294967295", false, 0 },
+		{ "0x0", false, 0 },
+		{ "-10x10", false, 0 },
+		{ "1x-99", false, 0 },
+		{ "", false, 0 },
+		{ "abd", false, 0 },
+		{ "xabd", false, 0 },
+		{ "0xaf", false, 0 },
+		{ "0x0x", false, 0 },
+		{ "x10", false, 0 },
+		{ NULL, false, 0 }
+	};
+	int v;
+	bool success;
+
+	for (int i = 0; tests[i].str != NULL; i++) {
+		v = 0xad;
+		success = safe_atoi(tests[i].str, &v);
+		ck_assert(success == tests[i].success);
+		if (success)
+			ck_assert_int_eq(v, tests[i].val);
+		else
+			ck_assert_int_eq(v, 0xad);
+	}
 }
 END_TEST
 
@@ -1081,6 +1118,7 @@ litest_setup_tests_misc(void)
 	litest_add_no_device("misc:parser", wheel_click_count_parser);
 	litest_add_no_device("misc:parser", trackpoint_accel_parser);
 	litest_add_no_device("misc:parser", dimension_prop_parser);
+	litest_add_no_device("misc:parser", safe_atoi_test);
 	litest_add_no_device("misc:parser", safe_atod_test);
 	litest_add_no_device("misc:parser", strsplit_test);
 	litest_add_no_device("misc:time", time_conversion);

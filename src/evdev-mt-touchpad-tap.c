@@ -22,9 +22,7 @@
  * CONNECTION WITH THE USE OR PERFORMANCE OF THIS SOFTWARE.
  */
 
-#ifdef HAVE_CONFIG_H
 #include "config.h"
-#endif
 
 #include <assert.h>
 #include <errno.h>
@@ -35,9 +33,10 @@
 
 #include "evdev-mt-touchpad.h"
 
+#define DEFAULT_TAP_INITIAL_TIMEOUT_PERIOD ms2us(100)
 #define DEFAULT_TAP_TIMEOUT_PERIOD ms2us(180)
 #define DEFAULT_DRAG_TIMEOUT_PERIOD ms2us(300)
-#define DEFAULT_TAP_MOVE_THRESHOLD TP_MM_TO_DPI_NORMALIZED(3)
+#define DEFAULT_TAP_MOVE_THRESHOLD TP_MM_TO_DPI_NORMALIZED(1.3)
 
 enum tap_event {
 	TAP_EVENT_TOUCH = 12,
@@ -129,6 +128,13 @@ tp_tap_notify(struct tp_dispatch *tp,
 }
 
 static void
+tp_tap_set_initial_timer(struct tp_dispatch *tp, uint64_t time)
+{
+	libinput_timer_set(&tp->tap.timer,
+			   time + DEFAULT_TAP_INITIAL_TIMEOUT_PERIOD);
+}
+
+static void
 tp_tap_set_timer(struct tp_dispatch *tp, uint64_t time)
 {
 	libinput_timer_set(&tp->tap.timer, time + DEFAULT_TAP_TIMEOUT_PERIOD);
@@ -157,7 +163,7 @@ tp_tap_idle_handle_event(struct tp_dispatch *tp,
 	case TAP_EVENT_TOUCH:
 		tp->tap.state = TAP_STATE_TOUCH;
 		tp->tap.first_press_time = time;
-		tp_tap_set_timer(tp, time);
+		tp_tap_set_initial_timer(tp, time);
 		break;
 	case TAP_EVENT_RELEASE:
 		break;
@@ -898,7 +904,7 @@ tp_tap_config_count(struct libinput_device *device)
 	dispatch = ((struct evdev_device *) device)->dispatch;
 	tp = container_of(dispatch, tp, base);
 
-	return min(tp->ntouches, 3); /* we only do up to 3 finger tap */
+	return min(tp->ntouches, 3U); /* we only do up to 3 finger tap */
 }
 
 static enum libinput_config_status

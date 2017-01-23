@@ -22,11 +22,8 @@
  * DEALINGS IN THE SOFTWARE.
  */
 
-#if HAVE_CONFIG_H
 #include "config.h"
-#endif
 
-#include <assert.h>
 #include <check.h>
 #include <dirent.h>
 #include <errno.h>
@@ -406,8 +403,10 @@ extern struct litest_test_device litest_wacom_cintiq_13hdt_pen_device;
 extern struct litest_test_device litest_wacom_cintiq_13hdt_pad_device;
 extern struct litest_test_device litest_wacom_hid4800_tablet_device;
 extern struct litest_test_device litest_mouse_wheel_click_count_device;
+extern struct litest_test_device litest_calibrated_touchscreen_device;
 extern struct litest_test_device litest_acer_hawaii_keyboard_device;
 extern struct litest_test_device litest_acer_hawaii_touchpad_device;
+extern struct litest_test_device litest_synaptics_rmi4_device;
 
 struct litest_test_device* devices[] = {
 	&litest_synaptics_clickpad_device,
@@ -465,8 +464,10 @@ struct litest_test_device* devices[] = {
 	&litest_wacom_cintiq_13hdt_pad_device,
 	&litest_wacom_hid4800_tablet_device,
 	&litest_mouse_wheel_click_count_device,
+	&litest_calibrated_touchscreen_device,
 	&litest_acer_hawaii_keyboard_device,
 	&litest_acer_hawaii_touchpad_device,
+	&litest_synaptics_rmi4_device,
 	NULL,
 };
 
@@ -610,8 +611,8 @@ litest_add_tcase(const char *suite_name,
 	struct suite *suite;
 	bool added = false;
 
-	assert(required >= LITEST_DISABLE_DEVICE);
-	assert(excluded >= LITEST_DISABLE_DEVICE);
+	litest_assert(required >= LITEST_DISABLE_DEVICE);
+	litest_assert(excluded >= LITEST_DISABLE_DEVICE);
 
 	if (filter_test &&
 	    fnmatch(filter_test, funcname, 0) != 0)
@@ -733,7 +734,7 @@ _litest_add_ranged_for_device(const char *name,
 	struct litest_test_device **dev = devices;
 	bool device_filtered = false;
 
-	assert(type < LITEST_NO_DEVICE);
+	litest_assert(type < LITEST_NO_DEVICE);
 
 	if (filter_test &&
 	    fnmatch(filter_test, funcname, 0) != 0)
@@ -1470,7 +1471,7 @@ litest_slot_start(struct litest_device *d,
 {
 	struct input_event *ev;
 
-	assert(d->ntouches_down >= 0);
+	litest_assert(d->ntouches_down >= 0);
 	d->ntouches_down++;
 
 	send_btntool(d, !touching);
@@ -2051,8 +2052,8 @@ litest_wait_for_event_of_type(struct libinput *li, ...)
 	va_start(args, li);
 	type = va_arg(args, int);
 	while ((int)type != -1) {
-		assert(type > 0);
-		assert(ntypes < ARRAY_LENGTH(types));
+		litest_assert(type > 0);
+		litest_assert(ntypes < ARRAY_LENGTH(types));
 		types[ntypes++] = type;
 		type = va_arg(args, int);
 	}
@@ -2396,10 +2397,14 @@ litest_create_uinput(const char *name,
 	rc = libevdev_new_from_fd(fd, &dev);
 	litest_assert_int_eq(rc, 0);
 
-	/* uinput does not yet support setting the resolution, so we set it
-	 * afterwards. This is of course racy as hell but the way we
-	 * _generally_ use this function by the time libinput uses the
-	 * device, we're finished here */
+	/* uinput before kernel 4.5 + libevdev 1.5.0 does not support
+	 * setting the resolution, so we set it afterwards. This is of
+	 * course racy as hell but the way we _generally_ use this function
+	 * by the time libinput uses the device, we're finished here.
+	 *
+	 * If you have kernel 4.5 and libevdev 1.5.0 or later, this code
+	 * just keeps the room warm.
+	 */
 	abs = abs_info;
 	while (abs && abs->value != -1) {
 		if (abs->resolution != 0) {
@@ -2856,7 +2861,7 @@ litest_assert_only_typed_events(struct libinput *li,
 {
 	struct libinput_event *event;
 
-	assert(type != LIBINPUT_EVENT_NONE);
+	litest_assert(type != LIBINPUT_EVENT_NONE);
 
 	libinput_dispatch(li);
 	event = libinput_get_event(li);
@@ -2965,6 +2970,12 @@ litest_timeout_gesture(void)
 }
 
 void
+litest_timeout_gesture_scroll(void)
+{
+	msleep(180);
+}
+
+void
 litest_timeout_trackpoint(void)
 {
 	msleep(320);
@@ -2973,14 +2984,14 @@ litest_timeout_trackpoint(void)
 void
 litest_push_event_frame(struct litest_device *dev)
 {
-	assert(!dev->skip_ev_syn);
+	litest_assert(!dev->skip_ev_syn);
 	dev->skip_ev_syn = true;
 }
 
 void
 litest_pop_event_frame(struct litest_device *dev)
 {
-	assert(dev->skip_ev_syn);
+	litest_assert(dev->skip_ev_syn);
 	dev->skip_ev_syn = false;
 	litest_event(dev, EV_SYN, SYN_REPORT, 0);
 }

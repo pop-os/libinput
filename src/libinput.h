@@ -307,7 +307,7 @@ enum libinput_tablet_pad_strip_axis_source {
  * while a button is held down.
  *
  * @note The @ref libinput_tablet_tool_type can only describe the default physical
- * type of the device. For devices with adjustible physical properties
+ * type of the device. For devices with adjustable physical properties
  * the tool type remains the same, i.e. putting a Wacom stroke nib into a
  * classic pen leaves the tool type as @ref LIBINPUT_TABLET_TOOL_TYPE_PEN.
  */
@@ -329,7 +329,7 @@ enum libinput_tablet_tool_type {
  * LIBINPUT_DEVICE_CAP_TABLET_TOOL capability.
  *
  * The proximity of a tool is a binary state signalling whether the tool is
- * within detectable distance of the tablet device. A tool that is out of
+ * within a detectable distance of the tablet device. A tool that is out of
  * proximity cannot generate events.
  *
  * On some hardware a tool goes out of proximity when it ceases to touch the
@@ -2004,7 +2004,7 @@ libinput_event_tablet_tool_get_distance(struct libinput_event_tablet_tool *event
  * If this axis does not exist on the current tool, this function returns 0.
  *
  * @param event The libinput tablet tool event
- * @return The current value of the the axis in degrees
+ * @return The current value of the axis in degrees
  */
 double
 libinput_event_tablet_tool_get_tilt_x(struct libinput_event_tablet_tool *event);
@@ -3395,7 +3395,7 @@ libinput_device_get_seat(struct libinput_device *device);
  * device and adding it to the new seat.
  *
  * This command is identical to physically unplugging the device, then
- * re-plugging it as member of the new seat. libinput will generate a
+ * re-plugging it as a member of the new seat. libinput will generate a
  * @ref LIBINPUT_EVENT_DEVICE_REMOVED event and this @ref libinput_device is
  * considered removed from the context; it will not generate further events
  * and will be freed when the refcount reaches zero.
@@ -4399,9 +4399,9 @@ libinput_device_config_accel_get_default_profile(struct libinput_device *device)
  * @return Zero if natural scrolling is not supported, non-zero if natural
  * scrolling is supported by this device
  *
- * @see libinput_device_config_set_natural_scroll_enabled
- * @see libinput_device_config_get_natural_scroll_enabled
- * @see libinput_device_config_get_default_natural_scroll_enabled
+ * @see libinput_device_config_scroll_set_natural_scroll_enabled
+ * @see libinput_device_config_scroll_get_natural_scroll_enabled
+ * @see libinput_device_config_scroll_get_default_natural_scroll_enabled
  */
 int
 libinput_device_config_scroll_has_natural_scroll(struct libinput_device *device);
@@ -4416,9 +4416,9 @@ libinput_device_config_scroll_has_natural_scroll(struct libinput_device *device)
  *
  * @return A config status code
  *
- * @see libinput_device_config_has_natural_scroll
- * @see libinput_device_config_get_natural_scroll_enabled
- * @see libinput_device_config_get_default_natural_scroll_enabled
+ * @see libinput_device_config_scroll_has_natural_scroll
+ * @see libinput_device_config_scroll_get_natural_scroll_enabled
+ * @see libinput_device_config_scroll_get_default_natural_scroll_enabled
  */
 enum libinput_config_status
 libinput_device_config_scroll_set_natural_scroll_enabled(struct libinput_device *device,
@@ -4432,9 +4432,9 @@ libinput_device_config_scroll_set_natural_scroll_enabled(struct libinput_device 
  *
  * @return Zero if natural scrolling is disabled, non-zero if enabled
  *
- * @see libinput_device_config_has_natural_scroll
- * @see libinput_device_config_set_natural_scroll_enabled
- * @see libinput_device_config_get_default_natural_scroll_enabled
+ * @see libinput_device_config_scroll_has_natural_scroll
+ * @see libinput_device_config_scroll_set_natural_scroll_enabled
+ * @see libinput_device_config_scroll_get_default_natural_scroll_enabled
  */
 int
 libinput_device_config_scroll_get_natural_scroll_enabled(struct libinput_device *device);
@@ -4448,9 +4448,9 @@ libinput_device_config_scroll_get_natural_scroll_enabled(struct libinput_device 
  *
  * @return Zero if natural scrolling is disabled by default, non-zero if enabled
  *
- * @see libinput_device_config_has_natural_scroll
- * @see libinput_device_config_set_natural_scroll_enabled
- * @see libinput_device_config_get_natural_scroll_enabled
+ * @see libinput_device_config_scroll_has_natural_scroll
+ * @see libinput_device_config_scroll_set_natural_scroll_enabled
+ * @see libinput_device_config_scroll_get_natural_scroll_enabled
  */
 int
 libinput_device_config_scroll_get_default_natural_scroll_enabled(struct libinput_device *device);

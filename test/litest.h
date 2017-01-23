@@ -21,9 +21,7 @@
  * DEALINGS IN THE SOFTWARE.
  */
 
-#if HAVE_CONFIG_H
 #include "config.h"
-#endif
 
 #ifndef LITEST_H
 #define LITEST_H
@@ -225,8 +223,10 @@ enum litest_device_type {
 	LITEST_WACOM_CINTIQ_13HDT_FINGER,
 	LITEST_WACOM_HID4800_PEN,
 	LITEST_MOUSE_WHEEL_CLICK_COUNT,
+	LITEST_CALIBRATED_TOUCHSCREEN,
 	LITEST_ACER_HAWAII_KEYBOARD,
 	LITEST_ACER_HAWAII_TOUCHPAD,
+	LITEST_SYNAPTICS_RMI4,
 };
 
 enum litest_device_feature {
@@ -653,6 +653,9 @@ litest_timeout_dwt_long(void);
 
 void
 litest_timeout_gesture(void);
+
+void
+litest_timeout_gesture_scroll(void);
 
 void
 litest_timeout_trackpoint(void);

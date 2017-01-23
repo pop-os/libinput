@@ -3,7 +3,8 @@ AM_CPPFLAGS = -I$(top_srcdir)/include \
               -I$(top_srcdir)/src \
               $(CHECK_CFLAGS) \
               $(LIBEVDEV_CFLAGS) \
-              $(LIBUDEV_CFLAGS)
+              $(LIBUDEV_CFLAGS) \
+              -I$(top_builddir)/src # for libinput-version.h
 
 AM_CFLAGS = $(GCC_CFLAGS)
 AM_CXXFLAGS = $(GCC_CXXFLAGS)
@@ -23,6 +24,7 @@ liblitest_la_SOURCES = \
 	litest-device-asus-rog-gladius.c \
 	litest-device-atmel-hover.c \
 	litest-device-bcm5974.c \
+	litest-device-calibrated-touchscreen.c \
 	litest-device-cyborg-rat-5.c \
 	litest-device-elantech-touchpad.c \
 	litest-device-generic-singletouch.c \
@@ -44,27 +46,28 @@ liblitest_la_SOURCES = \
 	litest-device-synaptics.c \
 	litest-device-synaptics-hover.c \
 	litest-device-synaptics-i2c.c \
+	litest-device-synaptics-rmi4.c \
 	litest-device-synaptics-st.c \
 	litest-device-synaptics-t440.c \
 	litest-device-synaptics-x1-carbon-3rd.c \
 	litest-device-trackpoint.c \
 	litest-device-touch-screen.c \
 	litest-device-touchscreen-fuzz.c \
-	litest-device-wacom-bamboo-tablet.c \
-	litest-device-wacom-cintiq-tablet.c \
+	litest-device-wacom-bamboo-16fg-pen.c \
+	litest-device-wacom-cintiq-12wx-pen.c \
 	litest-device-wacom-cintiq-13hdt-finger.c \
 	litest-device-wacom-cintiq-13hdt-pad.c \
 	litest-device-wacom-cintiq-13hdt-pen.c \
-	litest-device-wacom-cintiq-24hd.c \
+	litest-device-wacom-cintiq-24hd-pen.c \
 	litest-device-wacom-cintiq-24hdt-pad.c \
 	litest-device-wacom-ekr.c \
 	litest-device-wacom-hid4800-pen.c \
-	litest-device-wacom-intuos-tablet.c \
 	litest-device-wacom-intuos3-pad.c \
+	litest-device-wacom-intuos5-finger.c \
 	litest-device-wacom-intuos5-pad.c \
-	litest-device-wacom-isdv4-tablet.c \
-	litest-device-wacom-touch.c \
-	litest-device-wacom-intuos-finger.c \
+	litest-device-wacom-intuos5-pen.c \
+	litest-device-wacom-isdv4-e6-pen.c \
+	litest-device-wacom-isdv4-e6-finger.c \
 	litest-device-waltop-tablet.c \
 	litest-device-wheel-only.c \
 	litest-device-xen-virtual-pointer.c \
@@ -81,8 +84,9 @@ liblitest_la_LIBADD += $(LIBUNWIND_LIBS) -ldl
 liblitest_la_CFLAGS += $(LIBUNWIND_CFLAGS)
 endif
 
-run_tests = libinput-test-suite-runner \
-	    test-litest-selftest
+run_tests = \
+	    test-litest-selftest \
+	    libinput-test-suite-runner
 
 build_tests = \
 	test-build-cxx \
@@ -97,22 +101,22 @@ if RUN_TESTS
 TESTS = $(run_tests) symbols-leak-test
 endif
 
-libinput_test_suite_runner_SOURCES = udev.c \
-				     path.c \
-				     pointer.c \
-				     touch.c \
-				     log.c \
-				     tablet.c \
-				     pad.c \
-				     touchpad.c \
-				     touchpad-tap.c \
-				     touchpad-buttons.c \
-				     trackpoint.c \
-				     trackball.c \
-				     misc.c \
-				     keyboard.c \
-				     device.c \
-				     gestures.c
+libinput_test_suite_runner_SOURCES = test-udev.c \
+				     test-path.c \
+				     test-pointer.c \
+				     test-touch.c \
+				     test-log.c \
+				     test-tablet.c \
+				     test-pad.c \
+				     test-touchpad.c \
+				     test-touchpad-tap.c \
+				     test-touchpad-buttons.c \
+				     test-trackpoint.c \
+				     test-trackball.c \
+				     test-misc.c \
+				     test-keyboard.c \
+				     test-device.c \
+				     test-gestures.c
 
 libinput_test_suite_runner_CFLAGS = $(AM_CFLAGS) -DLIBINPUT_LT_VERSION="\"$(LIBINPUT_LT_VERSION)\""
 libinput_test_suite_runner_LDADD = $(TEST_LIBS)
@@ -142,8 +146,6 @@ test_build_linker_LDADD = $(top_builddir)/src/libinput.la $(top_builddir)/src/li
 # test including from C++
 test_build_cxx_SOURCES = build-cxx.cc
 test_build_cxx_CXXFLAGS = -Wall -Wextra -Wno-unused-parameter $(AM_CXXFLAGS)
-
-AM_TESTS_ENVIRONMENT= LITEST_VERBOSE=1; export LITEST_VERBOSE;
 
 if HAVE_VALGRIND
 VALGRIND_FLAGS=--leak-check=full \

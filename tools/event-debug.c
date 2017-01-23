@@ -137,7 +137,7 @@ print_event_header(struct libinput_event *ev)
 
 	prefix = (last_device != dev) ? '-' : ' ';
 
-	printf("%c%-7s	%-16s ",
+	printf("%c%-7s  %-16s ",
 	       prefix,
 	       libinput_device_get_sysname(dev),
 	       type);
@@ -169,7 +169,7 @@ print_device_notify(struct libinput_event *ev)
 		libinput_device_group_set_user_data(group, (void*)group_id);
 	}
 
-	printf("%-33s %5s %7s group%d",
+	printf("%-33s %5s %7s group%-2d",
 	       libinput_device_get_name(dev),
 	       libinput_seat_get_physical_name(seat),
 	       libinput_seat_get_logical_name(seat),
@@ -196,7 +196,7 @@ print_device_notify(struct libinput_event *ev)
 		printf("P");
 
 	if (libinput_device_get_size(dev, &w, &h) == 0)
-		printf("\tsize %.2f/%.2fmm", w, h);
+		printf("  size %.0fx%.0fmm", w, h);
 
 	if (libinput_device_config_tap_get_finger_count(dev)) {
 	    printf(" tap");
@@ -365,6 +365,19 @@ print_pointer_axis_event(struct libinput_event *ev)
 	double v = 0, h = 0;
 	const char *have_vert = "",
 		   *have_horiz = "";
+	const char *source = "invalid";
+
+	switch (libinput_event_pointer_get_axis_source(p)) {
+	case LIBINPUT_POINTER_AXIS_SOURCE_WHEEL:
+		source = "wheel";
+		break;
+	case LIBINPUT_POINTER_AXIS_SOURCE_FINGER:
+		source = "finger";
+		break;
+	case LIBINPUT_POINTER_AXIS_SOURCE_CONTINUOUS:
+		source = "continuous";
+		break;
+	}
 
 	if (libinput_event_pointer_has_axis(p,
 				LIBINPUT_POINTER_AXIS_SCROLL_VERTICAL)) {
@@ -379,7 +392,8 @@ print_pointer_axis_event(struct libinput_event *ev)
 		have_horiz = "*";
 	}
 	print_event_time(libinput_event_pointer_get_time(p));
-	printf("vert %.2f%s horiz %.2f%s\n", v, have_vert, h, have_horiz);
+	printf("vert %.2f%s horiz %.2f%s (%s)\n",
+	       v, have_vert, h, have_horiz, source);
 }
 
 static void

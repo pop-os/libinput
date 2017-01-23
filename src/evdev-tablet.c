@@ -392,13 +392,14 @@ tool_process_delta(struct libinput_tablet_tool *tool,
 		   const struct device_coords *delta,
 		   uint64_t time)
 {
-	struct normalized_coords accel;
+	const struct normalized_coords zero = { 0.0, 0.0 };
+	struct device_float_coords accel;
 
 	accel.x = 1.0 * delta->x;
 	accel.y = 1.0 * delta->y;
 
-	if (normalized_is_zero(accel))
-		return accel;
+	if (device_float_is_zero(accel))
+		return zero;
 
 	return filter_dispatch(device->pointer.filter,
 			       &accel,
@@ -723,6 +724,8 @@ tablet_process_misc(struct tablet_dispatch *tablet,
 		if (e->value != -1)
 			tablet->current_tool_serial = e->value;
 
+		break;
+	case MSC_SCAN:
 		break;
 	default:
 		log_info(tablet_libinput_context(tablet),
@@ -1712,12 +1715,16 @@ tablet_reject_device(struct evdev_device *device)
 {
 	struct libevdev *evdev = device->evdev;
 	int rc = -1;
+	double w, h;
 
 	if (!libevdev_has_event_code(evdev, EV_ABS, ABS_X) ||
 	    !libevdev_has_event_code(evdev, EV_ABS, ABS_Y))
 		goto out;
 
 	if (!libevdev_has_event_code(evdev, EV_KEY, BTN_TOOL_PEN))
+		goto out;
+
+	if (evdev_device_get_size(device, &w, &h) != 0)
 		goto out;
 
 	rc = 0;

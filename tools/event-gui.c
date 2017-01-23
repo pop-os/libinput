@@ -20,7 +20,6 @@
  * FROM, OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER
  * DEALINGS IN THE SOFTWARE.
  */
-#define _GNU_SOURCE
 #include <config.h>
 
 #include <linux/input.h>
@@ -99,8 +98,7 @@ struct window {
 		double tilt_x, tilt_y;
 
 		/* these are for the delta coordinates, but they're not
-		 * deltas, theyconverted into
-		 * abs positions */
+		 * deltas, the are yconverted into abs positions */
 		size_t ndeltas;
 		struct point deltas[64];
 	} tool;
@@ -243,7 +241,8 @@ static inline void
 draw_tablet(struct window *w, cairo_t *cr)
 {
 	double x, y;
-	int first, last, mask;
+	int first, last;
+	size_t mask;
 	int i;
 
 	/* tablet tool, square for prox-in location */
@@ -486,7 +485,7 @@ handle_event_device_notify(struct libinput_event *ev)
 	struct libinput *li;
 	struct window *w;
 	const char *type;
-	int i;
+	size_t i;
 
 	if (libinput_event_get_type(ev) == LIBINPUT_EVENT_DEVICE_ADDED)
 		type = "added";
