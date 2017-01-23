@@ -1,3 +1,9 @@
+libinput (1.6.0-1) UNRELEASED; urgency=medium
+
+  * New upstream release.
+
+ -- Emilio Pozuelo Monfort <pochu@debian.org>  Mon, 23 Jan 2017 21:26:13 +0100
+
 libinput (1.5.4-1) unstable; urgency=medium
 
   * New upstream release.
