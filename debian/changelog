@@ -1,6 +1,7 @@
 libinput (1.6.2-1) UNRELEASED; urgency=medium
 
   * New upstream release.
+  * Bump libwacom-dev requirement to 0.20.
 
  -- Emilio Pozuelo Monfort <pochu@debian.org>  Tue, 21 Feb 2017 22:05:01 +0100
 
