@@ -2077,7 +2077,7 @@ evdev_read_wheel_click_count_prop(struct evdev_device *device,
 	}
 
 	log_error(evdev_libinput_context(device),
-		  "Mouse wheel click count '%s' is present but invalid, "
+		  "Mouse wheel click count for '%s' is present but invalid, "
 		  "using %d degrees for angle instead instead\n",
 		  device->devname,
 		  DEFAULT_WHEEL_CLICK_ANGLE);
@@ -2208,6 +2208,7 @@ evdev_read_model_flags(struct evdev_device *device)
 		MODEL(HP6910_TOUCHPAD),
 		MODEL(HP_ZBOOK_STUDIO_G3),
 		MODEL(HP_PAVILION_DM4_TOUCHPAD),
+		MODEL(APPLE_TOUCHPAD_ONEBUTTON),
 #undef MODEL
 		{ "ID_INPUT_TRACKBALL", EVDEV_MODEL_TRACKBALL },
 		{ NULL, EVDEV_MODEL_DEFAULT },
