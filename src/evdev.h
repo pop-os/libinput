@@ -123,6 +123,7 @@ enum evdev_device_model {
 	EVDEV_MODEL_HP6910_TOUCHPAD = (1 << 22),
 	EVDEV_MODEL_HP_ZBOOK_STUDIO_G3 = (1 << 23),
 	EVDEV_MODEL_HP_PAVILION_DM4_TOUCHPAD = (1 << 24),
+	EVDEV_MODEL_APPLE_TOUCHPAD_ONEBUTTON = (1 << 25),
 };
 
 struct mt_slot {
@@ -546,7 +547,7 @@ evdev_to_left_handed(struct evdev_device *device,
 
 /**
  * Apply a hysteresis filtering to the coordinate in, based on the current
- * hystersis center and the margin. If 'in' is within 'margin' of center,
+ * hysteresis center and the margin. If 'in' is within 'margin' of center,
  * return the center (and thus filter the motion). If 'in' is outside,
  * return a point on the edge of the new margin. So for a point x in the
  * space outside c + margin we return r:
