@@ -1,8 +1,8 @@
-libinput (1.6.3-1) UNRELEASED; urgency=medium
+libinput (1.6.3-1) unstable; urgency=medium
 
   * New upstream release.
 
- -- Timo Aaltonen <tjaalton@debian.org>  Fri, 10 Mar 2017 13:37:01 +0200
+ -- Timo Aaltonen <tjaalton@debian.org>  Tue, 14 Mar 2017 13:36:36 +0200
 
 libinput (1.6.2-1) unstable; urgency=medium
 
