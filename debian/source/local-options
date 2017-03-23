@@ -1,0 +1,1 @@
+extend-diff-ignore = "(^|/)(.vimdir|CODING_STYLE|autogen.sh|doc/*|test/50-litest.conf|tools/publish-doc)"
