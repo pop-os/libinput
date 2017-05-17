@@ -2245,7 +2245,6 @@ evdev_read_model_flags(struct evdev_device *device)
 		MODEL(ALPS_TOUCHPAD),
 		MODEL(SYNAPTICS_SERIAL_TOUCHPAD),
 		MODEL(JUMPING_SEMI_MT),
-		MODEL(ELANTECH_TOUCHPAD),
 		MODEL(APPLE_INTERNAL_KEYBOARD),
 		MODEL(CYBORG_RAT),
 		MODEL(CYAPA),
@@ -2617,7 +2616,7 @@ evdev_configure_device(struct evdev_device *device)
 
 	if (udev_tags & EVDEV_UDEV_TAG_TOUCHPAD) {
 		dispatch = evdev_mt_touchpad_create(device);
-		evdev_log_info(device, "device is a atouchpad\n");
+		evdev_log_info(device, "device is a touchpad\n");
 		return dispatch;
 	}
 
