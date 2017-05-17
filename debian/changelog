@@ -1,11 +1,11 @@
-libinput (1.7.2-1) UNRELEASED; urgency=medium
+libinput (1.7.2-1) experimental; urgency=medium
 
   * New upstream release.
   * local-options: Add test/generate-gcov-report.sh to extend-diff-
     ignore.
   * Update symbols file.
 
- -- Timo Aaltonen <tjaalton@debian.org>  Thu, 23 Mar 2017 11:55:01 +0200
+ -- Timo Aaltonen <tjaalton@debian.org>  Wed, 17 May 2017 15:53:14 +0300
 
 libinput (1.6.3-1) unstable; urgency=medium
 
