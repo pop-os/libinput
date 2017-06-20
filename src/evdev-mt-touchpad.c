@@ -544,15 +544,8 @@ tp_palm_tap_is_palm(const struct tp_dispatch *tp, const struct tp_touch *t)
 	    t->point.x < tp->palm.right_edge)
 		return false;
 
-	/* We're inside the left/right palm edge and not in one of the
-	 * software button areas */
-	if (t->point.y < tp->buttons.bottom_area.top_edge) {
-		evdev_log_debug(tp->device,
-				"palm: palm-tap detected\n");
-		return true;
-	}
-
-	return false;
+	evdev_log_debug(tp->device, "palm: palm-tap detected\n");
+	return true;
 }
 
 static bool
@@ -1671,6 +1664,12 @@ tp_interface_device_removed(struct evdev_device *device,
 		libinput_device_remove_event_listener(
 					&tp->dwt.keyboard_listener);
 		tp->dwt.keyboard = NULL;
+	}
+
+	if (removed_device == tp->lid_switch.lid_switch) {
+		libinput_device_remove_event_listener(
+					&tp->lid_switch.lid_switch_listener);
+		tp->lid_switch.lid_switch = NULL;
 	}
 
 	if (tp->sendevents.current_mode !=
