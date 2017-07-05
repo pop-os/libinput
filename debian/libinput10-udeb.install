@@ -1,0 +1,2 @@
+lib/udev
+usr/lib/*/libinput.so.10*
