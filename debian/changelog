@@ -1,11 +1,11 @@
-libinput (1.8.0-1) UNRELEASED; urgency=medium
+libinput (1.8.0-1) unstable; urgency=medium
 
   * New upstream release.
   * rules: Explicitly disable building debug-gui, documentation and
     tests.
   * tools: Add debug tools.
 
- -- Timo Aaltonen <tjaalton@debian.org>  Wed, 05 Jul 2017 23:58:05 +0300
+ -- Timo Aaltonen <tjaalton@debian.org>  Thu, 06 Jul 2017 00:56:56 +0300
 
 libinput (1.7.3-1) unstable; urgency=medium
 
