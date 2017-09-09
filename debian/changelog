@@ -3,6 +3,7 @@ libinput (1.8.2-1) UNRELEASED; urgency=medium
   * New upstream release.
   * local-options: Add circle.yml to extend-diff-ignore.
   * Bump Standards-Version to 4.1.0; no changes needed.
+  * Bump debhelper compat to 10.
 
  -- Emilio Pozuelo Monfort <pochu@debian.org>  Sat, 09 Sep 2017 12:05:18 +0200
 
