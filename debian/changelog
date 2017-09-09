@@ -1,6 +1,7 @@
 libinput (1.8.2-1) UNRELEASED; urgency=medium
 
   * New upstream release.
+  * local-options: Add circle.yml to extend-diff-ignore.
 
  -- Emilio Pozuelo Monfort <pochu@debian.org>  Sat, 09 Sep 2017 12:05:18 +0200
 
