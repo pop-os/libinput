@@ -19,4 +19,4 @@ override_dh_clean:
 	dh_clean
 
 %:
-	dh $@ --with autoreconf
+	dh $@
