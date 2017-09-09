@@ -1740,6 +1740,7 @@ tp_interface_device_removed(struct evdev_device *device,
 		libinput_device_remove_event_listener(
 					&tp->dwt.keyboard_listener);
 		tp->dwt.keyboard = NULL;
+		tp->dwt.keyboard_active = false;
 	}
 
 	if (removed_device == tp->lid_switch.lid_switch) {
@@ -2278,12 +2279,12 @@ tp_init_palmdetect_edge(struct tp_dispatch *tp,
 	if (width < 70.0)
 		return;
 
-	/* palm edges are 5% of the width on each side */
-	mm.x = width * 0.05;
+	/* palm edges are 8% of the width on each side */
+	mm.x = width * 0.08;
 	edges = evdev_device_mm_to_units(device, &mm);
 	tp->palm.left_edge = edges.x;
 
-	mm.x = width * 0.95;
+	mm.x = width * 0.92;
 	edges = evdev_device_mm_to_units(device, &mm);
 	tp->palm.right_edge = edges.x;
 }
