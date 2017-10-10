@@ -1,5 +1,5 @@
 project('libinput', 'c', 'cpp',
-	version : '1.8.2',
+	version : '1.8.3',
 	license : 'MIT/Expat',
 	default_options : [ 'c_std=gnu99', 'warning_level=2' ],
 	meson_version : '>= 0.40.0')
@@ -556,6 +556,7 @@ if get_option('tests')
 		'test/litest-device-wacom-intuos5-pen.c',
 		'test/litest-device-wacom-isdv4-e6-pen.c',
 		'test/litest-device-wacom-isdv4-e6-finger.c',
+		'test/litest-device-wacom-mobilestudio-pro-pad.c',
 		'test/litest-device-waltop-tablet.c',
 		'test/litest-device-wheel-only.c',
 		'test/litest-device-xen-virtual-pointer.c',
