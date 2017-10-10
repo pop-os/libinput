@@ -1,3 +1,9 @@
+libinput (1.8.3-1) UNRELEASED; urgency=medium
+
+  * New upstream release.
+
+ -- Emilio Pozuelo Monfort <pochu@debian.org>  Tue, 10 Oct 2017 20:06:47 +0200
+
 libinput (1.8.2-1) unstable; urgency=medium
 
   * New upstream release.
