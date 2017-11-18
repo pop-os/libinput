@@ -4,6 +4,7 @@ libinput (1.9.2-1) UNRELEASED; urgency=medium
   * Switch to meson.
   * Add new symbols.
   * Move libinput-{dev,tools} to priority optional.
+  * Add python3 dependencies for new python scripts.
 
  -- Emilio Pozuelo Monfort <pochu@debian.org>  Sat, 18 Nov 2017 17:39:46 +0100
 
