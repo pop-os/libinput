@@ -2,10 +2,10 @@
 
 override_dh_auto_configure:
 	dh_auto_configure -- \
-		--enable-debug-gui=no \
-		--enable-documentation=no \
-		--enable-tests=no \
-		--with-udev-dir=/lib/udev
+		-Ddebug-gui=false \
+		-Ddocumentation=false \
+		-Dtests=false \
+		-Dudev-dir=/lib/udev
 
 override_dh_install:
 	find debian/tmp -name '*.la' -delete
