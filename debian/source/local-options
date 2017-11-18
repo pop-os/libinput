@@ -1,0 +1,2 @@
+extend-diff-ignore = "(^|/)(.vimdir|CODING_STYLE|autogen.sh|circle.yml|doc/*|test/50-litest.conf|tools/publish-doc)"
+extend-diff-ignore = test/generate-gcov-report.sh
