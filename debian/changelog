@@ -1,4 +1,4 @@
-libinput (1.9.2-1) UNRELEASED; urgency=medium
+libinput (1.9.2-1) unstable; urgency=medium
 
   * New upstream release.
   * Switch to meson.
@@ -6,7 +6,7 @@ libinput (1.9.2-1) UNRELEASED; urgency=medium
   * Move libinput-{dev,tools} to priority optional.
   * Add python3 dependencies for new python scripts.
 
- -- Emilio Pozuelo Monfort <pochu@debian.org>  Sat, 18 Nov 2017 17:39:46 +0100
+ -- Emilio Pozuelo Monfort <pochu@debian.org>  Sat, 18 Nov 2017 18:47:56 +0100
 
 libinput (1.8.3-1) unstable; urgency=medium
 
