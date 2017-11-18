@@ -65,7 +65,6 @@ Description: input device management and event handling library - shared library
 
 Package: libinput-dev
 Section: libdevel
-Priority: extra
 Architecture: any
 Multi-Arch: same
 Depends:
@@ -86,7 +85,6 @@ Description: input device management and event handling library - development fi
 
 Package: libinput-tools
 Section: libdevel
-Priority: extra
 Architecture: any
 Multi-Arch: allowed
 Depends:
