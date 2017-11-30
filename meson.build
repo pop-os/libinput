@@ -1,5 +1,5 @@
 project('libinput', 'c', 'cpp',
-	version : '1.9.2',
+	version : '1.9.3',
 	license : 'MIT/Expat',
 	default_options : [ 'c_std=gnu99', 'warning_level=2' ],
 	meson_version : '>= 0.40.0')
@@ -156,7 +156,9 @@ src_libinput = [
 	'src/libinput-private.h',
 	'src/evdev.c',
 	'src/evdev.h',
+	'src/evdev-debounce.c',
 	'src/evdev-fallback.c',
+	'src/evdev-fallback.h',
 	'src/evdev-middle-button.c',
 	'src/evdev-mt-touchpad.c',
 	'src/evdev-mt-touchpad.h',
@@ -298,6 +300,7 @@ if get_option('documentation')
 		meson.source_root() + '/doc/dot/libinput-stack-gnome.gv',
 		meson.source_root() + '/doc/dot/evemu.gv',
 		# svgs
+		meson.source_root() + '/doc/svg/button-debouncing-wave-diagram.svg',
 		meson.source_root() + '/doc/svg/button-scrolling.svg',
 		meson.source_root() + '/doc/svg/clickfinger.svg',
 		meson.source_root() + '/doc/svg/clickfinger-distance.svg',
