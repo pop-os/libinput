@@ -1,6 +1,9 @@
 libinput (1.9.4-1) UNRELEASED; urgency=medium
 
   * New upstream release.
+  * Add fix-lp1696929.patch to fix unresponsive/laggy touchpad behaviour
+    caused by inappropriate use of software hysteresis (LP: #1696929).
+    Thanks, Daniel van Vugt!
 
  -- Timo Aaltonen <tjaalton@debian.org>  Thu, 14 Dec 2017 12:09:03 +0200
 
