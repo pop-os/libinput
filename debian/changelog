@@ -1,9 +1,9 @@
-libinput (1.9.4-2) UNRELEASED; urgency=medium
+libinput (1.9.4-2) unstable; urgency=medium
 
   * Drop the patch, it doesn't work well enough detecting when to
     disable hysteresis. (Closes: #884599)
 
- -- Timo Aaltonen <tjaalton@debian.org>  Mon, 18 Dec 2017 00:22:16 +0200
+ -- Timo Aaltonen <tjaalton@debian.org>  Mon, 18 Dec 2017 00:22:44 +0200
 
 libinput (1.9.4-1) unstable; urgency=medium
 
