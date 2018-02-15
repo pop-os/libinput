@@ -1,3 +1,9 @@
+libinput (1.10.0-1) UNRELEASED; urgency=medium
+
+  * New upstream release. (LP: #1749340)
+
+ -- Timo Aaltonen <tjaalton@debian.org>  Thu, 15 Feb 2018 21:55:16 +0200
+
 libinput (1.9.4-2) unstable; urgency=medium
 
   * Drop the patch, it doesn't work well enough detecting when to
