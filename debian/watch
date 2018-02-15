@@ -1,0 +1,4 @@
+#git=git://anongit.freedesktop.org/wayland/libinput
+version=3
+opts=pgpsigurlmangle=s/$/.sig/,dversionmangle=s/\+dfsg\d*$// \
+http://www.freedesktop.org/software/libinput/libinput-(.*)\.tar\.xz
