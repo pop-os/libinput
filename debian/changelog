@@ -1,9 +1,9 @@
-libinput (1.10.1-1) UNRELEASED; urgency=medium
+libinput (1.10.1-1) unstable; urgency=medium
 
   * New upstream release.
     - fix crashers (Closes: #891579) (LP: #1750664)
 
- -- Timo Aaltonen <tjaalton@debian.org>  Wed, 28 Feb 2018 18:17:07 +0200
+ -- Timo Aaltonen <tjaalton@debian.org>  Wed, 28 Feb 2018 18:20:21 +0200
 
 libinput (1.10.0-1) unstable; urgency=medium
 
