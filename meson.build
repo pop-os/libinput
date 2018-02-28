@@ -1,5 +1,5 @@
 project('libinput', 'c', 'cpp',
-	version : '1.10.0',
+	version : '1.10.1',
 	license : 'MIT/Expat',
 	default_options : [ 'c_std=gnu99', 'warning_level=2' ],
 	meson_version : '>= 0.40.0')
@@ -234,7 +234,7 @@ pkgconfig.generate(
 # Restore the SELinux context for the libinput.so.a.b.c on install
 # meson bug https://github.com/mesonbuild/meson/issues/1967
 meson.add_install_script('src/libinput-restore-selinux-context.sh',
-			 get_option('libdir'),
+			 join_paths(get_option('prefix'), get_option('libdir')),
 			 lib_libinput.full_path())
 
 ############ documentation ############
@@ -496,7 +496,8 @@ configure_file(input : 'tools/libinput.man',
 	       install_dir : join_paths(get_option('mandir'), 'man1')
 	       )
 
-meson.add_install_script('tools/install-compat-scripts.sh')
+meson.add_install_script('tools/install-compat-scripts.sh',
+			 join_paths(get_option('prefix'), get_option('bindir')))
 
 ptraccel_debug_sources = [ 'tools/ptraccel-debug.c' ]
 executable('ptraccel-debug',
@@ -563,6 +564,7 @@ if get_option('tests')
 		'test/litest-device-mouse-low-dpi.c',
 		'test/litest-device-mouse-wheel-click-angle.c',
 		'test/litest-device-mouse-wheel-click-count.c',
+		'test/litest-device-ms-nano-transceiver-mouse.c',
 		'test/litest-device-ms-surface-cover.c',
 		'test/litest-device-protocol-a-touch-screen.c',
 		'test/litest-device-qemu-usb-tablet.c',

@@ -1,5 +1,5 @@
 /*
- * Copyright © 2017 Red Hat, Inc.
+ * Copyright © 2018 Red Hat, Inc.
  *
  * Permission is hereby granted, free of charge, to any person obtaining a
  * copy of this software and associated documentation files (the "Software"),
@@ -23,57 +23,37 @@
 
 #include "config.h"
 
-#include <errno.h>
-#include <getopt.h>
-#include <stdbool.h>
-#include <stdio.h>
-#include <string.h>
-#include <unistd.h>
-#include <libudev.h>
+#include "litest.h"
+#include "litest-int.h"
 
-#include <libinput-util.h>
+static struct input_id input_id = {
+	.bustype = 0x3,
+	.vendor = 0x045e,
+	.product = 0x0800,
+};
 
-#include "shared.h"
+static int events[] = {
+	EV_KEY, BTN_LEFT,
+	EV_KEY, BTN_RIGHT,
+	EV_KEY, BTN_MIDDLE,
+	EV_KEY, BTN_SIDE,
+	EV_KEY, BTN_EXTRA,
+	EV_REL, REL_X,
+	EV_REL, REL_Y,
+	EV_REL, REL_WHEEL,
+	EV_REL, REL_DIAL,
+	EV_REL, REL_HWHEEL,
+	-1 , -1,
+};
 
-static inline void
-usage(void)
-{
-	printf("Usage: libinput measure [--help] <feature> [/dev/input/event0]\n");
-}
+TEST_DEVICE("ms-nano-mouse",
+	.type = LITEST_MS_NANO_TRANSCEIVER_MOUSE,
+	.features = LITEST_RELATIVE | LITEST_BUTTON | LITEST_WHEEL | LITEST_NO_DEBOUNCE,
+	.interface = NULL,
 
-int
-main(int argc, char **argv)
-{
-	int option_index = 0;
+	.name = "Microsoft Microsoft® Nano Transceiver v2.0",
+	.id = &input_id,
+	.absinfo = NULL,
+	.events = events,
+)
 
-	while (1) {
-		int c;
-		static struct option opts[] = {
-			{ "help",	no_argument,	0, 'h' },
-			{ 0, 0, 0, 0}
-		};
-
-		c = getopt_long(argc, argv, "+h", opts, &option_index);
-		if (c == -1)
-			break;
-
-		switch(c) {
-		case 'h':
-			usage();
-			return EXIT_SUCCESS;
-		default:
-			usage();
-			return EXIT_FAILURE;
-		}
-	}
-
-	if (optind >= argc) {
-		usage();
-		return EXIT_FAILURE;
-	}
-
-	argc--;
-	argv++;
-
-	return tools_exec_command("libinput-measure", argc, argv);
-}
