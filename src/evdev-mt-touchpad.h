@@ -46,10 +46,11 @@ enum touchpad_event {
 
 enum touch_state {
 	TOUCH_NONE = 0,
-	TOUCH_HOVERING,
-	TOUCH_BEGIN,
-	TOUCH_UPDATE,
-	TOUCH_END
+	TOUCH_HOVERING = 1,
+	TOUCH_BEGIN = 2,
+	TOUCH_UPDATE = 3,
+	TOUCH_MAYBE_END = 4,
+	TOUCH_END = 5,
 };
 
 enum touch_palm_state {
@@ -147,6 +148,7 @@ struct tp_touch {
 	bool has_ended;				/* TRACKING_ID == -1 */
 	bool dirty;
 	struct device_coords point;
+	struct device_coords last_point;
 	uint64_t time;
 	int pressure;
 	bool is_tool_palm; /* MT_TOOL_PALM */
@@ -173,7 +175,10 @@ struct tp_touch {
 		unsigned int count;
 	} history;
 
-	struct device_coords hysteresis_center;
+	struct {
+		struct device_coords center;
+		uint8_t x_motion_history;
+	} hysteresis;
 
 	/* A pinned touchpoint is the one that pressed the physical button
 	 * on a clickpad. After the release, it won't move until the center

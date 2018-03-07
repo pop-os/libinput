@@ -92,6 +92,10 @@ tp_calculate_motion_speed(struct tp_dispatch *tp, struct tp_touch *t)
 	double distance;
 	double speed;
 
+	/* Don't do this on single-touch or semi-mt devices */
+	if (!tp->has_mt || tp->semi_mt)
+		return;
+
 	/* This doesn't kick in until we have at least 4 events in the
 	 * motion history. As a side-effect, this automatically handles the
 	 * 2fg scroll where a finger is down and moving fast before the
@@ -131,46 +135,74 @@ tp_motion_history_push(struct tp_touch *t)
 	t->history.index = motion_index;
 }
 
+/* Idea: if we got a tuple of *very* quick moves like {Left, Right,
+ * Left}, or {Right, Left, Right}, it means touchpad jitters since no
+ * human can move like that within thresholds.
+ *
+ * We encode left moves as zeroes, and right as ones. We also drop
+ * the array to all zeroes when contraints are not satisfied. Then we
+ * search for the pattern {1,0,1}. It can't match {Left, Right, Left},
+ * but it does match {Left, Right, Left, Right}, so it's okay.
+ *
+ * This only looks at x changes, y changes are ignored.
+ */
 static inline void
-tp_maybe_disable_hysteresis(struct tp_dispatch *tp, uint64_t time)
+tp_detect_wobbling(struct tp_dispatch *tp,
+		   struct tp_touch *t,
+		   uint64_t time)
 {
-	/* If the finger is down for 80ms without seeing motion events,
-	   the firmware filters and we don't need a software hysteresis */
-	if (tp->nfingers_down >= 1 &&
-	    time - tp->hysteresis.last_motion_time > ms2us(80)) {
-		tp->hysteresis.enabled = false;
-		evdev_log_debug(tp->device, "hysteresis disabled\n");
+	int dx, dy;
+	uint64_t dtime;
+
+	if (!(tp->queued & TOUCHPAD_EVENT_MOTION) || tp->hysteresis.enabled)
+		return;
+
+	if (t->last_point.x == 0) { /* first invocation */
+		dx = 0;
+		dy = 0;
+	} else {
+		dx = t->last_point.x - t->point.x;
+		dy = t->last_point.y - t->point.y;
+	}
+
+	dtime = time - tp->hysteresis.last_motion_time;
+
+	tp->hysteresis.last_motion_time = time;
+	t->last_point = t->point;
+
+	if (dx == 0 && dy != 0) /* ignore y-only changes */
+		return;
+
+	if (dtime > ms2us(40)) {
+		t->hysteresis.x_motion_history = 0;
 		return;
 	}
 
-	if (tp->queued & TOUCHPAD_EVENT_MOTION)
-		tp->hysteresis.last_motion_time = time;
+	t->hysteresis.x_motion_history <<= 1;
+	if (dx > 0) { /* right move */
+		static const char r_l_r = 0x5; /* {Right, Left, Right} */
+
+		t->hysteresis.x_motion_history |= 0x1;
+		if (t->hysteresis.x_motion_history == r_l_r) {
+			tp->hysteresis.enabled = true;
+			evdev_log_debug(tp->device, "hysteresis enabled\n");
+		}
+	}
 }
 
 static inline void
 tp_motion_hysteresis(struct tp_dispatch *tp,
 		     struct tp_touch *t)
 {
-	int x = t->point.x,
-	    y = t->point.y;
-
 	if (!tp->hysteresis.enabled)
 		return;
 
-	if (t->history.count == 0) {
-		t->hysteresis_center = t->point;
-	} else {
-		x = evdev_hysteresis(x,
-				     t->hysteresis_center.x,
-				     tp->hysteresis.margin.x);
-		y = evdev_hysteresis(y,
-				     t->hysteresis_center.y,
-				     tp->hysteresis.margin.y);
-		t->hysteresis_center.x = x;
-		t->hysteresis_center.y = y;
-		t->point.x = x;
-		t->point.y = y;
-	}
+	if (t->history.count > 0)
+		t->point = evdev_hysteresis(&t->point,
+					    &t->hysteresis.center,
+					    &tp->hysteresis.margin);
+
+	t->hysteresis.center = t->point;
 }
 
 static inline void
@@ -276,6 +308,7 @@ tp_new_touch(struct tp_dispatch *tp, struct tp_touch *t, uint64_t time)
 	t->time = time;
 	t->speed.last_speed = 0;
 	t->speed.exceeded_count = 0;
+	t->hysteresis.x_motion_history = 0;
 	tp->queued |= TOUCHPAD_EVENT_MOTION;
 }
 
@@ -297,22 +330,64 @@ tp_begin_touch(struct tp_dispatch *tp, struct tp_touch *t, uint64_t time)
 }
 
 /**
- * End a touch, even if the touch sequence is still active.
+ * Schedule a touch to be ended, based on either the events or some
+ * attributes of the touch (size, pressure). In some cases we need to
+ * resurrect a touch that has ended, so this doesn't actually end the touch
+ * yet. All the TOUCH_MAYBE_END touches get properly ended once the device
+ * state has been processed once and we know how many zombie touches we
+ * need.
  */
 static inline void
-tp_end_touch(struct tp_dispatch *tp, struct tp_touch *t, uint64_t time)
+tp_maybe_end_touch(struct tp_dispatch *tp,
+		   struct tp_touch *t,
+		   uint64_t time)
 {
 	switch (t->state) {
-	case TOUCH_HOVERING:
-		t->state = TOUCH_NONE;
-		/* fallthough */
 	case TOUCH_NONE:
+	case TOUCH_MAYBE_END:
+	case TOUCH_HOVERING:
+		return;
 	case TOUCH_END:
+		evdev_log_bug_libinput(tp->device,
+				       "touch  already in TOUCH_END\n");
 		return;
 	case TOUCH_BEGIN:
 	case TOUCH_UPDATE:
 		break;
+	}
 
+	t->dirty = true;
+	t->state = TOUCH_MAYBE_END;
+
+	assert(tp->nfingers_down >= 1);
+	tp->nfingers_down--;
+}
+
+/**
+ * Inverse to tp_maybe_end_touch(), restores a touch back to its previous
+ * state.
+ */
+static inline void
+tp_recover_ended_touch(struct tp_dispatch *tp,
+		       struct tp_touch *t)
+{
+	t->dirty = true;
+	t->state = TOUCH_UPDATE;
+	tp->nfingers_down++;
+}
+
+/**
+ * End a touch, even if the touch sequence is still active.
+ * Use tp_maybe_end_touch() instead.
+ */
+static inline void
+tp_end_touch(struct tp_dispatch *tp, struct tp_touch *t, uint64_t time)
+{
+	if (t->state != TOUCH_MAYBE_END) {
+		evdev_log_bug_libinput(tp->device,
+				       "touch should be MAYBE_END, is %d\n",
+				       t->state);
+		return;
 	}
 
 	t->dirty = true;
@@ -321,8 +396,6 @@ tp_end_touch(struct tp_dispatch *tp, struct tp_touch *t, uint64_t time)
 	t->pinned.is_pinned = false;
 	t->time = time;
 	t->palm.time = 0;
-	assert(tp->nfingers_down >= 1);
-	tp->nfingers_down--;
 	tp->queued |= TOUCHPAD_EVENT_MOTION;
 }
 
@@ -333,7 +406,7 @@ static inline void
 tp_end_sequence(struct tp_dispatch *tp, struct tp_touch *t, uint64_t time)
 {
 	t->has_ended = true;
-	tp_end_touch(tp, t, time);
+	tp_maybe_end_touch(tp, t, time);
 }
 
 static void
@@ -480,13 +553,11 @@ tp_restore_synaptics_touches(struct tp_dispatch *tp,
 	for (i = 0; i < tp->num_slots; i++) {
 		struct tp_touch *t = tp_get_touch(tp, i);
 
-		if (t->state != TOUCH_END)
+		if (t->state != TOUCH_MAYBE_END)
 			continue;
 
 		/* new touch, move it through begin to update immediately */
-		tp_new_touch(tp, t, time);
-		tp_begin_touch(tp, t, time);
-		t->state = TOUCH_UPDATE;
+		tp_recover_ended_touch(tp, t);
 	}
 }
 
@@ -1070,11 +1141,13 @@ tp_unhover_pressure(struct tp_dispatch *tp, uint64_t time)
 					tp_motion_history_reset(t);
 					tp_begin_touch(tp, t, time);
 				}
-			} else {
+			/* don't unhover for pressure if we have too many
+			 * fake fingers down, see comment below */
+			} else if (nfake_touches <= tp->num_slots) {
 				if (t->pressure < tp->pressure.low) {
 					evdev_log_debug(tp->device,
 							"pressure: end touch\n");
-					tp_end_touch(tp, t, time);
+					tp_maybe_end_touch(tp, t, time);
 				}
 			}
 		}
@@ -1111,10 +1184,11 @@ tp_unhover_pressure(struct tp_dispatch *tp, uint64_t time)
 			t = tp_get_touch(tp, i);
 
 			if (t->state == TOUCH_HOVERING ||
-			    t->state == TOUCH_NONE)
+			    t->state == TOUCH_NONE ||
+			    t->state == TOUCH_MAYBE_END)
 				continue;
 
-			tp_end_touch(tp, t, time);
+			tp_maybe_end_touch(tp, t, time);
 
 			if (real_fingers_down > 0  &&
 			    tp->nfingers_down == nfake_touches)
@@ -1156,7 +1230,7 @@ tp_unhover_size(struct tp_dispatch *tp, uint64_t time)
 			if (t->major < low || t->minor < low) {
 				evdev_log_debug(tp->device,
 						"touch-size: end touch\n");
-				tp_end_touch(tp, t, time);
+				tp_maybe_end_touch(tp, t, time);
 			}
 		}
 	}
@@ -1210,7 +1284,7 @@ tp_unhover_fake_touches(struct tp_dispatch *tp, uint64_t time)
 			    t->state == TOUCH_NONE)
 				continue;
 
-			tp_end_touch(tp, t, time);
+			tp_maybe_end_touch(tp, t, time);
 
 			if (tp_fake_finger_is_touching(tp) &&
 			    tp->nfingers_down == nfake_touches)
@@ -1378,6 +1452,21 @@ tp_detect_thumb_while_moving(struct tp_dispatch *tp)
 }
 
 static void
+tp_pre_process_state(struct tp_dispatch *tp, uint64_t time)
+{
+	struct tp_touch *t;
+
+	tp_process_fake_touches(tp, time);
+	tp_unhover_touches(tp, time);
+
+	tp_for_each_touch(tp, t) {
+		if (t->state == TOUCH_MAYBE_END)
+			tp_end_touch(tp, t, time);
+	}
+
+}
+
+static void
 tp_process_state(struct tp_dispatch *tp, uint64_t time)
 {
 	struct tp_touch *t;
@@ -1386,8 +1475,6 @@ tp_process_state(struct tp_dispatch *tp, uint64_t time)
 	bool have_new_touch = false;
 	unsigned int speed_exceeded_count = 0;
 
-	tp_process_fake_touches(tp, time);
-	tp_unhover_touches(tp, time);
 	tp_position_fake_touches(tp);
 
 	want_motion_reset = tp_need_motion_history_reset(tp);
@@ -1422,7 +1509,7 @@ tp_process_state(struct tp_dispatch *tp, uint64_t time)
 
 		tp_thumb_detect(tp, t, time);
 		tp_palm_detect(tp, t, time);
-
+		tp_detect_wobbling(tp, t, time);
 		tp_motion_hysteresis(tp, t);
 		tp_motion_history_push(t);
 
@@ -1546,9 +1633,7 @@ static void
 tp_handle_state(struct tp_dispatch *tp,
 		uint64_t time)
 {
-	if (tp->hysteresis.enabled)
-		tp_maybe_disable_hysteresis(tp, time);
-
+	tp_pre_process_state(tp, time);
 	tp_process_state(tp, time);
 	tp_post_events(tp, time);
 	tp_post_process_state(tp, time);
@@ -2938,7 +3023,7 @@ tp_init_hysteresis(struct tp_dispatch *tp)
 	res_y = tp->device->abs.absinfo_y->resolution;
 	tp->hysteresis.margin.x = res_x/2;
 	tp->hysteresis.margin.y = res_y/2;
-	tp->hysteresis.enabled = true;
+	tp->hysteresis.enabled = false;
 }
 
 static void
@@ -2997,7 +3082,9 @@ tp_init_pressure(struct tp_dispatch *tp,
 	tp->pressure.low = lo;
 
 	evdev_log_debug(device,
-			"using pressure-based touch detection\n");
+			"using pressure-based touch detection (%d:%d)\n",
+			lo,
+			hi);
 }
 
 static bool

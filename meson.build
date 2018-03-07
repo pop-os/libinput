@@ -1,5 +1,5 @@
 project('libinput', 'c', 'cpp',
-	version : '1.10.1',
+	version : '1.10.2',
 	license : 'MIT/Expat',
 	default_options : [ 'c_std=gnu99', 'warning_level=2' ],
 	meson_version : '>= 0.40.0')
@@ -523,7 +523,7 @@ if get_option('tests')
 	config_h.set10('HAVE_LIBUNWIND', dep_libunwind.found())
 
 	# for inhibit support during test run
-	dep_libsystemd = dependency('libsystemd', required : false)
+	dep_libsystemd = dependency('libsystemd', version : '>= 221', required : false)
 	config_h.set10('HAVE_LIBSYSTEMD', dep_libsystemd.found())
 
 	lib_litest_sources = [
