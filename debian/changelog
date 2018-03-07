@@ -1,9 +1,9 @@
-libinput (1.10.2-1) UNRELEASED; urgency=medium
+libinput (1.10.2-1) unstable; urgency=medium
 
   * New upstream release.
     - touchpad fixes (LP: #1751190)
 
- -- Timo Aaltonen <tjaalton@debian.org>  Wed, 07 Mar 2018 17:47:25 +0200
+ -- Timo Aaltonen <tjaalton@debian.org>  Wed, 07 Mar 2018 17:51:58 +0200
 
 libinput (1.10.1-1) unstable; urgency=medium
 
