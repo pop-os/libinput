@@ -1,8 +1,8 @@
-libinput (1.10.3-1) UNRELEASED; urgency=medium
+libinput (1.10.3-1) unstable; urgency=medium
 
   * New upstream release. (Closes: #892714)
 
- -- Timo Aaltonen <tjaalton@debian.org>  Wed, 14 Mar 2018 10:51:43 +0200
+ -- Timo Aaltonen <tjaalton@debian.org>  Wed, 14 Mar 2018 11:04:22 +0200
 
 libinput (1.10.2-1) unstable; urgency=medium
 
