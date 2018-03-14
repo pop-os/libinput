@@ -178,11 +178,12 @@ tp_detect_wobbling(struct tp_dispatch *tp,
 		return;
 	}
 
-	t->hysteresis.x_motion_history <<= 1;
+	t->hysteresis.x_motion_history >>= 1;
 	if (dx > 0) { /* right move */
 		static const char r_l_r = 0x5; /* {Right, Left, Right} */
 
-		t->hysteresis.x_motion_history |= 0x1;
+
+		t->hysteresis.x_motion_history |= (1 << 2);
 		if (t->hysteresis.x_motion_history == r_l_r) {
 			tp->hysteresis.enabled = true;
 			evdev_log_debug(tp->device, "hysteresis enabled\n");
@@ -345,22 +346,26 @@ tp_maybe_end_touch(struct tp_dispatch *tp,
 	switch (t->state) {
 	case TOUCH_NONE:
 	case TOUCH_MAYBE_END:
-	case TOUCH_HOVERING:
 		return;
 	case TOUCH_END:
 		evdev_log_bug_libinput(tp->device,
 				       "touch  already in TOUCH_END\n");
 		return;
+	case TOUCH_HOVERING:
 	case TOUCH_BEGIN:
 	case TOUCH_UPDATE:
 		break;
 	}
 
-	t->dirty = true;
-	t->state = TOUCH_MAYBE_END;
+	if (t->state != TOUCH_HOVERING) {
+		assert(tp->nfingers_down >= 1);
+		tp->nfingers_down--;
+		t->state = TOUCH_MAYBE_END;
+	} else {
+		t->state = TOUCH_NONE;
+	}
 
-	assert(tp->nfingers_down >= 1);
-	tp->nfingers_down--;
+	t->dirty = true;
 }
 
 /**
