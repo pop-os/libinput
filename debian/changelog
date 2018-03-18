@@ -1,3 +1,12 @@
+libinput (1.10.3-2) unstable; urgency=medium
+
+  [ Jeremy Bicha ]
+  * control: Update VCS urls.
+  * control: Add more packages to libinput-dev Depends as a workaround for
+    buggy meson/pkg-config. (Closes: #893067)
+
+ -- Timo Aaltonen <tjaalton@debian.org>  Sun, 18 Mar 2018 15:39:44 +0200
+
 libinput (1.10.3-1) unstable; urgency=medium
 
   * New upstream release. (Closes: #892714)
