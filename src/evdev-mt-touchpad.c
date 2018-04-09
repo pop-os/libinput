@@ -1147,8 +1147,12 @@ tp_unhover_pressure(struct tp_dispatch *tp, uint64_t time)
 					tp_begin_touch(tp, t, time);
 				}
 			/* don't unhover for pressure if we have too many
-			 * fake fingers down, see comment below */
-			} else if (nfake_touches <= tp->num_slots) {
+			 * fake fingers down, see comment below. Except
+			 * for single-finger touches where the real touch
+			 * decides for the rest.
+			 */
+			} else if (nfake_touches <= tp->num_slots ||
+				   tp->num_slots == 1) {
 				if (t->pressure < tp->pressure.low) {
 					evdev_log_debug(tp->device,
 							"pressure: end touch\n");
@@ -1485,6 +1489,9 @@ tp_process_state(struct tp_dispatch *tp, uint64_t time)
 	want_motion_reset = tp_need_motion_history_reset(tp);
 
 	tp_for_each_touch(tp, t) {
+		if (t->state == TOUCH_NONE)
+			continue;
+
 		if (want_motion_reset) {
 			tp_motion_history_reset(t);
 			t->quirks.reset_motion_history = true;
@@ -2782,7 +2789,7 @@ tp_init_palmdetect_edge(struct tp_dispatch *tp,
 	edges = evdev_device_mm_to_units(device, &mm);
 	tp->palm.right_edge = edges.x;
 
-	if (!tp->buttons.has_topbuttons) {
+	if (!tp->buttons.has_topbuttons && height > 55) {
 		/* top edge is 5% of the height */
 		mm.y = height * 0.05;
 		edges = evdev_device_mm_to_units(device, &mm);
@@ -3022,12 +3029,22 @@ tp_init_default_resolution(struct tp_dispatch *tp,
 static inline void
 tp_init_hysteresis(struct tp_dispatch *tp)
 {
-	int res_x, res_y;
+	int xmargin, ymargin;
+	const struct input_absinfo *ax = tp->device->abs.absinfo_x,
+				   *ay = tp->device->abs.absinfo_y;
 
-	res_x = tp->device->abs.absinfo_x->resolution;
-	res_y = tp->device->abs.absinfo_y->resolution;
-	tp->hysteresis.margin.x = res_x/2;
-	tp->hysteresis.margin.y = res_y/2;
+	if (ax->fuzz)
+		xmargin = ax->fuzz;
+	else
+		xmargin = ax->resolution/4;
+
+	if (ay->fuzz)
+		ymargin = ay->fuzz;
+	else
+		ymargin = ay->resolution/4;
+
+	tp->hysteresis.margin.x = xmargin;
+	tp->hysteresis.margin.y = ymargin;
 	tp->hysteresis.enabled = false;
 }
 
