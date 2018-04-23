@@ -1180,6 +1180,12 @@ evdev_get_trackpoint_range(struct evdev_device *device)
 		goto out;
 	}
 
+	evdev_log_info(device,
+		       "trackpoint does not have a specified range, "
+		       "guessing... see %strackpoints.html\n",
+		       HTTP_DOC_LINK);
+
+
 	prop = udev_device_get_property_value(device->udev_device,
 					      "POINTINGSTICK_SENSITIVITY");
 	if (prop) {
@@ -1251,6 +1257,7 @@ evdev_read_model_flags(struct evdev_device *device)
 		MODEL(ALPS_TOUCHPAD),
 		MODEL(SYNAPTICS_SERIAL_TOUCHPAD),
 		MODEL(JUMPING_SEMI_MT),
+		MODEL(LOGITECH_K400),
 		MODEL(CYBORG_RAT),
 		MODEL(HP_STREAM11_TOUCHPAD),
 		MODEL(LENOVO_T450_TOUCHPAD),

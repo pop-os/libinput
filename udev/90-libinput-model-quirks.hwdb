@@ -97,6 +97,10 @@ libinput:name:* Touchpad:dmi:*svnDellInc.:*
 libinput:name:*AlpsPS/2 ALPS GlidePoint:dmi:*svnDellInc.:pnLatitudeE6220:*
  LIBINPUT_ATTR_PRESSURE_RANGE=100:90
 
+libinput:name:*CyPS/2 Cypress Trackpad:dmi:*svnDell*:*XPSL322X*
+ LIBINPUT_ATTR_PRESSURE_RANGE=30:20
+ LIBINPUT_ATTR_PALM_PRESSURE_THRESHOLD=254
+
 ##########################################
 # Elantech
 ##########################################
@@ -198,6 +202,20 @@ libinput:tablet:input:b0003v256Cp*
 libinput:name:SynPS/2 Synaptics TouchPad:dmi:*svnLENOVO:*:pvrThinkPadX230*
  LIBINPUT_MODEL_LENOVO_X230=1
 
+# T440p on PS/2
+libinput:name:SynPS/2 Synaptics TouchPad:dmi:*svnLENOVO:*:pvrThinkPadT440p*
+# T440p on RMI4
+libinput:name:Synaptics tm2964-001:dmi:*svnLENOVO:*:pvrThinkPadT440p*
+ LIBINPUT_MODEL_LENOVO_T450_TOUCHPAD=1
+
+# T440s trackpoint
+libinput:name:TPPS/2 IBM TrackPoint:dmi:*svnLENOVO:*:pvrThinkPadT440s*
+ LIBINPUT_ATTR_TRACKPOINT_RANGE=30
+
+# T450s trackpoint
+libinput:name:TPPS/2 IBM TrackPoint:dmi:*svnLENOVO:*:pvrThinkPadT450s*
+ LIBINPUT_ATTR_TRACKPOINT_RANGE=50
+
 # Lenovo T450/T460 and all other Lenovos of the *50 and *60 generation,
 # including the X1 Carbon 3rd gen
 libinput:name:SynPS/2 Synaptics TouchPad:dmi:*svnLENOVO:*:pvrThinkPad??50*:
@@ -210,6 +228,10 @@ libinput:name:SynPS/2 Synaptics TouchPad:dmi:*svnLENOVO:*:pvrThinkPadX1Carbon3rd
 libinput:keyboard:input:b0003v17EFp6047*
  LIBINPUT_ATTR_KEYBOARD_INTEGRATION=external
 
+# Lenovo X280
+libinput:name:*ALPS TrackPoint*:svnLENOVO:*:pvrThinkPadX280:*
+ LIBINPUT_ATTR_TRACKPOINT_RANGE=70
+
 ##########################################
 # Logitech
 ##########################################
@@ -219,6 +241,10 @@ libinput:name:*Logitech M570*:dmi:*
 # Logitech Marble Mouse trackball
 libinput:mouse:input:b0003v046DpC408*
  LIBINPUT_MODEL_LOGITECH_MARBLE_MOUSE=1
+
+# Logitech K400
+libinput:mouse:input:b0003v046Dp4024*
+ LIBINPUT_MODEL_LOGITECH_K400=1
 
 ##########################################
 # Microsoft
