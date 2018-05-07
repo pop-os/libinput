@@ -59,10 +59,11 @@ libinput:name:*Apple Inc. Apple Internal Keyboard*:dmi:*
 libinput:mouse:input:b0005v05ACp030D*
  LIBINPUT_MODEL_APPLE_MAGICMOUSE=1
 
-# Magic Trackpad
+# Apple Magic Trackpad v1 (2010, clickpad)
 libinput:touchpad:input:b0005v05ACp030E*
  LIBINPUT_ATTR_SIZE_HINT=130x110
- LIBINPUT_ATTR_TOUCH_SIZE_RANGE=60:40
+ LIBINPUT_ATTR_TOUCH_SIZE_RANGE=20:10
+ LIBINPUT_ATTR_PALM_SIZE_THRESHOLD=900
 
 libinput:touchpad:input:b0003v05ACp021A*
  LIBINPUT_MODEL_APPLE_TOUCHPAD_ONEBUTTON=1
@@ -218,6 +219,7 @@ libinput:name:TPPS/2 IBM TrackPoint:dmi:*svnLENOVO:*:pvrThinkPadT450s*
 
 # Lenovo T450/T460 and all other Lenovos of the *50 and *60 generation,
 # including the X1 Carbon 3rd gen
+libinput:name:SynPS/2 Synaptics TouchPad:dmi:*svnLENOVO:*:pvrThinkPadP50*:
 libinput:name:SynPS/2 Synaptics TouchPad:dmi:*svnLENOVO:*:pvrThinkPad??50*:
 libinput:name:SynPS/2 Synaptics TouchPad:dmi:*svnLENOVO:*:pvrThinkPad??60*:
 libinput:name:SynPS/2 Synaptics TouchPad:dmi:*svnLENOVO:*:pvrThinkPadX1Carbon3rd:*
@@ -231,6 +233,15 @@ libinput:keyboard:input:b0003v17EFp6047*
 # Lenovo X280
 libinput:name:*ALPS TrackPoint*:svnLENOVO:*:pvrThinkPadX280:*
  LIBINPUT_ATTR_TRACKPOINT_RANGE=70
+
+# Lenovo Thinkpad X1 Yoga disables the keyboard anyway but has the same device
+# use a windows key on the screen and volume rocker on the side (#103749)
+libinput:name:AT Translated Set 2 keyboard:dmi:*svnLENOVO:*pvrThinkPadX1Yoga1st:*
+ LIBINPUT_MODEL_TABLET_MODE_NO_SUSPEND=1
+
+# Lenovo Carbon X1 6th gen (RMI4 only, PS/2 is broken on this device)
+libinput:name:Synaptics TM3288-010:dmi:*svnLenovo:*pvrThinkPadX1Carbon6th:*
+ LIBINPUT_MODEL_LENOVO_CARBON_X1_6TH=1
 
 ##########################################
 # Logitech
