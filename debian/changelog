@@ -1,11 +1,11 @@
-libinput (1.11.0-1) UNRELEASED; urgency=medium
+libinput (1.11.0-1) unstable; urgency=medium
 
   * New upstream release. (LP: #1764097, #1746740, #1761365)
   * tests: Add a simple smoketest to check that linking to libinput
     works. Thanks, Simon McVittie! (Closes: #893391)
   * watch: Update upstream git repo location.
 
- -- Timo Aaltonen <tjaalton@debian.org>  Thu, 07 Jun 2018 09:53:39 +0300
+ -- Timo Aaltonen <tjaalton@debian.org>  Thu, 07 Jun 2018 10:25:25 +0300
 
 libinput (1.10.7-1) unstable; urgency=medium
 
