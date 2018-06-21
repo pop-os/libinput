@@ -1,4 +1,4 @@
-libinput (1.11.0-1) unstable; urgency=medium
+libinput (1.11.1-1) UNRELEASED; urgency=medium
 
   * New upstream release. (LP: #1764097, #1746740, #1761365)
   * tests: Add a simple smoketest to check that linking to libinput
