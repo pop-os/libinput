@@ -846,9 +846,6 @@ tp_palm_detect_tool_triggered(struct tp_dispatch *tp,
 		 !t->is_tool_palm)
 		t->palm.state = PALM_NONE;
 
-	if (t->palm.state == PALM_TOOL_PALM)
-		tp_stop_actions(tp, time);
-
 	return t->palm.state == PALM_TOOL_PALM;
 }
 
@@ -1522,6 +1519,11 @@ tp_pre_process_state(struct tp_dispatch *tp, uint64_t time)
 	tp_for_each_touch(tp, t) {
 		if (t->state == TOUCH_MAYBE_END)
 			tp_end_touch(tp, t, time);
+
+		/* Ignore motion when pressure/touch size fell below the
+		 * threshold, thus ending the touch */
+		if (t->state == TOUCH_END && t->history.count > 0)
+			t->point = tp_motion_history_offset(t, 0)->point;
 	}
 
 }
@@ -1784,6 +1786,8 @@ tp_interface_remove(struct evdev_dispatch *dispatch)
 {
 	struct tp_dispatch *tp = tp_dispatch(dispatch);
 
+	libinput_timer_cancel(&tp->arbitration.arbitration_timer);
+
 	tp_remove_tap(tp);
 	tp_remove_buttons(tp);
 	tp_remove_sendevents(tp);
@@ -1796,7 +1800,6 @@ tp_interface_destroy(struct evdev_dispatch *dispatch)
 {
 	struct tp_dispatch *tp = tp_dispatch(dispatch);
 
-	libinput_timer_cancel(&tp->arbitration.arbitration_timer);
 	libinput_timer_destroy(&tp->arbitration.arbitration_timer);
 	libinput_timer_destroy(&tp->palm.trackpoint_timer);
 	libinput_timer_destroy(&tp->dwt.keyboard_timer);

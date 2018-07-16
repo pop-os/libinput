@@ -124,6 +124,10 @@ libinput:name:*CyPS/2 Cypress Trackpad:dmi:*svnDell*:*XPSL322X*
  LIBINPUT_ATTR_PRESSURE_RANGE=30:20
  LIBINPUT_ATTR_PALM_PRESSURE_THRESHOLD=254
 
+libinput:name:*Synaptics s3203:dmi:*svnDellInc.:*pnXPS139333*
+ LIBINPUT_ATTR_PRESSURE_RANGE=15:10
+ LIBINPUT_ATTR_PALM_PRESSURE_THRESHOLD=150
+
 ##########################################
 # Elantech
 ##########################################
@@ -276,17 +280,23 @@ libinput:name:*Synaptics*:dmi:*svnLENOVO:*:pvrThinkPad*:*
 libinput:keyboard:input:b0003v17EFp6047*
  LIBINPUT_ATTR_KEYBOARD_INTEGRATION=external
 
+# Lenovo X270
+libinput:name:*TPPS/2 IBM TrackPoint*:dmi:svnLENOVO:*:pvrThinkPadX270:*
+ LIBINPUT_ATTR_TRACKPOINT_RANGE=40
+
 # Lenovo X280
 libinput:name:*ALPS TrackPoint*:dmi:svnLENOVO:*:pvrThinkPadX280:*
  LIBINPUT_ATTR_TRACKPOINT_RANGE=70
 
-# Lenovo Thinkpad X1 Yoga disables the keyboard anyway but has the same device
-# use a windows key on the screen and volume rocker on the side (#103749)
-libinput:name:AT Translated Set 2 keyboard:dmi:*svnLENOVO:*pvrThinkPadX1Yoga1st:*
+# Lenovo Thinkpad Yoga (not the consumer versions) disables the keyboard
+# mechanically. We must not disable the keyboard because some keys are
+# still accessible on the screen and volume rocker.
+# Initially #103749 and extended by #106799 comment 7
+libinput:name:AT Translated Set 2 keyboard:dmi:*svnLENOVO:*pvrThinkPad*Yoga*:*
  LIBINPUT_MODEL_TABLET_MODE_NO_SUSPEND=1
 
 # Lenovo Carbon X1 6th gen (RMI4 only, PS/2 is broken on this device)
-libinput:name:Synaptics TM3288-010:dmi:*svnLenovo:*pvrThinkPadX1Carbon6th:*
+libinput:name:Synaptics TM3288-011:dmi:*svnLenovo:*pvrThinkPadX1Carbon6th:*
  LIBINPUT_MODEL_LENOVO_CARBON_X1_6TH=1
 
 ##########################################
