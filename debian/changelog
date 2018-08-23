@@ -1,6 +1,7 @@
 libinput (1.11.3-1) UNRELEASED; urgency=medium
 
   * New upstream release.
+  * Remove upstream gitlab CI file.
 
  -- Timo Aaltonen <tjaalton@debian.org>  Thu, 23 Aug 2018 09:10:30 +0300
 
