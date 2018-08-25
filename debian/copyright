@@ -6,10 +6,6 @@ Source: http://www.freedesktop.org/software/libinput/
 Files-Excluded:
  doc/html
 
-Files: debian/*
-Copyright: Copyright © 2014 Emilio Pozuelo Monfort <pochu@debian.org>
-License: Expat
-
 Files: *
 Copyright: Copyright © 2006-2009 Simon Thum
            Copyright © 2008-2012 Kristian Høgsberg
@@ -24,6 +20,10 @@ License: Expat
 Files: include/linux/input.h
 Copyright: Copyright © 1999-2002 Vojtech Pavlik
 License: GPL-2
+
+Files: debian/*
+Copyright: Copyright © 2014 Emilio Pozuelo Monfort <pochu@debian.org>
+License: Expat
 
 License: Expat
  Permission is hereby granted, free of charge, to any person obtaining a
