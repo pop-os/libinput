@@ -4,6 +4,7 @@ libinput (1.12.0-1) UNRELEASED; urgency=medium
   * New upstream release. (Closes: #907236)
   * bin.install: Add quirks path.
   * copyright: Re-order some things to make lintian happy.
+  * source: Add .gitlab-ci.yml to extend-diff-ignore.
 
   [ Julien Cristau ]
   * Bump debhelper build-dep to 10.3 for meson build system support.
