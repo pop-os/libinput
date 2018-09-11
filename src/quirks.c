@@ -267,6 +267,9 @@ quirk_get_name(enum quirk q)
 	case QUIRK_ATTR_RESOLUTION_HINT:		return "AttrResolutionHint";
 	case QUIRK_ATTR_TRACKPOINT_MULTIPLIER:		return "AttrTrackpointMultiplier";
 	case QUIRK_ATTR_THUMB_PRESSURE_THRESHOLD:	return "AttrThumbPressureThreshold";
+	case QUIRK_ATTR_USE_VELOCITY_AVERAGING:		return "AttrUseVelocityAveraging";
+	case QUIRK_ATTR_THUMB_SIZE_THRESHOLD:		return "AttrThumbSizeThreshold";
+	case QUIRK_ATTR_MSC_TIMESTAMP:			return "AttrMscTimestamp";
 	default:
 		abort();
 	}
@@ -643,6 +646,7 @@ parse_attr(struct quirks_context *ctx,
 	struct quirk_dimensions dim;
 	struct quirk_range range;
 	unsigned int v;
+	bool b;
 	double d;
 
 	if (streq(key, quirk_get_name(QUIRK_ATTR_SIZE_HINT))) {
@@ -716,12 +720,37 @@ parse_attr(struct quirks_context *ctx,
 		p->type = PT_DOUBLE;
 		p->value.d = d;
 		rc = true;
+	} else if (streq(key, quirk_get_name(QUIRK_ATTR_USE_VELOCITY_AVERAGING))) {
+		p->id = QUIRK_ATTR_USE_VELOCITY_AVERAGING;
+		if (streq(value, "1"))
+			b = true;
+		else if (streq(value, "0"))
+			b = false;
+		else
+			goto out;
+		p->type = PT_BOOL;
+		p->value.b = b;
+		rc = true;
 	} else if (streq(key, quirk_get_name(QUIRK_ATTR_THUMB_PRESSURE_THRESHOLD))) {
 		p->id = QUIRK_ATTR_THUMB_PRESSURE_THRESHOLD;
 		if (!safe_atou(value, &v))
 			goto out;
 		p->type = PT_UINT;
 		p->value.u = v;
+		rc = true;
+	} else if (streq(key, quirk_get_name(QUIRK_ATTR_THUMB_SIZE_THRESHOLD))) {
+		p->id = QUIRK_ATTR_THUMB_SIZE_THRESHOLD;
+		if (!safe_atou(value, &v))
+			goto out;
+		p->type = PT_UINT;
+		p->value.u = v;
+		rc = true;
+	} else if (streq(key, quirk_get_name(QUIRK_ATTR_MSC_TIMESTAMP))) {
+		p->id = QUIRK_ATTR_MSC_TIMESTAMP;
+		if (!streq(value, "watch"))
+			goto out;
+		p->type = PT_STRING;
+		p->value.s = safe_strdup(value);
 		rc = true;
 	} else {
 		qlog_error(ctx, "Unknown key %s in %s\n", key, s->name);
@@ -1176,6 +1205,14 @@ match_fill_bus_vid_pid(struct match *m,
 		break;
 	case BUS_I8042:
 		m->bus = BT_PS2;
+		m->bits |= M_BUS;
+		break;
+	case BUS_RMI:
+		m->bus = BT_RMI;
+		m->bits |= M_BUS;
+		break;
+	case BUS_I2C:
+		m->bus = BT_I2C;
 		m->bits |= M_BUS;
 		break;
 	default:

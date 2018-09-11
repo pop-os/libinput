@@ -956,11 +956,14 @@ evdev_init_accel(struct evdev_device *device,
 	if (which == LIBINPUT_CONFIG_ACCEL_PROFILE_FLAT)
 		filter = create_pointer_accelerator_filter_flat(device->dpi);
 	else if (device->tags & EVDEV_TAG_TRACKPOINT)
-		filter = create_pointer_accelerator_filter_trackpoint(device->trackpoint_multiplier);
+		filter = create_pointer_accelerator_filter_trackpoint(device->trackpoint_multiplier,
+								      device->use_velocity_averaging);
 	else if (device->dpi < DEFAULT_MOUSE_DPI)
-		filter = create_pointer_accelerator_filter_linear_low_dpi(device->dpi);
+		filter = create_pointer_accelerator_filter_linear_low_dpi(device->dpi,
+									  device->use_velocity_averaging);
 	else
-		filter = create_pointer_accelerator_filter_linear(device->dpi);
+		filter = create_pointer_accelerator_filter_linear(device->dpi,
+								  device->use_velocity_averaging);
 
 	if (!filter)
 		return false;
@@ -1208,6 +1211,29 @@ evdev_get_trackpoint_multiplier(struct evdev_device *device)
 	return multiplier;
 }
 
+static inline bool
+evdev_need_velocity_averaging(struct evdev_device *device)
+{
+	struct quirks_context *quirks;
+	struct quirks *q;
+	bool use_velocity_averaging = false; /* default off unless we have quirk */
+
+	quirks = evdev_libinput_context(device)->quirks;
+	q = quirks_fetch_for_device(quirks, device->udev_device);
+	if (q) {
+		quirks_get_bool(q,
+				QUIRK_ATTR_USE_VELOCITY_AVERAGING,
+				&use_velocity_averaging);
+		quirks_unref(q);
+	}
+
+	if (use_velocity_averaging)
+		evdev_log_info(device,
+			       "velocity averaging is turned on\n");
+
+	return use_velocity_averaging;
+}
+
 static inline int
 evdev_read_dpi_prop(struct evdev_device *device)
 {
@@ -1327,6 +1353,12 @@ evdev_read_model_flags(struct evdev_device *device)
 			    "LIBINPUT_MODEL_LENOVO_X220_TOUCHPAD_FW81")) {
 		evdev_log_debug(device, "tagged as trackball\n");
 		model_flags |= EVDEV_MODEL_LENOVO_X220_TOUCHPAD_FW81;
+	}
+
+	if (parse_udev_flag(device, device->udev_device,
+			    "LIBINPUT_TEST_DEVICE")) {
+		evdev_log_debug(device, "is a test device\n");
+		model_flags |= EVDEV_MODEL_TEST_DEVICE;
 	}
 
 	return model_flags;
@@ -1716,6 +1748,8 @@ evdev_configure_device(struct evdev_device *device)
 	if (udev_tags & EVDEV_UDEV_TAG_TOUCHPAD) {
 		if (udev_tags & EVDEV_UDEV_TAG_TABLET)
 			evdev_tag_tablet_touchpad(device);
+		/* whether velocity should be averaged, false by default */
+		device->use_velocity_averaging = evdev_need_velocity_averaging(device);
 		dispatch = evdev_mt_touchpad_create(device);
 		evdev_log_info(device, "device is a touchpad\n");
 		return dispatch;
@@ -1727,6 +1761,8 @@ evdev_configure_device(struct evdev_device *device)
 		evdev_tag_trackpoint(device, device->udev_device);
 		device->dpi = evdev_read_dpi_prop(device);
 		device->trackpoint_multiplier = evdev_get_trackpoint_multiplier(device);
+		/* whether velocity should be averaged, false by default */
+		device->use_velocity_averaging = evdev_need_velocity_averaging(device);
 
 		device->seat_caps |= EVDEV_DEVICE_POINTER;
 
@@ -1881,6 +1917,10 @@ evdev_drain_fd(int fd)
 static inline void
 evdev_pre_configure_model_quirks(struct evdev_device *device)
 {
+	struct quirks_context *quirks;
+	struct quirks *q;
+	char *prop;
+
 	/* The Cyborg RAT has a mode button that cycles through event codes.
 	 * On press, we get a release for the current mode and a press for the
 	 * next mode:
@@ -1954,8 +1994,17 @@ evdev_pre_configure_model_quirks(struct evdev_device *device)
 					    EV_ABS,
 					    ABS_MT_TOOL_TYPE);
 
-	/* We don't care about them and it can cause unnecessary wakeups */
-	libevdev_disable_event_code(device->evdev, EV_MSC, MSC_TIMESTAMP);
+	/* Generally we don't care about MSC_TIMESTAMP and it can cause
+	 * unnecessary wakeups but on some devices we need to watch it for
+	 * pointer jumps */
+	quirks = evdev_libinput_context(device)->quirks;
+	q = quirks_fetch_for_device(quirks, device->udev_device);
+	if (!q ||
+	    !quirks_get_string(q, QUIRK_ATTR_MSC_TIMESTAMP, &prop) ||
+	    !streq(prop, "watch")) {
+		libevdev_disable_event_code(device->evdev, EV_MSC, MSC_TIMESTAMP);
+	}
+	quirks_unref(q);
 }
 
 static void

@@ -108,6 +108,8 @@ class TouchSequence(object):
         self.was_down = False
         self.is_palm = False
         self.was_palm = False
+        self.is_thumb = False
+        self.was_thumb = False
 
         self.major_range = Range()
         self.minor_range = Range()
@@ -129,6 +131,10 @@ class TouchSequence(object):
         self.is_palm = touch.major > self.device.palm
         if self.is_palm:
                 self.was_palm = True
+
+        self.is_thumb = self.device.thumb != 0 and touch.major > self.device.thumb
+        if self.is_thumb:
+            self.was_thumb = True
 
     def finalize(self):
         """Mark the TouchSequence as complete (finger is up)"""
@@ -152,15 +158,18 @@ class TouchSequence(object):
                 s += " down"
         if self.was_palm:
                 s += " palm"
+        if self.was_thumb:
+            s += " thumb"
 
         return s
 
     def _str_state(self):
         touch = self.points[-1]
-        s = "{}, tags: {} {}".format(
+        s = "{}, tags: {} {} {}".format(
                                 touch,
                                 "down" if self.is_down else "    ",
-                                "palm" if self.is_palm else "     "
+                                "palm" if self.is_palm else "    ",
+                                "thumb" if self.is_thumb else "     "
                                 )
         return s
 
@@ -199,6 +208,7 @@ class Device(object):
         self.up = 0
         self.down = 0
         self.palm = 0
+        self.thumb = 0
 
         self._init_thresholds_from_quirks()
         self.sequences = []
@@ -235,6 +245,8 @@ class Device(object):
                 self.palm = int(q[1])
             elif q[0] == 'AttrTouchSizeRange':
                 self.down, self.up = colon_tuple(q[1])
+            elif q[0] == 'AttrThumbSizeThreshold':
+                self.thumb = int(q[1])
 
     def start_new_sequence(self, tracking_id):
         self.sequences.append(TouchSequence(self, tracking_id))
@@ -256,9 +268,13 @@ class Device(object):
                 if event.value > -1:
                     self.start_new_sequence(event.value)
                 else:
-                    s = self.current_sequence()
-                    s.finalize()
-                    print("\r{}".format(s))
+                    try:
+                        s = self.current_sequence()
+                        s.finalize()
+                        print("\r{}".format(s))
+                    except IndexError:
+                        # If the finger was down during start
+                        pass
         elif event.code == evdev.ecodes.ABS_MT_TOUCH_MAJOR:
                 self.touch.major = event.value
         elif event.code == evdev.ecodes.ABS_MT_TOUCH_MINOR:
@@ -268,11 +284,14 @@ class Device(object):
 
     def handle_syn(self, event):
         if self.touch.dirty:
-            self.current_sequence().append(self.touch)
-            print("\r{}".format(self.current_sequence()), end="")
-            self.touch = Touch(major=self.touch.major,
-                               minor=self.touch.minor,
-                               orientation=self.touch.orientation)
+            try:
+                self.current_sequence().append(self.touch)
+                print("\r{}".format(self.current_sequence()), end="")
+                self.touch = Touch(major=self.touch.major,
+                                   minor=self.touch.minor,
+                                   orientation=self.touch.orientation)
+            except IndexError:
+                pass
 
     def handle_event(self, event):
         if event.type == evdev.ecodes.EV_ABS:
@@ -286,6 +305,7 @@ class Device(object):
         print("Ready for recording data.")
         print("Touch sizes used: {}:{}".format(self.down, self.up))
         print("Palm size used: {}".format(self.palm))
+        print("Thumb size used: {}".format(self.thumb))
         print("Place a single finger on the device to measure touch size.\n"
               "Ctrl+C to exit\n")
 

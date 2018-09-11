@@ -622,6 +622,10 @@ litest_log_handler(struct libinput *libinput,
 		    !strstr(format, "offset negative"))
 		litest_abort_msg("libinput bug triggered, aborting.\n");
 	}
+
+	if (strstr(format, "Touch jump detected and discarded")) {
+		litest_abort_msg("libinput touch jump triggered, aborting.\n");
+	}
 }
 
 static char *
@@ -1132,6 +1136,11 @@ litest_install_model_quirks(struct list *created_files_list)
 
 	file = litest_copy_file(UDEV_DEVICE_GROUPS_FILE,
 				LIBINPUT_DEVICE_GROUPS_RULES_FILE,
+				warning);
+	list_insert(created_files_list, &file->link);
+
+	file = litest_copy_file(UDEV_MODEL_QUIRKS_RULE_FILE,
+				LIBINPUT_MODEL_QUIRKS_UDEV_RULES_FILE,
 				warning);
 	list_insert(created_files_list, &file->link);
 }
@@ -1992,19 +2001,13 @@ litest_touch_move_to(struct litest_device *d,
 		     unsigned int slot,
 		     double x_from, double y_from,
 		     double x_to, double y_to,
-		     int steps, int sleep_ms)
+		     int steps)
 {
-	for (int i = 1; i < steps; i++) {
-		litest_touch_move(d, slot,
-				  x_from + (x_to - x_from)/steps * i,
-				  y_from + (y_to - y_from)/steps * i);
-		if (sleep_ms) {
-			libinput_dispatch(d->libinput);
-			msleep(sleep_ms);
-			libinput_dispatch(d->libinput);
-		}
-	}
-	litest_touch_move(d, slot, x_to, y_to);
+	litest_touch_move_to_extended(d, slot,
+				      x_from, y_from,
+				      x_to, y_to,
+				      NULL,
+				      steps);
 }
 
 void
@@ -2013,18 +2016,18 @@ litest_touch_move_to_extended(struct litest_device *d,
 			      double x_from, double y_from,
 			      double x_to, double y_to,
 			      struct axis_replacement *axes,
-			      int steps, int sleep_ms)
+			      int steps)
 {
-	for (int i = 1; i < steps - 1; i++) {
+	int sleep_ms = 10;
+
+	for (int i = 1; i < steps; i++) {
 		litest_touch_move_extended(d, slot,
 					   x_from + (x_to - x_from)/steps * i,
 					   y_from + (y_to - y_from)/steps * i,
 					   axes);
-		if (sleep_ms) {
-			libinput_dispatch(d->libinput);
-			msleep(sleep_ms);
-			libinput_dispatch(d->libinput);
-		}
+		libinput_dispatch(d->libinput);
+		msleep(sleep_ms);
+		libinput_dispatch(d->libinput);
 	}
 	litest_touch_move_extended(d, slot, x_to, y_to, axes);
 }
@@ -2110,8 +2113,10 @@ litest_touch_move_two_touches(struct litest_device *d,
 			      double x0, double y0,
 			      double x1, double y1,
 			      double dx, double dy,
-			      int steps, int sleep_ms)
+			      int steps)
 {
+	int sleep_ms = 10;
+
 	for (int i = 1; i < steps; i++) {
 		litest_push_event_frame(d);
 		litest_touch_move(d, 0, x0 + dx / steps * i,
@@ -2119,10 +2124,8 @@ litest_touch_move_two_touches(struct litest_device *d,
 		litest_touch_move(d, 1, x1 + dx / steps * i,
 					y1 + dy / steps * i);
 		litest_pop_event_frame(d);
-		if (sleep_ms) {
-			libinput_dispatch(d->libinput);
-			msleep(sleep_ms);
-		}
+		libinput_dispatch(d->libinput);
+		msleep(sleep_ms);
 		libinput_dispatch(d->libinput);
 	}
 	litest_push_event_frame(d);
@@ -2137,8 +2140,10 @@ litest_touch_move_three_touches(struct litest_device *d,
 				double x1, double y1,
 				double x2, double y2,
 				double dx, double dy,
-				int steps, int sleep_ms)
+				int steps)
 {
+	int sleep_ms = 10;
+
 	for (int i = 0; i < steps - 1; i++) {
 		litest_touch_move(d, 0, x0 + dx / steps * i,
 					y0 + dy / steps * i);
@@ -2146,11 +2151,10 @@ litest_touch_move_three_touches(struct litest_device *d,
 					y1 + dy / steps * i);
 		litest_touch_move(d, 2, x2 + dx / steps * i,
 					y2 + dy / steps * i);
-		if (sleep_ms) {
-			libinput_dispatch(d->libinput);
-			msleep(sleep_ms);
-			libinput_dispatch(d->libinput);
-		}
+
+		libinput_dispatch(d->libinput);
+		msleep(sleep_ms);
+		libinput_dispatch(d->libinput);
 	}
 	litest_touch_move(d, 0, x0 + dx, y0 + dy);
 	litest_touch_move(d, 1, x1 + dx, y1 + dy);
@@ -2222,17 +2226,17 @@ litest_hover_move_to(struct litest_device *d,
 		     unsigned int slot,
 		     double x_from, double y_from,
 		     double x_to, double y_to,
-		     int steps, int sleep_ms)
+		     int steps)
 {
+	int sleep_ms = 10;
+
 	for (int i = 0; i < steps - 1; i++) {
 		litest_hover_move(d, slot,
 				  x_from + (x_to - x_from)/steps * i,
 				  y_from + (y_to - y_from)/steps * i);
-		if (sleep_ms) {
-			libinput_dispatch(d->libinput);
-			msleep(sleep_ms);
-			libinput_dispatch(d->libinput);
-		}
+		libinput_dispatch(d->libinput);
+		msleep(sleep_ms);
+		libinput_dispatch(d->libinput);
 	}
 	litest_hover_move(d, slot, x_to, y_to);
 }
@@ -2242,8 +2246,10 @@ litest_hover_move_two_touches(struct litest_device *d,
 			      double x0, double y0,
 			      double x1, double y1,
 			      double dx, double dy,
-			      int steps, int sleep_ms)
+			      int steps)
 {
+	int sleep_ms = 10;
+
 	for (int i = 0; i < steps - 1; i++) {
 		litest_push_event_frame(d);
 		litest_hover_move(d, 0, x0 + dx / steps * i,
@@ -2251,11 +2257,9 @@ litest_hover_move_two_touches(struct litest_device *d,
 		litest_hover_move(d, 1, x1 + dx / steps * i,
 					y1 + dy / steps * i);
 		litest_pop_event_frame(d);
-		if (sleep_ms) {
-			libinput_dispatch(d->libinput);
-			msleep(sleep_ms);
-			libinput_dispatch(d->libinput);
-		}
+		libinput_dispatch(d->libinput);
+		msleep(sleep_ms);
+		libinput_dispatch(d->libinput);
 	}
 	litest_push_event_frame(d);
 	litest_hover_move(d, 0, x0 + dx, y0 + dy);

@@ -42,6 +42,7 @@ enum touchpad_event {
 	TOUCHPAD_EVENT_BUTTON_PRESS	= (1 << 1),
 	TOUCHPAD_EVENT_BUTTON_RELEASE	= (1 << 2),
 	TOUCHPAD_EVENT_OTHERAXIS	= (1 << 3),
+	TOUCHPAD_EVENT_TIMESTAMP	= (1 << 4),
 };
 
 enum touch_state {
@@ -143,6 +144,12 @@ enum tp_thumb_state {
 	THUMB_STATE_MAYBE,
 };
 
+enum tp_jump_state {
+	JUMP_STATE_IGNORE = 0,
+	JUMP_STATE_EXPECT_FIRST,
+	JUMP_STATE_EXPECT_DELAY,
+};
+
 struct tp_touch {
 	struct tp_dispatch *tp;
 	unsigned int index;
@@ -175,6 +182,10 @@ struct tp_touch {
 		unsigned int index;
 		unsigned int count;
 	} history;
+
+	struct {
+		double last_delta_mm;
+	} jumps;
 
 	struct {
 		struct device_coords center;
@@ -437,9 +448,14 @@ struct tp_dispatch {
 
 	struct {
 		bool detect_thumbs;
-		int threshold;
 		int upper_thumb_line;
 		int lower_thumb_line;
+
+		bool use_pressure;
+		int pressure_threshold;
+
+		bool use_size;
+		int size_threshold;
 	} thumb;
 
 	struct {
@@ -451,6 +467,12 @@ struct tp_dispatch {
 		 * event with the jump.
 		 */
 		unsigned int nonmotion_event_count;
+
+		struct msc_timestamp {
+			enum tp_jump_state state;
+			uint32_t interval;
+			uint32_t now;
+		} msc_timestamp;
 	} quirks;
 
 	struct {

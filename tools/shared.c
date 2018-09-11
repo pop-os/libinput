@@ -639,6 +639,9 @@ tools_list_device_quirks(struct quirks_context *ctx,
 		QUIRK_ATTR_RESOLUTION_HINT,
 		QUIRK_ATTR_TRACKPOINT_MULTIPLIER,
 		QUIRK_ATTR_THUMB_PRESSURE_THRESHOLD,
+		QUIRK_ATTR_USE_VELOCITY_AVERAGING,
+		QUIRK_ATTR_THUMB_SIZE_THRESHOLD,
+		QUIRK_ATTR_MSC_TIMESTAMP,
 	};
 	enum quirk *q;
 
@@ -706,6 +709,7 @@ tools_list_device_quirks(struct quirks_context *ctx,
 		case QUIRK_ATTR_PALM_SIZE_THRESHOLD:
 		case QUIRK_ATTR_PALM_PRESSURE_THRESHOLD:
 		case QUIRK_ATTR_THUMB_PRESSURE_THRESHOLD:
+		case QUIRK_ATTR_THUMB_SIZE_THRESHOLD:
 			quirks_get_uint32(quirks, *q, &v);
 			snprintf(buf, sizeof(buf), "%s=%u", name, v);
 			callback(userdata, buf);
@@ -713,6 +717,7 @@ tools_list_device_quirks(struct quirks_context *ctx,
 		case QUIRK_ATTR_LID_SWITCH_RELIABILITY:
 		case QUIRK_ATTR_KEYBOARD_INTEGRATION:
 		case QUIRK_ATTR_TPKBCOMBO_LAYOUT:
+		case QUIRK_ATTR_MSC_TIMESTAMP:
 			quirks_get_string(quirks, *q, &s);
 			snprintf(buf, sizeof(buf), "%s=%s", name, s);
 			callback(userdata, buf);
@@ -720,6 +725,10 @@ tools_list_device_quirks(struct quirks_context *ctx,
 		case QUIRK_ATTR_TRACKPOINT_MULTIPLIER:
 			quirks_get_double(quirks, *q, &d);
 			snprintf(buf, sizeof(buf), "%s=%0.2f\n", name, d);
+			callback(userdata, buf);
+			break;
+		case QUIRK_ATTR_USE_VELOCITY_AVERAGING:
+			snprintf(buf, sizeof(buf), "%s=1", name);
 			callback(userdata, buf);
 			break;
 		}

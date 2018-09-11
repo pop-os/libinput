@@ -110,6 +110,7 @@ enum evdev_device_model {
 	EVDEV_MODEL_WACOM_TOUCHPAD = (1 << 7),
 	EVDEV_MODEL_ALPS_TOUCHPAD = (1 << 8),
 	EVDEV_MODEL_SYNAPTICS_SERIAL_TOUCHPAD = (1 << 9),
+	EVDEV_MODEL_TEST_DEVICE = (1 << 10),
 	EVDEV_MODEL_BOUNCING_KEYS = (1 << 11),
 	EVDEV_MODEL_LENOVO_X220_TOUCHPAD_FW81 = (1 << 12),
 	EVDEV_MODEL_LENOVO_CARBON_X1_6TH = (1 << 13),
@@ -175,6 +176,7 @@ struct evdev_device {
 	bool is_suspended;
 	int dpi; /* HW resolution */
 	double trackpoint_multiplier; /* trackpoint constant multiplier */
+	bool use_velocity_averaging; /* whether averaging should be applied on velocity calculation */
 	struct ratelimit syn_drop_limit; /* ratelimit for SYN_DROPPED logging */
 	struct ratelimit nonpointer_rel_limit; /* ratelimit for REL_* events from non-pointer devices */
 	uint32_t model_flags;
