@@ -98,6 +98,9 @@ tp_calculate_motion_speed(struct tp_dispatch *tp, struct tp_touch *t)
 	if (!tp->has_mt || tp->semi_mt)
 		return;
 
+	if (t->state != TOUCH_UPDATE)
+		return;
+
 	/* This doesn't kick in until we have at least 4 events in the
 	 * motion history. As a side-effect, this automatically handles the
 	 * 2fg scroll where a finger is down and moving fast before the
@@ -332,6 +335,7 @@ tp_begin_touch(struct tp_dispatch *tp, struct tp_touch *t, uint64_t time)
 	t->thumb.first_touch_time = time;
 	t->tap.is_thumb = false;
 	t->tap.is_palm = false;
+	t->speed.exceeded_count = 0;
 	assert(tp->nfingers_down >= 1);
 	tp->hysteresis.last_motion_time = time;
 }
@@ -409,6 +413,7 @@ tp_end_touch(struct tp_dispatch *tp, struct tp_touch *t, uint64_t time)
 	t->pinned.is_pinned = false;
 	t->time = time;
 	t->palm.time = 0;
+	t->speed.exceeded_count = 0;
 	tp->queued |= TOUCHPAD_EVENT_MOTION;
 }
 
@@ -1741,7 +1746,7 @@ tp_process_state(struct tp_dispatch *tp, uint64_t time)
 			if (!tp->semi_mt)
 				evdev_log_bug_kernel(tp->device,
 					       "Touch jump detected and discarded.\n"
-					       "See %stouchpad-jumping-cursor.html for details\n",
+					       "See %stouchpad-jumping-cursors.html for details\n",
 					       HTTP_DOC_LINK);
 			tp_motion_history_reset(t);
 		}
@@ -2605,7 +2610,8 @@ evdev_tag_touchpad(struct evdev_device *device,
 
 	switch (bustype) {
 	case BUS_USB:
-		if (device->model_flags & EVDEV_MODEL_APPLE_TOUCHPAD)
+		if (evdev_device_has_model_quirk(device,
+						 QUIRK_MODEL_APPLE_TOUCHPAD))
 			 evdev_tag_touchpad_internal(device);
 		break;
 	case BUS_BLUETOOTH:
@@ -2663,7 +2669,7 @@ tp_interface_toggle_touch(struct evdev_dispatch *dispatch,
 	} else {
 		/* if in-kernel arbitration is in use and there is a touch
 		 * and a pen in proximity, lifting the pen out of proximity
-		 * causes a touch being for the touch. On a hand-lift the
+		 * causes a touch begin for the touch. On a hand-lift the
 		 * proximity out precedes the touch up by a few ms, so we
 		 * get what looks like a tap. Fix this by delaying
 		 * arbitration by just a little bit so that any touch in
@@ -2756,7 +2762,8 @@ tp_init_slots(struct tp_dispatch *tp,
 	 * for single-finger movement. See fdo bug 91135
 	 */
 	if (tp->semi_mt ||
-	    device->model_flags & EVDEV_MODEL_HP_PAVILION_DM4_TOUCHPAD) {
+	    evdev_device_has_model_quirk(tp->device,
+					 QUIRK_MODEL_HP_PAVILION_DM4_TOUCHPAD)) {
 		tp->num_slots = 1;
 		tp->slot = 0;
 		tp->has_mt = false;
@@ -2841,7 +2848,7 @@ tp_init_accel(struct tp_dispatch *tp)
 	tp->accel.y_scale_coeff = (DEFAULT_MOUSE_DPI/25.4) / res_y;
 	tp->accel.xy_scale_coeff = 1.0 * res_x/res_y;
 
-	if (tp->device->model_flags & EVDEV_MODEL_LENOVO_X230 ||
+	if (evdev_device_has_model_quirk(device, QUIRK_MODEL_LENOVO_X230) ||
 	    tp->device->model_flags & EVDEV_MODEL_LENOVO_X220_TOUCHPAD_FW81)
 		filter = create_pointer_accelerator_filter_lenovo_x230(dpi, use_v_avg);
 	else if (libevdev_get_id_bustype(device->evdev) == BUS_BLUETOOTH)
@@ -2875,7 +2882,8 @@ tp_scroll_get_methods(struct tp_dispatch *tp)
 	/* Any movement with more than one finger has random cursor
 	 * jumps. Don't allow for 2fg scrolling on this device, see
 	 * fdo bug 91135 */
-	if (tp->device->model_flags & EVDEV_MODEL_HP_PAVILION_DM4_TOUCHPAD)
+	if (evdev_device_has_model_quirk(tp->device,
+					 QUIRK_MODEL_HP_PAVILION_DM4_TOUCHPAD))
 		return LIBINPUT_CONFIG_SCROLL_EDGE;
 
 	if (tp->ntouches >= 2)

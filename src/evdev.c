@@ -1270,33 +1270,11 @@ evdev_read_model_flags(struct evdev_device *device)
 		enum evdev_device_model model;
 	} model_map[] = {
 #define MODEL(name) { QUIRK_MODEL_##name, EVDEV_MODEL_##name }
-		MODEL(LENOVO_X230),
-		MODEL(CHROMEBOOK),
-		MODEL(SYSTEM76_BONOBO),
-		MODEL(SYSTEM76_GALAGO),
-		MODEL(SYSTEM76_KUDU),
-		MODEL(CLEVO_W740SU),
-		MODEL(APPLE_TOUCHPAD),
 		MODEL(WACOM_TOUCHPAD),
-		MODEL(ALPS_TOUCHPAD),
 		MODEL(SYNAPTICS_SERIAL_TOUCHPAD),
-		MODEL(BOUNCING_KEYS),
-		MODEL(CYBORG_RAT),
-		MODEL(HP_STREAM11_TOUCHPAD),
 		MODEL(LENOVO_T450_TOUCHPAD),
-		MODEL(TOUCHPAD_VISIBLE_MARKER),
 		MODEL(TRACKBALL),
-		MODEL(APPLE_MAGICMOUSE),
-		MODEL(HP8510_TOUCHPAD),
-		MODEL(HP6910_TOUCHPAD),
-		MODEL(HP_ZBOOK_STUDIO_G3),
-		MODEL(HP_PAVILION_DM4_TOUCHPAD),
 		MODEL(APPLE_TOUCHPAD_ONEBUTTON),
-		MODEL(LOGITECH_MARBLE_MOUSE),
-		MODEL(TABLET_NO_PROXIMITY_OUT),
-		MODEL(TABLET_NO_TILT),
-		MODEL(TABLET_MODE_NO_SUSPEND),
-		MODEL(LENOVO_CARBON_X1_6TH),
 		MODEL(LENOVO_SCROLLPOINT),
 #undef MODEL
 		{ 0, 0 },
@@ -1944,7 +1922,7 @@ evdev_pre_configure_model_quirks(struct evdev_device *device)
 	 *
 	 * Disable the event codes to avoid stuck buttons.
 	 */
-	if (device->model_flags & EVDEV_MODEL_CYBORG_RAT) {
+	if (evdev_device_has_model_quirk(device, QUIRK_MODEL_CYBORG_RAT)) {
 		libevdev_disable_event_code(device->evdev, EV_KEY, 0x118);
 		libevdev_disable_event_code(device->evdev, EV_KEY, 0x119);
 		libevdev_disable_event_code(device->evdev, EV_KEY, 0x11a);
@@ -1953,46 +1931,64 @@ evdev_pre_configure_model_quirks(struct evdev_device *device)
 	 * emulates a full 2/3 button mouse for us. Ignore anything from the
 	 * ABS interface
 	 */
-	if (device->model_flags & EVDEV_MODEL_APPLE_MAGICMOUSE)
+	if (evdev_device_has_model_quirk(device, QUIRK_MODEL_APPLE_MAGICMOUSE))
 		libevdev_disable_event_type(device->evdev, EV_ABS);
 
 	/* Claims to have double/tripletap but doesn't actually send it
 	 * https://bugzilla.redhat.com/show_bug.cgi?id=1351285 and
 	 * https://bugs.freedesktop.org/show_bug.cgi?id=98538
 	 */
-	if (device->model_flags &
-	    (EVDEV_MODEL_HP8510_TOUCHPAD|EVDEV_MODEL_HP6910_TOUCHPAD)) {
+	if (evdev_device_has_model_quirk(device, QUIRK_MODEL_HP8510_TOUCHPAD) ||
+	    evdev_device_has_model_quirk(device, QUIRK_MODEL_HP6910_TOUCHPAD)) {
 		libevdev_disable_event_code(device->evdev, EV_KEY, BTN_TOOL_DOUBLETAP);
 		libevdev_disable_event_code(device->evdev, EV_KEY, BTN_TOOL_TRIPLETAP);
 	}
 
 	/* Touchpad is a clickpad but INPUT_PROP_BUTTONPAD is not set, see
 	 * fdo bug 97147. Remove when RMI4 is commonplace */
-	if (device->model_flags & EVDEV_MODEL_HP_STREAM11_TOUCHPAD)
+	if (evdev_device_has_model_quirk(device, QUIRK_MODEL_HP_STREAM11_TOUCHPAD))
 		libevdev_enable_property(device->evdev,
 					 INPUT_PROP_BUTTONPAD);
 
 	/* Touchpad claims to have 4 slots but only ever sends 2
 	 * https://bugs.freedesktop.org/show_bug.cgi?id=98100 */
-	if (device->model_flags & EVDEV_MODEL_HP_ZBOOK_STUDIO_G3)
+	if (evdev_device_has_model_quirk(device, QUIRK_MODEL_HP_ZBOOK_STUDIO_G3))
 		libevdev_set_abs_maximum(device->evdev, ABS_MT_SLOT, 1);
 
-	/* Logitech Marble Mouse claims to have a middle button */
-	if (device->model_flags & EVDEV_MODEL_LOGITECH_MARBLE_MOUSE)
+	/* Logitech Marble Mouse claims to have a middle button, same for
+	 * the Kensington Orbit */
+	if (evdev_device_has_model_quirk(device,
+					 QUIRK_MODEL_LOGITECH_MARBLE_MOUSE) ||
+	    evdev_device_has_model_quirk(device,
+					 QUIRK_MODEL_KENSINGTON_ORBIT))
 		libevdev_disable_event_code(device->evdev, EV_KEY, BTN_MIDDLE);
 
 	/* Aiptek tablets have tilt but don't send events */
-	if (device->model_flags & EVDEV_MODEL_TABLET_NO_TILT) {
+	if (evdev_device_has_model_quirk(device, QUIRK_MODEL_TABLET_NO_TILT)) {
 		libevdev_disable_event_code(device->evdev, EV_ABS, ABS_TILT_X);
 		libevdev_disable_event_code(device->evdev, EV_ABS, ABS_TILT_Y);
 	}
 
 	/* Lenovo Carbon X1 6th gen sends bogus ABS_MT_TOOL_TYPE events for
 	 * MT_TOOL_PALM */
-	if (device->model_flags & EVDEV_MODEL_LENOVO_CARBON_X1_6TH)
+	if (evdev_device_has_model_quirk(device, QUIRK_MODEL_LENOVO_CARBON_X1_6TH))
 		libevdev_disable_event_code(device->evdev,
 					    EV_ABS,
 					    ABS_MT_TOOL_TYPE);
+
+	/* Asus UX302LA touchpad doesn't update the pressure values once two
+	 * fingers are down. So let's just pretend it doesn't have pressure
+	 * at all. https://gitlab.freedesktop.org/libinput/libinput/issues/145
+	 */
+	if (evdev_device_has_model_quirk(device,
+					 QUIRK_MODEL_ASUS_UX320LA_TOUCHPAD)) {
+		libevdev_disable_event_code(device->evdev,
+					    EV_ABS,
+					    ABS_MT_PRESSURE);
+		libevdev_disable_event_code(device->evdev,
+					    EV_ABS,
+					    ABS_PRESSURE);
+	}
 
 	/* Generally we don't care about MSC_TIMESTAMP and it can cause
 	 * unnecessary wakeups but on some devices we need to watch it for

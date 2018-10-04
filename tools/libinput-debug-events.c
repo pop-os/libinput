@@ -398,7 +398,7 @@ print_tablet_axes(struct libinput_event_tablet_tool *t)
 
 	if (libinput_tablet_tool_has_rotation(tool)) {
 		rotation = libinput_event_tablet_tool_get_rotation(t);
-		printq("\trotation: %.2f%s",
+		printq("\trotation: %6.2f%s",
 		       rotation, changed_sym(t, rotation));
 	}
 
@@ -561,7 +561,7 @@ print_proximity_event(struct libinput_event *ev)
 		abort();
 	}
 
-	printq("\t%s (%#" PRIx64 ", id %#" PRIx64 ") %s",
+	printq("\t%s (%#" PRIx64 ", id %#" PRIx64 ") %s ",
 	       tool_str,
 	       libinput_tablet_tool_get_serial(tool),
 	       libinput_tablet_tool_get_tool_id(tool),
