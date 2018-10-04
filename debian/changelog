@@ -2,6 +2,7 @@ libinput (1.12.1-1) UNRELEASED; urgency=medium
 
   * New upstream release.
     - add/fix quirks
+  * source: Update diff-ignore.
 
  -- Timo Aaltonen <tjaalton@debian.org>  Thu, 04 Oct 2018 12:34:36 +0300
 
