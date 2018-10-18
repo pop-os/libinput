@@ -1,6 +1,7 @@
 libinput (1.12.1-2) UNRELEASED; urgency=medium
 
   * Trim trailing whitespace.
+  * Replace XC-Package-Type with Package-Type.
 
  -- Jelmer Vernooĳ <jelmer@debian.org>  Thu, 18 Oct 2018 21:25:12 +0000
 
