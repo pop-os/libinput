@@ -1,4 +1,4 @@
-libinput (1.12.4-1) UNRELEASED; urgency=medium
+libinput (1.12.4-1) unstable; urgency=medium
 
   [ Jelmer Vernooĳ ]
   * Trim trailing whitespace.
@@ -7,7 +7,7 @@ libinput (1.12.4-1) UNRELEASED; urgency=medium
   [ Timo Aaltonen ]
   * New upstream release.
 
- -- Jelmer Vernooĳ <jelmer@debian.org>  Thu, 18 Oct 2018 21:25:12 +0000
+ -- Timo Aaltonen <tjaalton@debian.org>  Tue, 18 Dec 2018 12:13:51 +0200
 
 libinput (1.12.1-1) unstable; urgency=medium
 
