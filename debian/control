@@ -29,8 +29,8 @@ Description: input device management and event handling library - shared library
  other applications that need to directly deal with input devices.
  .
  It provides device detection, device handling, input device event
- processing and abstraction so minimize the amount of custom input
- code the user of libinput need to provide the common set of
+ processing and abstraction to minimize the amount of custom input
+ code the user of libinput needs to provide the common set of
  functionality that users expect.
  .
  This package includes the shared library.
@@ -47,8 +47,8 @@ Description: input device management and event handling library - udev quirks
  other applications that need to directly deal with input devices.
  .
  It provides device detection, device handling, input device event
- processing and abstraction so minimize the amount of custom input
- code the user of libinput need to provide the common set of
+ processing and abstraction to minimize the amount of custom input
+ code the user of libinput needs to provide the common set of
  functionality that users expect.
  .
  This package includes the udev quirks database and helpers.
@@ -80,8 +80,8 @@ Description: input device management and event handling library - development fi
  other applications that need to directly deal with input devices.
  .
  It provides device detection, device handling, input device event
- processing and abstraction so minimize the amount of custom input
- code the user of libinput need to provide the common set of
+ processing and abstraction to minimize the amount of custom input
+ code the user of libinput needs to provide the common set of
  functionality that users expect.
  .
  This package includes the development headers.
@@ -102,8 +102,8 @@ Description: input device management and event handling library - command line t
  other applications that need to directly deal with input devices.
  .
  It provides device detection, device handling, input device event
- processing and abstraction so minimize the amount of custom input
- code the user of libinput need to provide the common set of
+ processing and abstraction to minimize the amount of custom input
+ code the user of libinput needs to provide the common set of
  functionality that users expect.
  .
  This package includes the command line tools.
