@@ -1,7 +1,11 @@
-libinput (1.12.1-2) UNRELEASED; urgency=medium
+libinput (1.12.4-1) UNRELEASED; urgency=medium
 
+  [ Jelmer Vernooĳ ]
   * Trim trailing whitespace.
   * Replace XC-Package-Type with Package-Type.
+
+  [ Timo Aaltonen ]
+  * New upstream release.
 
  -- Jelmer Vernooĳ <jelmer@debian.org>  Thu, 18 Oct 2018 21:25:12 +0000
 
