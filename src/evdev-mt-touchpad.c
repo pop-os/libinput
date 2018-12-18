@@ -305,6 +305,18 @@ tp_new_touch(struct tp_dispatch *tp, struct tp_touch *t, uint64_t time)
 	    t->state == TOUCH_HOVERING)
 		return;
 
+	/* Bug #161: touch ends in the same event frame where it restarts
+	   again. That's a kernel bug, so let's complain. */
+	if (t->state == TOUCH_MAYBE_END) {
+		evdev_log_bug_kernel(tp->device,
+				     "touch %d ended and began in in same frame.\n",
+				     t->index);
+		tp->nfingers_down++;
+		t->state = TOUCH_UPDATE;
+		t->has_ended = false;
+		return;
+	}
+
 	/* we begin the touch as hovering because until BTN_TOUCH happens we
 	 * don't know if it's a touch down or not. And BTN_TOUCH may happen
 	 * after ABS_MT_TRACKING_ID */
@@ -1143,6 +1155,28 @@ tp_thumb_detect(struct tp_dispatch *tp, struct tp_touch *t, uint64_t time)
 		}
 	}
 
+	/* If the finger is below the upper thumb line and we have another
+	 * finger in the same area, neither finger is a thumb (unless we've
+	 * already labeled it as such).
+	 */
+	if (t->point.y > tp->thumb.upper_thumb_line &&
+	    tp->nfingers_down > 1) {
+		struct tp_touch *other;
+
+		tp_for_each_touch(tp, other) {
+			if (other->state != TOUCH_BEGIN &&
+			    other->state != TOUCH_UPDATE)
+				continue;
+
+			if (other->point.y > tp->thumb.upper_thumb_line) {
+				t->thumb.state = THUMB_STATE_NO;
+				if (other->thumb.state == THUMB_STATE_MAYBE)
+					other->thumb.state = THUMB_STATE_NO;
+				break;
+			}
+		}
+	}
+
 	/* Note: a thumb at the edge of the touchpad won't trigger the
 	 * threshold, the surface area is usually too small. So we have a
 	 * two-stage detection: pressure and time within the area.
@@ -1904,7 +1938,8 @@ tp_debug_touch_state(struct tp_dispatch *tp,
 			t->pressure,
 			tp_touch_active(tp, t) ? "" : "inactive");
 	}
-	evdev_log_debug(device, "touch state: %s\n", buf);
+	if (buf[0] != '\0')
+		evdev_log_debug(device, "touch state: %s\n", buf);
 }
 
 static void

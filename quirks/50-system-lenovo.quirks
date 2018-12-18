@@ -20,6 +20,11 @@ MatchName=Synaptics tm2964-001
 MatchDMIModalias=dmi:*svnLENOVO:*:pvrThinkPadT440p*
 ModelLenovoT450Touchpad=1
 
+[Lenovo T480s Touchpad]
+MatchName=Elan Touchpad
+MatchDMIModalias=dmi:*svnLENOVO:*:pvrThinkPadT480s*
+ModelLenovoT480sTouchpad=1
+
 [Lenovo X200 Trackpoint]
 MatchName=*TPPS/2 IBM TrackPoint
 MatchDMIModalias=dmi:*svnLENOVO:*pvrThinkPadX20?:*
@@ -70,15 +75,36 @@ MatchName=AT Translated Set 2 keyboard
 MatchDMIModalias=dmi:*svnLENOVO:*pvrThinkPad*Yoga*:*
 ModelTabletModeNoSuspend=1
 
-# Lenovo Carbon X1 6th gen (RMI4 only, PS/2 is broken on this device)
+# Lenovo Carbon X1 6th gen (RMI4 only, PS/2 is broken on this device,
+# sends bogus ABS_MT_TOOL_TYPE events for MT_TOOL_PALM
 [Lenovo Carbon X1 6th gen]
 MatchName=Synaptics TM3288-011
 MatchDMIModalias=dmi:*svnLenovo:*pvrThinkPadX1Carbon6th:*
-ModelLenovoCarbonX16th=1
+AttrEventCodeDisable=ABS_MT_TOOL_TYPE
 
 [Lenovo X41 Tablet]
 MatchName=AT Translated Set 2 keyboard
 MatchDMIModalias=dmi:*svnIBM:*pvrThinkPadX41Tablet:*
+ModelTabletModeNoSuspend=1
+
+[Lenovo X60 Tablet]
+MatchName=AT Translated Set 2 keyboard
+MatchDMIModalias=dmi:*svnLENOVO:*pvrThinkPadX60Tablet:*
+ModelTabletModeNoSuspend=1
+
+# Lenovo X220 Tablet special bezel buttons are associated to the
+# keyboard and would therefore mistakenly be deactivated as well.
+# See https://gitlab.freedesktop.org/libinput/libinput/issues/154
+[Lenovo X220 Tablet]
+MatchName=AT Translated Set 2 keyboard
+MatchDMIModalias=dmi:*svnLENOVO:*pvrThinkPadX220Tablet:*
+ModelTabletModeNoSuspend=1
+
+# Special bezel button deactivation with
+# keyboard also applies to X230 Tablet
+[Lenovo X230 Tablet]
+MatchName=AT Translated Set 2 keyboard
+MatchDMIModalias=dmi:*svnLENOVO:*pvrThinkPadX230Tablet:*
 ModelTabletModeNoSuspend=1
 
 # Lenovo MIIX 720 comes with a detachable keyboard. We must not disable

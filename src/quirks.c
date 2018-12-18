@@ -34,6 +34,7 @@
 #include <libudev.h>
 #include <dirent.h>
 #include <fnmatch.h>
+#include <libgen.h>
 
 #include "libinput-versionsort.h"
 #include "libinput-util.h"
@@ -56,6 +57,7 @@ enum property_type {
 	PT_DIMENSION,
 	PT_RANGE,
 	PT_DOUBLE,
+	PT_TUPLES,
 };
 
 /**
@@ -74,9 +76,10 @@ struct property {
 		uint32_t u;
 		int32_t i;
 		char *s;
+		double d;
 		struct quirk_dimensions dim;
 		struct quirk_range range;
-		double d;
+		struct quirk_tuples tuples;
 	} value;
 };
 
@@ -228,25 +231,18 @@ quirk_get_name(enum quirk q)
 {
 	switch(q) {
 	case QUIRK_MODEL_ALPS_TOUCHPAD:			return "ModelALPSTouchpad";
-	case QUIRK_MODEL_APPLE_MAGICMOUSE:		return "ModelAppleMagicMouse";
 	case QUIRK_MODEL_APPLE_TOUCHPAD:		return "ModelAppleTouchpad";
 	case QUIRK_MODEL_APPLE_TOUCHPAD_ONEBUTTON:	return "ModelAppleTouchpadOneButton";
-	case QUIRK_MODEL_ASUS_UX320LA_TOUCHPAD:		return "ModelAsusUX302LATouchpad";
 	case QUIRK_MODEL_BOUNCING_KEYS:			return "ModelBouncingKeys";
 	case QUIRK_MODEL_CHROMEBOOK:			return "ModelChromebook";
 	case QUIRK_MODEL_CLEVO_W740SU:			return "ModelClevoW740SU";
-	case QUIRK_MODEL_CYBORG_RAT:			return "ModelCyborgRat";
-	case QUIRK_MODEL_HP6910_TOUCHPAD:		return "ModelHP6910Touchpad";
-	case QUIRK_MODEL_HP8510_TOUCHPAD:		return "ModelHP8510Touchpad";
 	case QUIRK_MODEL_HP_PAVILION_DM4_TOUCHPAD:	return "ModelHPPavilionDM4Touchpad";
 	case QUIRK_MODEL_HP_STREAM11_TOUCHPAD:		return "ModelHPStream11Touchpad";
 	case QUIRK_MODEL_HP_ZBOOK_STUDIO_G3:		return "ModelHPZBookStudioG3";
-	case QUIRK_MODEL_KENSINGTON_ORBIT:		return "ModelKensingtonOrbit";
-	case QUIRK_MODEL_LENOVO_CARBON_X1_6TH:		return "ModelLenovoCarbonX16th";
 	case QUIRK_MODEL_LENOVO_SCROLLPOINT:		return "ModelLenovoScrollPoint";
 	case QUIRK_MODEL_LENOVO_T450_TOUCHPAD:		return "ModelLenovoT450Touchpad";
+	case QUIRK_MODEL_LENOVO_T480S_TOUCHPAD:		return "ModelLenovoT480sTouchpad";
 	case QUIRK_MODEL_LENOVO_X230:			return "ModelLenovoX230";
-	case QUIRK_MODEL_LOGITECH_MARBLE_MOUSE:		return "ModelLogitechMarbleMouse";
 	case QUIRK_MODEL_SYNAPTICS_SERIAL_TOUCHPAD:	return "ModelSynapticsSerialTouchpad";
 	case QUIRK_MODEL_SYSTEM76_BONOBO:		return "ModelSystem76Bonobo";
 	case QUIRK_MODEL_SYSTEM76_GALAGO:		return "ModelSystem76Galago";
@@ -272,6 +268,7 @@ quirk_get_name(enum quirk q)
 	case QUIRK_ATTR_USE_VELOCITY_AVERAGING:		return "AttrUseVelocityAveraging";
 	case QUIRK_ATTR_THUMB_SIZE_THRESHOLD:		return "AttrThumbSizeThreshold";
 	case QUIRK_ATTR_MSC_TIMESTAMP:			return "AttrMscTimestamp";
+	case QUIRK_ATTR_EVENT_CODE_DISABLE:		return "AttrEventCodeDisable";
 	default:
 		abort();
 	}
@@ -413,7 +410,9 @@ section_new(const char *path, const char *name)
 {
 	struct section *s = zalloc(sizeof(*s));
 
-	xasprintf(&s->name, "%s (%s)", name, basename(path));
+	char *path_dup = safe_strdup(path);
+	xasprintf(&s->name, "%s (%s)", name, basename(path_dup));
+	free(path_dup);
 	list_init(&s->link);
 	list_init(&s->properties);
 
@@ -723,6 +722,22 @@ parse_attr(struct quirks_context *ctx,
 			goto out;
 		p->type = PT_STRING;
 		p->value.s = safe_strdup(value);
+		rc = true;
+	} else if (streq(key, quirk_get_name(QUIRK_ATTR_EVENT_CODE_DISABLE))) {
+		size_t nevents = 32;
+		struct input_event events[nevents];
+		p->id = QUIRK_ATTR_EVENT_CODE_DISABLE;
+		if (!parse_evcode_property(value, events, &nevents) ||
+		    nevents == 0)
+			goto out;
+
+		for (size_t i = 0; i < nevents; i++) {
+			p->value.tuples.tuples[i].first = events[i].type;
+			p->value.tuples.tuples[i].second = events[i].code;
+		}
+		p->value.tuples.ntuples = nevents;
+		p->type = PT_TUPLES;
+
 		rc = true;
 	} else {
 		qlog_error(ctx, "Unknown key %s in %s\n", key, s->name);
@@ -1537,6 +1552,26 @@ quirks_get_range(struct quirks *q,
 
 	assert(p->type == PT_RANGE);
 	*val = p->value.range;
+
+	return true;
+}
+
+bool
+quirks_get_tuples(struct quirks *q,
+		  enum quirk which,
+		  const struct quirk_tuples **tuples)
+{
+	struct property *p;
+
+	if (!q)
+		return false;
+
+	p = quirk_find_prop(q, which);
+	if (!p)
+		return false;
+
+	assert(p->type == PT_TUPLES);
+	*tuples = &p->value.tuples;
 
 	return true;
 }

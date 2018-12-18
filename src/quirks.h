@@ -50,30 +50,31 @@ struct quirk_range {
 	int lower, upper;
 };
 
+struct quirk_tuples {
+	struct {
+		int first;
+		int second;
+	} tuples[32];
+	size_t ntuples;
+};
+
 /**
  * Quirks known to libinput
  */
 enum quirk {
 	QUIRK_MODEL_ALPS_TOUCHPAD = 100,
-	QUIRK_MODEL_APPLE_MAGICMOUSE,
 	QUIRK_MODEL_APPLE_TOUCHPAD,
 	QUIRK_MODEL_APPLE_TOUCHPAD_ONEBUTTON,
-	QUIRK_MODEL_ASUS_UX320LA_TOUCHPAD,
 	QUIRK_MODEL_BOUNCING_KEYS,
 	QUIRK_MODEL_CHROMEBOOK,
 	QUIRK_MODEL_CLEVO_W740SU,
-	QUIRK_MODEL_CYBORG_RAT,
-	QUIRK_MODEL_HP6910_TOUCHPAD,
-	QUIRK_MODEL_HP8510_TOUCHPAD,
 	QUIRK_MODEL_HP_PAVILION_DM4_TOUCHPAD,
 	QUIRK_MODEL_HP_STREAM11_TOUCHPAD,
 	QUIRK_MODEL_HP_ZBOOK_STUDIO_G3,
-	QUIRK_MODEL_KENSINGTON_ORBIT,
-	QUIRK_MODEL_LENOVO_CARBON_X1_6TH,
 	QUIRK_MODEL_LENOVO_SCROLLPOINT,
 	QUIRK_MODEL_LENOVO_T450_TOUCHPAD,
+	QUIRK_MODEL_LENOVO_T480S_TOUCHPAD,
 	QUIRK_MODEL_LENOVO_X230,
-	QUIRK_MODEL_LOGITECH_MARBLE_MOUSE,
 	QUIRK_MODEL_SYNAPTICS_SERIAL_TOUCHPAD,
 	QUIRK_MODEL_SYSTEM76_BONOBO,
 	QUIRK_MODEL_SYSTEM76_GALAGO,
@@ -102,7 +103,7 @@ enum quirk {
 	QUIRK_ATTR_USE_VELOCITY_AVERAGING,
 	QUIRK_ATTR_THUMB_SIZE_THRESHOLD,
 	QUIRK_ATTR_MSC_TIMESTAMP,
-
+	QUIRK_ATTR_EVENT_CODE_DISABLE,
 
 	_QUIRK_LAST_ATTR_QUIRK_, /* Guard: do not modify */
 };
@@ -293,3 +294,16 @@ bool
 quirks_get_range(struct quirks *q,
 		 enum quirk which,
 		 struct quirk_range *val);
+
+/**
+ * Get the tuples of the given quirk.
+ * This function will assert if the quirk type does not match the
+ * requested type. If the quirk is not set for this device, tuples is
+ * unchanged.
+ *
+ * @return true if the quirk value is valid, false otherwise.
+ */
+bool
+quirks_get_tuples(struct quirks *q,
+		  enum quirk which,
+		  const struct quirk_tuples **tuples);

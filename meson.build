@@ -1,5 +1,5 @@
 project('libinput', 'c', 'cpp',
-	version : '1.12.1',
+	version : '1.12.4',
 	license : 'MIT/Expat',
 	default_options : [ 'c_std=gnu99', 'warning_level=2' ],
 	meson_version : '>= 0.41.0')
@@ -217,7 +217,7 @@ src_libinput_util = [
 ]
 libinput_util = static_library('libinput-util',
 			       src_libinput_util,
-			       dependencies : dep_udev,
+			       dependencies : [dep_udev, dep_libevdev],
 			       include_directories : includes_include)
 dep_libinput_util = declare_dependency(link_with : libinput_util)
 
@@ -261,6 +261,7 @@ quirks_data = [
 	'quirks/30-vendor-razer.quirks',
 	'quirks/30-vendor-synaptics.quirks',
 	'quirks/30-vendor-wacom.quirks',
+	'quirks/30-vendor-vmware.quirks',
 	'quirks/50-system-acer.quirks',
 	'quirks/50-system-apple.quirks',
 	'quirks/50-system-asus.quirks',

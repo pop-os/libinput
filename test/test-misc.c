@@ -838,15 +838,13 @@ START_TEST(wheel_click_count_parser)
 }
 END_TEST
 
-struct parser_test_dimension {
-	char *tag;
-	bool success;
-	int x, y;
-};
-
 START_TEST(dimension_prop_parser)
 {
-	struct parser_test_dimension tests[] = {
+	struct parser_test_dimension {
+		char *tag;
+		bool success;
+		int x, y;
+	} tests[] = {
 		{ "10x10", true, 10, 10 },
 		{ "1x20", true, 1, 20 },
 		{ "1x8000", true, 1, 8000 },
@@ -887,15 +885,13 @@ START_TEST(dimension_prop_parser)
 }
 END_TEST
 
-struct parser_test_reliability {
-	char *tag;
-	bool success;
-	enum switch_reliability reliability;
-};
-
 START_TEST(reliability_prop_parser)
 {
-	struct parser_test_reliability tests[] = {
+	struct parser_test_reliability {
+		char *tag;
+		bool success;
+		enum switch_reliability reliability;
+	} tests[] = {
 		{ "reliable", true, RELIABILITY_RELIABLE },
 		{ "unreliable", false, 0 },
 		{ "", false, 0 },
@@ -926,17 +922,15 @@ START_TEST(reliability_prop_parser)
 }
 END_TEST
 
-struct parser_test_calibration {
-	char *prop;
-	bool success;
-	float values[6];
-};
-
 START_TEST(calibration_prop_parser)
 {
 #define DEFAULT_VALUES { 1.0, 2.0, 3.0, 4.0, 5.0, 6.0 }
 	const float untouched[6] = DEFAULT_VALUES;
-	struct parser_test_calibration tests[] = {
+	struct parser_test_calibration {
+		char *prop;
+		bool success;
+		float values[6];
+	} tests[] = {
 		{ "", false, DEFAULT_VALUES },
 		{ "banana", false, DEFAULT_VALUES },
 		{ "1 2 3 a 5 6", false, DEFAULT_VALUES },
@@ -979,15 +973,13 @@ START_TEST(calibration_prop_parser)
 }
 END_TEST
 
-struct parser_test_range {
-	char *tag;
-	bool success;
-	int hi, lo;
-};
-
 START_TEST(range_prop_parser)
 {
-	struct parser_test_range tests[] = {
+	struct parser_test_range {
+		char *tag;
+		bool success;
+		int hi, lo;
+	} tests[] = {
 		{ "10:8", true, 10, 8 },
 		{ "100:-1", true, 100, -1 },
 		{ "-203813:-502023", true, -203813, -502023 },
@@ -1018,6 +1010,81 @@ START_TEST(range_prop_parser)
 
 	success = parse_range_property(NULL, NULL, NULL);
 	ck_assert(success == false);
+}
+END_TEST
+
+START_TEST(evcode_prop_parser)
+{
+	struct parser_test_tuple {
+		const char *prop;
+		bool success;
+		size_t ntuples;
+		int tuples[20];
+	} tests[] = {
+		{ "EV_KEY", true, 1, {EV_KEY, 0xffff} },
+		{ "EV_ABS;", true, 1, {EV_ABS, 0xffff} },
+		{ "ABS_X;", true, 1, {EV_ABS, ABS_X} },
+		{ "SW_TABLET_MODE;", true, 1, {EV_SW, SW_TABLET_MODE} },
+		{ "EV_SW", true, 1, {EV_SW, 0xffff} },
+		{ "ABS_Y", true, 1, {EV_ABS, ABS_Y} },
+		{ "EV_ABS:0x00", true, 1, {EV_ABS, ABS_X} },
+		{ "EV_ABS:01", true, 1, {EV_ABS, ABS_Y} },
+		{ "ABS_TILT_X;ABS_TILT_Y;", true, 2,
+			{ EV_ABS, ABS_TILT_X,
+			  EV_ABS, ABS_TILT_Y} },
+		{ "BTN_TOOL_DOUBLETAP;EV_KEY;KEY_A", true, 3,
+			{ EV_KEY, BTN_TOOL_DOUBLETAP,
+			  EV_KEY, 0xffff,
+			  EV_KEY, KEY_A } },
+		{ "REL_Y;ABS_Z;BTN_STYLUS", true, 3,
+			{ EV_REL, REL_Y,
+			  EV_ABS, ABS_Z,
+			  EV_KEY, BTN_STYLUS } },
+		{ "REL_Y;EV_KEY:0x123;BTN_STYLUS", true, 3,
+			{ EV_REL, REL_Y,
+			  EV_KEY, 0x123,
+			  EV_KEY, BTN_STYLUS } },
+		{ .prop = "", .success = false },
+		{ .prop = "EV_FOO", .success = false },
+		{ .prop = "EV_KEY;EV_FOO", .success = false },
+		{ .prop = "BTN_STYLUS;EV_FOO", .success = false },
+		{ .prop = "BTN_UNKNOWN", .success = false },
+		{ .prop = "BTN_UNKNOWN;EV_KEY", .success = false },
+		{ .prop = "PR_UNKNOWN", .success = false },
+		{ .prop = "BTN_STYLUS;PR_UNKNOWN;ABS_X", .success = false },
+		{ .prop = "EV_REL:0xffff", .success = false },
+		{ .prop = "EV_REL:0x123.", .success = false },
+		{ .prop = "EV_REL:ffff", .success = false },
+		{ .prop = "EV_REL:blah", .success = false },
+		{ .prop = "KEY_A:0x11", .success = false },
+		{ .prop = "EV_KEY:0x11 ", .success = false },
+		{ .prop = "EV_KEY:0x11not", .success = false },
+		{ .prop = "none", .success = false },
+		{ .prop = NULL },
+	};
+	struct parser_test_tuple *t;
+
+	for (int i = 0; tests[i].prop; i++) {
+		bool success;
+		size_t nevents = 32;
+		struct input_event events[nevents];
+
+		t = &tests[i];
+		success = parse_evcode_property(t->prop, events, &nevents);
+		ck_assert(success == t->success);
+		if (!success)
+			continue;
+
+		ck_assert_int_eq(nevents, t->ntuples);
+		for (size_t j = 0; j < nevents; j++) {
+			int type, code;
+
+			type = events[j].type;
+			code = events[j].code;
+			ck_assert_int_eq(t->tuples[j * 2], type);
+			ck_assert_int_eq(t->tuples[j * 2 + 1], code);
+		}
+	}
 }
 END_TEST
 
@@ -1254,15 +1321,13 @@ START_TEST(safe_atou_base_8_test)
 }
 END_TEST
 
-struct atod_test {
-	char *str;
-	bool success;
-	double val;
-};
-
 START_TEST(safe_atod_test)
 {
-	struct atod_test tests[] = {
+	struct atod_test {
+		char *str;
+		bool success;
+		double val;
+	} tests[] = {
 		{ "10", true, 10 },
 		{ "20", true, 20 },
 		{ "-1", true, -1 },
@@ -1303,15 +1368,13 @@ START_TEST(safe_atod_test)
 }
 END_TEST
 
-struct strsplit_test {
-	const char *string;
-	const char *delim;
-	const char *results[10];
-};
-
 START_TEST(strsplit_test)
 {
-	struct strsplit_test tests[] = {
+	struct strsplit_test {
+		const char *string;
+		const char *delim;
+		const char *results[10];
+	} tests[] = {
 		{ "one two three", " ", { "one", "two", "three", NULL } },
 		{ "one", " ", { "one", NULL } },
 		{ "one two ", " ", { "one", "two", NULL } },
@@ -1347,20 +1410,18 @@ START_TEST(strsplit_test)
 }
 END_TEST
 
-struct kvsplit_dbl_test {
-	const char *string;
-	const char *psep;
-	const char *kvsep;
-	ssize_t nresults;
-	struct {
-		double a;
-		double b;
-	} results[32];
-};
-
 START_TEST(kvsplit_double_test)
 {
-	struct kvsplit_dbl_test tests[] = {
+	struct kvsplit_dbl_test {
+		const char *string;
+		const char *psep;
+		const char *kvsep;
+		ssize_t nresults;
+		struct {
+			double a;
+			double b;
+		} results[32];
+	} tests[] = {
 		{ "1:2;3:4;5:6", ";", ":", 3, { {1, 2}, {3, 4}, {5, 6}}},
 		{ "1.0x2.3 -3.2x4.5 8.090909x-6.00", " ", "x", 3, { {1.0, 2.3}, {-3.2, 4.5}, {8.090909, -6}}},
 
@@ -1399,15 +1460,13 @@ START_TEST(kvsplit_double_test)
 }
 END_TEST
 
-struct strjoin_test {
-	char *strv[10];
-	const char *joiner;
-	const char *result;
-};
-
 START_TEST(strjoin_test)
 {
-	struct strjoin_test tests[] = {
+	struct strjoin_test {
+		char *strv[10];
+		const char *joiner;
+		const char *result;
+	} tests[] = {
 		{ { "one", "two", "three", NULL }, " ", "one two three" },
 		{ { "one", NULL }, "x", "one" },
 		{ { "one", "two", NULL }, "x", "onextwo" },
@@ -1744,6 +1803,7 @@ TEST_COLLECTION(misc)
 	litest_add_deviceless("misc:parser", reliability_prop_parser);
 	litest_add_deviceless("misc:parser", calibration_prop_parser);
 	litest_add_deviceless("misc:parser", range_prop_parser);
+	litest_add_deviceless("misc:parser", evcode_prop_parser);
 	litest_add_deviceless("misc:parser", safe_atoi_test);
 	litest_add_deviceless("misc:parser", safe_atoi_base_16_test);
 	litest_add_deviceless("misc:parser", safe_atoi_base_8_test);

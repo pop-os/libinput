@@ -511,6 +511,43 @@ START_TEST(touchpad_2fg_scroll_return_to_motion)
 }
 END_TEST
 
+START_TEST(touchpad_2fg_scroll_from_btnareas)
+{
+	struct litest_device *dev = litest_current_device();
+	struct libinput *li = dev->libinput;
+
+	if (!litest_has_2fg_scroll(dev) ||
+	    !litest_has_btnareas(dev))
+		return;
+
+	litest_enable_2fg_scroll(dev);
+	litest_enable_buttonareas(dev);
+	litest_drain_events(li);
+
+	litest_touch_down(dev, 0, 30, 95);
+	litest_touch_down(dev, 1, 50, 95);
+	libinput_dispatch(li);
+
+	/* First finger moves out of the area first but it's a scroll
+	 * motion, should not trigger POINTER_MOTION */
+	for (int i = 0; i < 5; i++) {
+		litest_touch_move(dev, 0, 30, 95 - i);
+	}
+	libinput_dispatch(li);
+
+	for (int i = 0; i < 20; i++) {
+		litest_touch_move(dev, 0, 30, 90 - i);
+		litest_touch_move(dev, 1, 30, 95 - i);
+	}
+	libinput_dispatch(li);
+
+	litest_touch_up(dev, 0);
+	litest_touch_up(dev, 1);
+
+	litest_assert_only_typed_events(li, LIBINPUT_EVENT_POINTER_AXIS);
+}
+END_TEST
+
 START_TEST(touchpad_scroll_natural_defaults)
 {
 	struct litest_device *dev = litest_current_device();
@@ -5199,6 +5236,76 @@ START_TEST(touchpad_thumb_move_and_tap)
 }
 END_TEST
 
+START_TEST(touchpad_thumb_no_doublethumb)
+{
+	struct litest_device *dev = litest_current_device();
+	struct libinput *li = dev->libinput;
+
+	litest_disable_tap(dev->libinput_device);
+	litest_enable_clickfinger(dev);
+
+	if (!has_thumb_detect(dev))
+		return;
+
+	litest_drain_events(li);
+
+	litest_touch_down(dev, 0, 50, 99);
+	litest_touch_down(dev, 1, 70, 99);
+	/* move touch to trigger the thumb detection */
+	litest_touch_move(dev, 0, 50, 99.2);
+
+	libinput_dispatch(li);
+	litest_timeout_thumb();
+	libinput_dispatch(li);
+
+	/* move touch to trigger the thumb detection */
+	litest_touch_move(dev, 1, 70, 99.2);
+	libinput_dispatch(li);
+
+	litest_touch_move_two_touches(dev, 50, 99, 70, 99, 0, -20, 10);
+	litest_touch_up(dev, 0);
+	litest_touch_up(dev, 1);
+
+	litest_assert_only_typed_events(li, LIBINPUT_EVENT_POINTER_AXIS);
+}
+END_TEST
+
+START_TEST(touchpad_thumb_no_doublethumb_with_timeout)
+{
+	struct litest_device *dev = litest_current_device();
+	struct libinput *li = dev->libinput;
+
+	litest_disable_tap(dev->libinput_device);
+	litest_enable_clickfinger(dev);
+
+	if (!has_thumb_detect(dev))
+		return;
+
+	litest_drain_events(li);
+
+	litest_touch_down(dev, 0, 50, 99.9);
+	libinput_dispatch(li);
+	litest_timeout_thumb();
+	libinput_dispatch(li);
+	/* Thumbs don't have a timeout handler, so we have to move the thumb
+	 * a bit to trigger. */
+	litest_touch_move(dev, 0, 50, 99.8);
+
+	/* first touch should now be a thumb */
+
+	litest_touch_down(dev, 1, 70, 99.9);
+	libinput_dispatch(li);
+	litest_timeout_thumb();
+	libinput_dispatch(li);
+	litest_touch_move(dev, 1, 70, 99.8);
+	litest_touch_move_two_touches(dev, 50, 99, 70, 99, 0, -20, 10);
+	litest_touch_up(dev, 0);
+	litest_touch_up(dev, 1);
+
+	litest_assert_only_typed_events(li, LIBINPUT_EVENT_POINTER_MOTION);
+}
+END_TEST
+
 START_TEST(touchpad_tool_tripletap_touch_count)
 {
 	struct litest_device *dev = litest_current_device();
@@ -6625,6 +6732,40 @@ out:
 }
 END_TEST
 
+START_TEST(touchpad_end_start_touch)
+{
+	struct litest_device *dev = litest_current_device();
+	struct libinput *li = dev->libinput;
+
+	litest_enable_tap(dev->libinput_device);
+
+	litest_drain_events(li);
+
+	litest_touch_down(dev, 0, 50, 50);
+	litest_touch_move(dev, 0, 50.1, 50.1);
+	libinput_dispatch(li);
+
+	litest_push_event_frame(dev);
+	litest_touch_up(dev, 0);
+	litest_touch_down(dev, 0, 50.2, 50.2);
+	litest_pop_event_frame(dev);
+
+	litest_disable_log_handler(li);
+	libinput_dispatch(li);
+	litest_restore_log_handler(li);
+
+	litest_assert_empty_queue(li);
+
+	litest_timeout_tap();
+	libinput_dispatch(li);
+
+	litest_touch_move_to(dev, 0, 50.2, 50.2, 50, 70, 10);
+	litest_touch_up(dev, 0);
+
+	litest_assert_only_typed_events(li, LIBINPUT_EVENT_POINTER_MOTION);
+}
+END_TEST
+
 TEST_COLLECTION(touchpad)
 {
 	struct range suspends = { SUSPEND_EXT_MOUSE, SUSPEND_COUNT };
@@ -6643,6 +6784,7 @@ TEST_COLLECTION(touchpad)
 	litest_add("touchpad:scroll", touchpad_2fg_scroll_return_to_motion, LITEST_TOUCHPAD, LITEST_SINGLE_TOUCH);
 	litest_add("touchpad:scroll", touchpad_2fg_scroll_source, LITEST_TOUCHPAD, LITEST_SINGLE_TOUCH);
 	litest_add("touchpad:scroll", touchpad_2fg_scroll_semi_mt, LITEST_SEMI_MT, LITEST_SINGLE_TOUCH);
+	litest_add("touchpad:scroll", touchpad_2fg_scroll_from_btnareas, LITEST_TOUCHPAD, LITEST_SINGLE_TOUCH);
 	litest_add("touchpad:scroll", touchpad_scroll_natural_defaults, LITEST_TOUCHPAD, LITEST_ANY);
 	litest_add("touchpad:scroll", touchpad_scroll_natural_enable_config, LITEST_TOUCHPAD, LITEST_ANY);
 	litest_add("touchpad:scroll", touchpad_scroll_natural_2fg, LITEST_TOUCHPAD, LITEST_SINGLE_TOUCH);
@@ -6783,6 +6925,8 @@ TEST_COLLECTION(touchpad)
 	litest_add("touchpad:thumb", touchpad_thumb_tap_hold_2ndfg, LITEST_CLICKPAD, LITEST_SINGLE_TOUCH);
 	litest_add("touchpad:thumb", touchpad_thumb_tap_hold_2ndfg_tap, LITEST_CLICKPAD, LITEST_SINGLE_TOUCH);
 	litest_add("touchpad:thumb", touchpad_thumb_move_and_tap, LITEST_CLICKPAD, LITEST_ANY);
+	litest_add("touchpad:thumb", touchpad_thumb_no_doublethumb, LITEST_CLICKPAD, LITEST_ANY);
+	litest_add("touchpad:thumb", touchpad_thumb_no_doublethumb_with_timeout, LITEST_CLICKPAD, LITEST_ANY);
 
 	litest_add_for_device("touchpad:bugs", touchpad_tool_tripletap_touch_count, LITEST_SYNAPTICS_TOPBUTTONPAD);
 	litest_add_for_device("touchpad:bugs", touchpad_tool_tripletap_touch_count_late, LITEST_SYNAPTICS_TOPBUTTONPAD);
@@ -6818,4 +6962,8 @@ TEST_COLLECTION(touchpad)
 
 	litest_add_ranged("touchpad:suspend", touchpad_suspend_abba, LITEST_TOUCHPAD, LITEST_ANY, &suspends);
 	litest_add_ranged("touchpad:suspend", touchpad_suspend_abab, LITEST_TOUCHPAD, LITEST_ANY, &suspends);
+
+	/* Happens on the "Wacom Intuos Pro M Finger" but our test device
+	 * has the same properties */
+	litest_add_for_device("touchpad:bugs", touchpad_end_start_touch, LITEST_WACOM_FINGER);
 }

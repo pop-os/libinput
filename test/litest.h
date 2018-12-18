@@ -820,6 +820,9 @@ void
 litest_timeout_hysteresis(void);
 
 void
+litest_timeout_thumb(void);
+
+void
 litest_push_event_frame(struct litest_device *dev);
 
 void
@@ -956,6 +959,15 @@ litest_has_clickfinger(struct litest_device *dev)
 	uint32_t methods = libinput_device_config_click_get_methods(device);
 
 	return methods & LIBINPUT_CONFIG_CLICK_METHOD_CLICKFINGER;
+}
+
+static inline bool
+litest_has_btnareas(struct litest_device *dev)
+{
+	struct libinput_device *device = dev->libinput_device;
+	uint32_t methods = libinput_device_config_click_get_methods(device);
+
+	return methods & LIBINPUT_CONFIG_CLICK_METHOD_BUTTON_AREAS;
 }
 
 static inline void

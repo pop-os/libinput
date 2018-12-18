@@ -251,6 +251,36 @@ tp_button_area_handle_event(struct tp_dispatch *tp,
 	}
 }
 
+/**
+ * Release any button in the bottom area, provided it started within a
+ * threshold around start_time (i.e. simultaneously with the other touch
+ * that triggered this call).
+ */
+static inline void
+tp_button_release_other_bottom_touches(struct tp_dispatch *tp,
+				       uint64_t other_start_time)
+{
+	struct tp_touch *t;
+
+	tp_for_each_touch(tp, t) {
+		uint64_t tdelta;
+
+		if (t->button.state != BUTTON_STATE_BOTTOM ||
+		    t->button.has_moved)
+			continue;
+
+		if (other_start_time > t->button.initial_time)
+			tdelta = other_start_time - t->button.initial_time;
+		else
+			tdelta = t->button.initial_time - other_start_time;
+
+		if (tdelta > ms2us(80))
+			continue;
+
+		t->button.has_moved = true;
+	}
+}
+
 static void
 tp_button_bottom_handle_event(struct tp_dispatch *tp,
 			      struct tp_touch *t,
@@ -271,6 +301,14 @@ tp_button_bottom_handle_event(struct tp_dispatch *tp,
 	case BUTTON_EVENT_IN_TOP_L:
 	case BUTTON_EVENT_IN_AREA:
 		tp_button_set_state(tp, t, BUTTON_STATE_AREA, event);
+
+		/* We just transitioned one finger from BOTTOM to AREA,
+		 * if there are other fingers in BOTTOM that started
+		 * simultaneously with this finger, release those fingers
+		 * because they're part of a gesture.
+		 */
+		tp_button_release_other_bottom_touches(tp,
+						       t->button.initial_time);
 		break;
 	case BUTTON_EVENT_UP:
 		tp_button_set_state(tp, t, BUTTON_STATE_NONE, event);
@@ -450,7 +488,7 @@ tp_button_handle_event(struct tp_dispatch *tp,
 
 	if (current != t->button.state)
 		evdev_log_debug(tp->device,
-				"button state: touch %d from %s, event %s to %s\n",
+				"button state: touch %d from %-20s event %-24s to %-20s\n",
 				t->index,
 				button_state_to_str(current),
 				button_event_to_str(event),
@@ -463,6 +501,9 @@ tp_button_check_for_movement(struct tp_dispatch *tp, struct tp_touch *t)
 	struct device_coords delta;
 	struct phys_coords mm;
 	double vector_length;
+
+	if (t->button.has_moved)
+		return;
 
 	switch (t->button.state) {
 	case BUTTON_STATE_NONE:
@@ -482,8 +523,12 @@ tp_button_check_for_movement(struct tp_dispatch *tp, struct tp_touch *t)
 	mm = evdev_device_unit_delta_to_mm(tp->device, &delta);
 	vector_length = hypot(mm.x, mm.y);
 
-	if (vector_length > 5.0 /* mm */)
+	if (vector_length > 5.0 /* mm */) {
 		t->button.has_moved = true;
+
+		tp_button_release_other_bottom_touches(tp,
+						       t->button.initial_time);
+	}
 }
 
 void
@@ -497,6 +542,7 @@ tp_button_handle_state(struct tp_dispatch *tp, uint64_t time)
 
 		if (t->state == TOUCH_BEGIN) {
 			t->button.initial = t->point;
+			t->button.initial_time = time;
 			t->button.has_moved = false;
 		}
 
