@@ -1,9 +1,9 @@
-libinput (1.12.6-1) UNRELEASED; urgency=medium
+libinput (1.12.6-1) unstable; urgency=medium
 
   * New upstream release.
   * control: Fix typos in descriptions. (Closes: #916458)
 
- -- Timo Aaltonen <tjaalton@debian.org>  Tue, 18 Dec 2018 13:03:42 +0200
+ -- Timo Aaltonen <tjaalton@debian.org>  Wed, 23 Jan 2019 13:51:42 +0200
 
 libinput (1.12.4-1) unstable; urgency=medium
 
