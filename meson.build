@@ -1,5 +1,5 @@
 project('libinput', 'c', 'cpp',
-	version : '1.12.4',
+	version : '1.12.6',
 	license : 'MIT/Expat',
 	default_options : [ 'c_std=gnu99', 'warning_level=2' ],
 	meson_version : '>= 0.41.0')
@@ -251,6 +251,7 @@ quirks_data = [
 	'quirks/10-generic-trackball.quirks',
 	'quirks/30-vendor-aiptek.quirks',
 	'quirks/30-vendor-alps.quirks',
+	'quirks/30-vendor-contour.quirks',
 	'quirks/30-vendor-cyapa.quirks',
 	'quirks/30-vendor-elantech.quirks',
 	'quirks/30-vendor-huion.quirks',
