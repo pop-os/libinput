@@ -4,6 +4,7 @@ libinput (1.13.4-1) UNRELEASED; urgency=medium
   * source: Update diff-ignore.
   * control: Bump policy to 4.4.
   * rules: Use dh_missing.
+  * compat, control: Bump debhelper to 12.
 
  -- Timo Aaltonen <tjaalton@debian.org>  Mon, 08 Jul 2019 14:05:32 +0300
 
