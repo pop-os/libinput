@@ -7,6 +7,7 @@ libinput.so.10 libinput10 #MINVER#
  LIBINPUT_0.20.0@LIBINPUT_0.20.0 0.21.0
  LIBINPUT_0.21.0@LIBINPUT_0.21.0 0.21.0
  LIBINPUT_1.11@LIBINPUT_1.11 1.11.1
+ LIBINPUT_1.14@LIBINPUT_1.14 1.14.0
  LIBINPUT_1.1@LIBINPUT_1.1 1.1.0
  LIBINPUT_1.2@LIBINPUT_1.2 1.2.0
  LIBINPUT_1.3@LIBINPUT_1.3 1.3.0
@@ -183,6 +184,8 @@ libinput.so.10 libinput10 #MINVER#
  libinput_event_tablet_tool_get_proximity_state@LIBINPUT_1.2 1.2.0
  libinput_event_tablet_tool_get_rotation@LIBINPUT_1.2 1.2.0
  libinput_event_tablet_tool_get_seat_button_count@LIBINPUT_1.2 1.2.0
+ libinput_event_tablet_tool_get_size_major@LIBINPUT_1.14 1.14.0
+ libinput_event_tablet_tool_get_size_minor@LIBINPUT_1.14 1.14.0
  libinput_event_tablet_tool_get_slider_position@LIBINPUT_1.2 1.2.0
  libinput_event_tablet_tool_get_tilt_x@LIBINPUT_1.2 1.2.0
  libinput_event_tablet_tool_get_tilt_y@LIBINPUT_1.2 1.2.0
@@ -198,6 +201,8 @@ libinput.so.10 libinput10 #MINVER#
  libinput_event_tablet_tool_get_y_transformed@LIBINPUT_1.2 1.2.0
  libinput_event_tablet_tool_pressure_has_changed@LIBINPUT_1.2 1.2.0
  libinput_event_tablet_tool_rotation_has_changed@LIBINPUT_1.2 1.2.0
+ libinput_event_tablet_tool_size_major_has_changed@LIBINPUT_1.14 1.14.0
+ libinput_event_tablet_tool_size_minor_has_changed@LIBINPUT_1.14 1.14.0
  libinput_event_tablet_tool_slider_has_changed@LIBINPUT_1.2 1.2.0
  libinput_event_tablet_tool_tilt_x_has_changed@LIBINPUT_1.2 1.2.0
  libinput_event_tablet_tool_tilt_y_has_changed@LIBINPUT_1.2 1.2.0
@@ -253,6 +258,7 @@ libinput.so.10 libinput10 #MINVER#
  libinput_tablet_tool_has_distance@LIBINPUT_1.2 1.2.0
  libinput_tablet_tool_has_pressure@LIBINPUT_1.2 1.2.0
  libinput_tablet_tool_has_rotation@LIBINPUT_1.2 1.2.0
+ libinput_tablet_tool_has_size@LIBINPUT_1.14 1.14.0
  libinput_tablet_tool_has_slider@LIBINPUT_1.2 1.2.0
  libinput_tablet_tool_has_tilt@LIBINPUT_1.2 1.2.0
  libinput_tablet_tool_has_wheel@LIBINPUT_1.2 1.2.0

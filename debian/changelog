@@ -1,6 +1,7 @@
 libinput (1.14.0-1) UNRELEASED; urgency=medium
 
   * New upstream release.
+  * symbols: Updated.
 
  -- Timo Aaltonen <tjaalton@debian.org>  Thu, 08 Aug 2019 13:27:29 +0300
 
