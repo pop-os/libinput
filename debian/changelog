@@ -1,6 +1,7 @@
 libinput (1.14.1-1) UNRELEASED; urgency=medium
 
   * New upstream release.
+  * tools.install: Add zsh completions.
 
  -- Timo Aaltonen <tjaalton@debian.org>  Sun, 08 Sep 2019 00:09:13 +0300
 
