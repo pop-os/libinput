@@ -95,7 +95,7 @@ Depends:
  ${shlibs:Depends},
  ${misc:Depends},
  python3,
- python3-evdev,
+ python3-libevdev,
  python3-pyudev,
 Description: input device management and event handling library - command line tools
  libinput is a library that handles input devices for display servers and
