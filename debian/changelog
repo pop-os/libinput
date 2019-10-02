@@ -1,9 +1,9 @@
-libinput (1.14.1-2) UNRELEASED; urgency=medium
+libinput (1.14.1-2) unstable; urgency=medium
 
   * control: Fix libinput-tools to depend on python3-libevdev instead of
     -evdev. (LP: #1846323)
 
- -- Timo Aaltonen <tjaalton@debian.org>  Wed, 02 Oct 2019 16:49:06 +0300
+ -- Timo Aaltonen <tjaalton@debian.org>  Wed, 02 Oct 2019 16:49:51 +0300
 
 libinput (1.14.1-1) unstable; urgency=medium
 
