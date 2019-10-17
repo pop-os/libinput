@@ -357,6 +357,11 @@ evdev_notify_axis(struct evdev_device *device,
 	struct normalized_coords delta = *delta_in;
 	struct discrete_coords discrete = *discrete_in;
 
+	if (device->scroll.invert_horizontal_scrolling) {
+		delta.x *= -1;
+		discrete.x *= -1;
+	}
+
 	if (device->scroll.natural_scrolling_enabled) {
 		delta.x *= -1;
 		delta.y *= -1;
@@ -1841,6 +1846,10 @@ evdev_configure_device(struct evdev_device *device)
 		return NULL;
 	}
 
+	if (evdev_device_has_model_quirk(device, QUIRK_MODEL_INVERT_HORIZONTAL_SCROLLING)) {
+		device->scroll.invert_horizontal_scrolling = true;
+	}
+
 	return fallback_dispatch_create(&device->base);
 }
 
@@ -1953,6 +1962,7 @@ evdev_pre_configure_model_quirks(struct evdev_device *device)
 	 * https://gitlab.freedesktop.org/libinput/libinput/issues/177 and
 	 * https://gitlab.freedesktop.org/libinput/libinput/issues/234 */
 	if (evdev_device_has_model_quirk(device, QUIRK_MODEL_LENOVO_T480S_TOUCHPAD) ||
+	    evdev_device_has_model_quirk(device, QUIRK_MODEL_LENOVO_T490S_TOUCHPAD) ||
 	    evdev_device_has_model_quirk(device, QUIRK_MODEL_LENOVO_L380_TOUCHPAD))
 		libevdev_enable_property(device->evdev,
 					 INPUT_PROP_BUTTONPAD);
