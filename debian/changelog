@@ -1,11 +1,11 @@
-libinput (1.15.1-1) UNRELEASED; urgency=medium
+libinput (1.15.1-1) unstable; urgency=medium
 
   * New upstream release.
   * source: Update diff-ignore.
   * symbols: Updated.
   * tests: Modified to be cross-test-friendly. (Closes: #946577)
 
- -- Timo Aaltonen <tjaalton@debian.org>  Wed, 05 Feb 2020 01:42:22 +0200
+ -- Timo Aaltonen <tjaalton@debian.org>  Wed, 05 Feb 2020 18:20:32 +0200
 
 libinput (1.14.3-1) unstable; urgency=medium
 
