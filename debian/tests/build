@@ -3,6 +3,12 @@
 exec 2>&1
 set -eux
 
+if [ -n "${DEB_HOST_GNU_TYPE:-}" ]; then
+    CROSS_COMPILE="$DEB_HOST_GNU_TYPE-"
+else
+    CROSS_COMPILE=
+fi
+
 cd "${AUTOPKGTEST_TMP:-"${ADTTMP}"}"
 
 echo "1..2"
@@ -44,7 +50,7 @@ main (void)
 }
 EOF
 
-gcc -o dynamic simple.c $(pkg-config --cflags --libs libinput)
+${CROSS_COMPILE}gcc -o dynamic simple.c $(${CROSS_COMPILE}pkg-config --cflags --libs libinput)
 echo "ok 1 - compile dynamic executable"
 test -x dynamic
 ./dynamic
