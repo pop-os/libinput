@@ -1,0 +1,39 @@
+commit 19898eb2b2f74b3a4b2382765f33a5ee257a9b03
+Author: Peter Hutterer <peter.hutterer@who-t.net>
+Date:   Wed Feb 12 07:13:02 2020 +1000
+
+    udev: *add* the fuzz-to-zero program to the udev RUN list, don't overwrite
+    
+    For historical reasons, the keyboard builtin that sets the EVDEV_ABS values is
+    added as RUN. When we add our own fuzz-to-zero tool we must use +=, just using
+    an equals overwrites the existing RUN list.
+    
+    The same is true for the IMPORT command we use to extract the fuzz to begin
+    with.
+    
+    Fixes #424
+    
+    Signed-off-by: Peter Hutterer <peter.hutterer@who-t.net>
+
+diff --git a/udev/90-libinput-fuzz-override.rules.in b/udev/90-libinput-fuzz-override.rules.in
+index bcee4638..fa1e3e75 100644
+--- a/udev/90-libinput-fuzz-override.rules.in
++++ b/udev/90-libinput-fuzz-override.rules.in
+@@ -15,13 +15,13 @@ KERNEL!="event*", GOTO="libinput_fuzz_override_end"
+ # about that.
+ ATTRS{capabilities/abs}!="0", \
+ 	ENV{ID_INPUT_TOUCHPAD}=="1", \
+-	IMPORT{program}="@UDEV_TEST_PATH@libinput-fuzz-extract %S%p", \
+-	RUN{program}="@UDEV_TEST_PATH@libinput-fuzz-to-zero %S%p", \
++	IMPORT{program}+="@UDEV_TEST_PATH@libinput-fuzz-extract %S%p", \
++	RUN{program}+="@UDEV_TEST_PATH@libinput-fuzz-to-zero %S%p", \
+ 	GOTO="libinput_fuzz_override_end"
+ ATTRS{capabilities/abs}!="0", \
+ 	ENV{ID_INPUT_TOUCHSCREEN}=="1", \
+-	IMPORT{program}="@UDEV_TEST_PATH@libinput-fuzz-extract %S%p", \
+-	RUN{program}="@UDEV_TEST_PATH@libinput-fuzz-to-zero %S%p", \
++	IMPORT{program}+="@UDEV_TEST_PATH@libinput-fuzz-extract %S%p", \
++	RUN{program}+="@UDEV_TEST_PATH@libinput-fuzz-to-zero %S%p", \
+ 	GOTO="libinput_fuzz_override_end"
+ 
+ LABEL="libinput_fuzz_override_end"
