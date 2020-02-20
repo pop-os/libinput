@@ -650,8 +650,20 @@ tp_process_fake_touches(struct tp_dispatch *tp,
 	 *
 	 * All touchpad devices have at least one slot so we only do this
 	 * for 2 touches or higher.
+	 *
+	 * There's an bug in libevdev < 1.9.0 affecting slots after a
+	 * SYN_DROPPED. Where a user release one or more touches during
+	 * SYN_DROPPED and places new ones on the touchpad, we may end up
+	 * with fake touches but no active slots.
+	 * So let's check for nactive_slots > 0 to make sure we don't lose
+	 * all fingers. That's a workaround only, this must be fixed in
+	 * libevdev.
+	 *
+	 * For a long explanation of what happens, see
+	 * https://gitlab.freedesktop.org/libevdev/libevdev/merge_requests/19
 	 */
 	if (nfake_touches > 1 && tp->has_mt &&
+	    tp->nactive_slots > 0 &&
 	    nfake_touches > tp->nactive_slots &&
 	    tp->nactive_slots < tp->num_slots) {
 		evdev_log_bug_kernel(tp->device,
@@ -2051,6 +2063,7 @@ tp_sync_touch(struct tp_dispatch *tp,
 	      int slot)
 {
 	struct libevdev *evdev = device->evdev;
+	int tracking_id;
 
 	if (!libevdev_fetch_slot_value(evdev,
 				       slot,
@@ -2079,6 +2092,13 @@ tp_sync_touch(struct tp_dispatch *tp,
 				  slot,
 				  ABS_MT_TOUCH_MINOR,
 				  &t->minor);
+
+	if (libevdev_fetch_slot_value(evdev,
+				      slot,
+				      ABS_MT_TRACKING_ID,
+				      &tracking_id) &&
+	    tracking_id != -1)
+		tp->nactive_slots++;
 }
 
 static void

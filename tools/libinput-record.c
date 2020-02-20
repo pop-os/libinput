@@ -1429,26 +1429,50 @@ print_system_header(struct record_context *ctx)
 {
 	struct utsname u;
 	const char *kernel = "unknown";
-	FILE *dmi;
-	char modalias[2048] = "unknown";
+	FILE *dmi, *osrelease;
+	char buf[2048] = "unknown";
 
 	if (uname(&u) != -1)
 		kernel = u.release;
 
 	dmi = fopen("/sys/class/dmi/id/modalias", "r");
 	if (dmi) {
-		if (fgets(modalias, sizeof(modalias), dmi)) {
-			modalias[strlen(modalias) - 1] = '\0'; /* linebreak */
+		if (fgets(buf, sizeof(buf), dmi)) {
+			buf[strlen(buf) - 1] = '\0'; /* linebreak */
 		} else {
-			sprintf(modalias, "unknown");
+			sprintf(buf, "unknown");
 		}
 		fclose(dmi);
 	}
 
 	iprintf(ctx, "system:\n");
 	indent_push(ctx);
+
+	osrelease = fopen("/etc/os-release", "r");
+	if (!osrelease)
+		fopen("/usr/lib/os-release", "r");
+	if (osrelease) {
+		char *distro = NULL, *version = NULL;
+
+		while (fgets(buf, sizeof(buf), osrelease)) {
+			buf[strlen(buf) - 1] = '\0'; /* linebreak */
+
+			if (!distro && strneq(buf, "ID=", 3))
+				distro = safe_strdup(&buf[3]);
+			else if (!version && strneq(buf, "VERSION_ID=", 11))
+				version = safe_strdup(&buf[11]);
+
+			if (distro && version) {
+				iprintf(ctx, "os: \"%s:%s\"\n", distro, version);
+				break;
+			}
+		}
+		free(distro);
+		free(version);
+		fclose(osrelease);
+	}
 	iprintf(ctx, "kernel: \"%s\"\n", kernel);
-	iprintf(ctx, "dmi: \"%s\"\n", modalias);
+	iprintf(ctx, "dmi: \"%s\"\n", buf);
 	indent_pop(ctx);
 }
 
@@ -1768,7 +1792,7 @@ print_udev_properties(struct record_context *ctx, struct record_device *dev)
 
 		if (strneq(key, "ID_INPUT", 8) ||
 		    strneq(key, "LIBINPUT", 8) ||
-		    strneq(key, "EV_ABS", 6) ||
+		    strneq(key, "EVDEV_ABS", 9) ||
 		    strneq(key, "MOUSE_DPI", 9) ||
 		    strneq(key, "POINTINGSTICK_", 14)) {
 			value = udev_list_entry_get_value(entry);
