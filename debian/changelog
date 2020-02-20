@@ -1,3 +1,9 @@
+libinput (1.15.2-1) UNRELEASED; urgency=medium
+
+  * New upstream release.
+
+ -- Timo Aaltonen <tjaalton@debian.org>  Thu, 20 Feb 2020 09:28:57 +0200
+
 libinput (1.15.1-2) unstable; urgency=medium
 
   * fix-fuzz-override-rules.diff: Fix issues with some touchpads.
