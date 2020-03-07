@@ -305,11 +305,11 @@ out:
 }
 
 static struct libinput *
-tools_open_device(char **paths, bool verbose, bool *grab)
+tools_open_device(const char **paths, bool verbose, bool *grab)
 {
 	struct libinput_device *device;
 	struct libinput *li;
-	char **p = paths;
+	const char **p = paths;
 
 	li = libinput_path_create_context(&interface, grab);
 	if (!li) {
@@ -348,7 +348,7 @@ tools_setenv_quirks_dir(void)
 
 struct libinput *
 tools_open_backend(enum tools_backend which,
-		   char **seat_or_device,
+		   const char **seat_or_device,
 		   bool verbose,
 		   bool *grab)
 {
@@ -616,7 +616,7 @@ tools_list_device_quirks(struct quirks_context *ctx,
 	if (!quirks)
 		return;
 
-	q = QUIRK_MODEL_ALPS_TOUCHPAD;
+	q = QUIRK_MODEL_ALPS_SERIAL_TOUCHPAD;
 	do {
 		if (quirks_has_quirk(quirks, q)) {
 			const char *name;

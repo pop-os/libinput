@@ -2608,6 +2608,7 @@ touchpad_has_rotation(struct libevdev *evdev)
 
 START_TEST(touchpad_left_handed_rotation)
 {
+#if HAVE_LIBWACOM
 	struct litest_device *dev = litest_current_device();
 	struct libinput_device *d = dev->libinput_device;
 	struct libinput *li = dev->libinput;
@@ -2655,6 +2656,7 @@ START_TEST(touchpad_left_handed_rotation)
 
 		libinput_event_destroy(event);
 	} while ((event = libinput_get_event(li)));
+#endif
 }
 END_TEST
 
@@ -3579,8 +3581,6 @@ START_TEST(touchpad_fingers_down_before_init)
 	unsigned int map[] = {0, BTN_TOOL_PEN, BTN_TOOL_DOUBLETAP,
 			      BTN_TOOL_TRIPLETAP, BTN_TOOL_QUADTAP,
 			      BTN_TOOL_QUINTTAP};
-
-	dev = litest_current_device();
 
 	if (!libevdev_has_event_code(dev->evdev, EV_KEY, map[finger_count]))
 		return;

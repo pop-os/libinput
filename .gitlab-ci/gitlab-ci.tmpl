@@ -27,22 +27,12 @@
 .templates_sha: &template_sha 8410d3382c4ba5e83da76a027cb332169f2a95ad # see https://docs.gitlab.com/ee/ci/yaml/#includefile
 
 include:
-  # Alpine container builder template
+  {% for template in templates %}
+  # {{ template.capitalize() }} container builder template
   - project: 'wayland/ci-templates'
     ref: *template_sha
-    file: '/templates/alpine.yml'
-  # Arch container builder template
-  - project: 'wayland/ci-templates'
-    ref: *template_sha
-    file: '/templates/arch.yml'
-  # Fedora container builder template
-  - project: 'wayland/ci-templates'
-    ref: *template_sha
-    file: '/templates/fedora.yml'
-  # Ubuntu container builder template
-  - project: 'wayland/ci-templates'
-    ref: *template_sha
-    file: '/templates/ubuntu.yml'
+    file: '/templates/{{template}}.yml'
+  {% endfor %}
 
 stages:
   - prep             # prep work like rebuilding the container images if there is a change
@@ -211,84 +201,21 @@ fedora:30@qemu-prep:
     TAG: $QEMU_TAG
   allow_failure: true
 
-fedora:30@container-prep:
+{% for distro in distributions %}
+{{distro.name}}:{{distro.version}}@container-prep:
   extends:
-    - .fedora@container-build
+    - .{{distro.name}}@container-build
     - .policy
     - .pull_upstream_or_rebuild
   stage: prep
   variables:
     GIT_STRATEGY: none
-    FEDORA_VERSION: '30'
-    DISTRIB_NAME: fedora
-    DISTRIB_VERSION: $FEDORA_VERSION
-    TAG: $FEDORA_TAG
+    {{distro.name.upper()}}_VERSION: '{{distro.version}}'
+    DISTRIB_NAME: {{distro.name}}
+    DISTRIB_VERSION: ${{distro.name.upper()}}_VERSION
+    TAG: ${{distro.name.upper()}}_TAG
 
-fedora:31@container-prep:
-  extends:
-    - .fedora@container-build
-    - .policy
-    - .pull_upstream_or_rebuild
-  stage: prep
-  variables:
-    GIT_STRATEGY: none
-    FEDORA_VERSION: '31'
-    DISTRIB_NAME: fedora
-    DISTRIB_VERSION: $FEDORA_VERSION
-    TAG: $FEDORA_TAG
-
-ubuntu:19.10@container-prep:
-  extends:
-    - .ubuntu@container-build
-    - .policy
-    - .pull_upstream_or_rebuild
-  stage: prep
-  variables:
-    GIT_STRATEGY: none
-    UBUNTU_VERSION: '19.10'
-    DISTRIB_NAME: ubuntu
-    DISTRIB_VERSION: $UBUNTU_VERSION
-    TAG: $UBUNTU_TAG
-
-ubuntu:19.04@container-prep:
-  extends:
-    - .ubuntu@container-build
-    - .policy
-    - .pull_upstream_or_rebuild
-  stage: prep
-  variables:
-    GIT_STRATEGY: none
-    UBUNTU_VERSION: '19.04'
-    DISTRIB_NAME: ubuntu
-    DISTRIB_VERSION: $UBUNTU_VERSION
-    TAG: $UBUNTU_TAG
-
-arch:rolling@container-prep:
-  extends:
-    - .arch@container-build
-    - .policy
-    - .pull_upstream_or_rebuild
-  stage: prep
-  variables:
-    GIT_STRATEGY: none
-    ARCH_VERSION: 'rolling'
-    DISTRIB_NAME: arch
-    DISTRIB_VERSION: $ARCH_VERSION
-    TAG: $ARCH_TAG
-
-alpine:latest@container-prep:
-  extends:
-    - .alpine@container-build
-    - .policy
-    - .pull_upstream_or_rebuild
-  stage: prep
-  variables:
-    GIT_STRATEGY: none
-    ALPINE_VERSION: 'latest'
-    DISTRIB_NAME: alpine
-    DISTRIB_VERSION: $ALPINE_VERSION
-    TAG: $ALPINE_TAG
-
+{% endfor %}
 
 .freebsd@container-prep:
   extends:
@@ -408,54 +335,16 @@ freebsd:11.2@container-prep:
   only:
     - schedules
 
-fedora:30@container-clean:
+{% for distro in distributions %}
+{{distro.name}}:{{distro.version}}@container-clean:
   extends:
     - .container-clean
   variables:
     GIT_STRATEGY: none
-    FEDORA_VERSION: '30'
-    CURRENT_CONTAINER_IMAGE: $FEDORA_CONTAINER_IMAGE
+    {{distro.name.upper()}}_VERSION: '{{distro.version}}'
+    CURRENT_CONTAINER_IMAGE: ${{distro.name.upper()}}_CONTAINER_IMAGE
 
-fedora:31@container-clean:
-  extends:
-    - .container-clean
-  variables:
-    GIT_STRATEGY: none
-    FEDORA_VERSION: '31'
-    CURRENT_CONTAINER_IMAGE: $FEDORA_CONTAINER_IMAGE
-
-ubuntu:19.10@container-clean:
-  extends:
-    - .container-clean
-  variables:
-    GIT_STRATEGY: none
-    UBUNTU_VERSION: '19.10'
-    CURRENT_CONTAINER_IMAGE: $UBUNTU_CONTAINER_IMAGE
-
-ubuntu:19.04@container-clean:
-  extends:
-    - .container-clean
-  variables:
-    GIT_STRATEGY: none
-    UBUNTU_VERSION: '19.04'
-    CURRENT_CONTAINER_IMAGE: $UBUNTU_CONTAINER_IMAGE
-
-arch:rolling@container-clean:
-  extends:
-    - .container-clean
-  variables:
-    GIT_STRATEGY: none
-    ARCH_VERSION: 'rolling'
-    CURRENT_CONTAINER_IMAGE: $ARCH_CONTAINER_IMAGE
-
-alpine:latest@container-clean:
-  extends:
-    - .container-clean
-  variables:
-    GIT_STRATEGY: none
-    ALPINE_VERSION: 'latest'
-    CURRENT_CONTAINER_IMAGE: $ALPINE_CONTAINER_IMAGE
-
+{% endfor %}
 
 freebsd:11.2@container-clean:
   extends:
@@ -560,121 +449,30 @@ freebsd:11.2@container-clean:
   needs: ['fedora:30@qemu-prep']
 
 
-vm-touchpad:
+{% for suite in test_suites %}
+vm-{{suite.name}}:
   extends:
     - .fedora:30@test-suite-vm
   variables:
-    SUITE_NAMES: 'touchpad'
+    SUITE_NAMES: '{{suite.suites}}'
 
-vm-touchpad-no-libwacom:
+vm-{{suite.name}}-no-libwacom:
   extends:
-    - vm-touchpad
+    - vm-{{suite.name}}
   variables:
     MESON_ARGS: '-Dlibwacom=false'
 
-vm-tap:
-  extends:
-    - .fedora:30@test-suite-vm
-  variables:
-    SUITE_NAMES: 'tap'
+{% endfor %}
 
-vm-tap-no-libwacom:
-  extends:
-    - vm-tap
-  variables:
-    MESON_ARGS: '-Dlibwacom=false'
-
-vm-tablet:
-  extends:
-    - .fedora:30@test-suite-vm
-  variables:
-    SUITE_NAMES: 'tablet'
-
-vm-tablet-no-libwacom:
-  extends:
-    - vm-tablet
-  variables:
-    MESON_ARGS: '-Dlibwacom=false'
-
-vm-gestures-device:
-  extends:
-    - .fedora:30@test-suite-vm
-  variables:
-    SUITE_NAMES: 'gestures device'
-
-vm-gestures-device-no-libwacom:
-  extends:
-    - vm-gestures-device
-  variables:
-    MESON_ARGS: '-Dlibwacom=false'
-
-vm-others:
-  extends:
-    - .fedora:30@test-suite-vm
-  variables:
-    SUITE_NAMES: 'context config misc events totem udev lid log timer tablet-mode quirks trackball pad path keyboard switch touch trackpoint'
-
-vm-others-no-libwacom:
-  extends:
-    - vm-others
-  variables:
-    MESON_ARGS: '-Dlibwacom=false'
-
-vm-pointer:
-  extends:
-    - .fedora:30@test-suite-vm
-  variables:
-    SUITE_NAMES: 'pointer'
-
-vm-pointer-no-libwacom:
-  extends:
-    - vm-pointer
-  variables:
-    MESON_ARGS: '-Dlibwacom=false'
-
-
-vm-valgrind-touchpad:
+{% for suite in test_suites %}
+vm-valgrind-{{suite.name}}:
   stage: valgrind
   extends:
-    - vm-touchpad
+    - vm-{{suite.name}}
   variables:
     MESON_TEST_ARGS: '--setup=valgrind'
 
-vm-valgrind-tap:
-  stage: valgrind
-  extends:
-    - vm-tap
-  variables:
-    MESON_TEST_ARGS: '--setup=valgrind'
-
-vm-valgrind-tablet:
-  stage: valgrind
-  extends:
-    - vm-tablet
-  variables:
-    MESON_TEST_ARGS: '--setup=valgrind'
-
-vm-valgrind-gestures-device:
-  stage: valgrind
-  extends:
-    - vm-gestures-device
-  variables:
-    MESON_TEST_ARGS: '--setup=valgrind'
-
-vm-valgrind-others:
-  stage: valgrind
-  extends:
-    - vm-others
-  variables:
-    MESON_TEST_ARGS: '--setup=valgrind'
-
-vm-valgrind-pointer:
-  stage: valgrind
-  extends:
-    - vm-pointer
-  variables:
-    MESON_TEST_ARGS: '--setup=valgrind'
-
+{% endfor %}
 
 
 .fedora-build@template:
@@ -801,68 +599,24 @@ flake8@fedora:30:
 #                                                               #
 #################################################################
 
-fedora:30@default-build:
+{% for distro in distributions %}
+{{distro.name}}:{{distro.version}}@default-build:
   stage: distro
   extends:
     - .build@template
-  image: $FEDORA_CONTAINER_IMAGE
+  image: ${{distro.name.upper()}}_CONTAINER_IMAGE
   variables:
-    FEDORA_VERSION: '30'
-  needs: ['fedora:30@container-prep']
+    {{distro.name.upper()}}_VERSION: '{{distro.version}}'
+    {# Where we have extra_variables defined, add them to the list #}
+    {% if distro.build is defined and distro.build.extra_variables is defined %}
+    {% for var in distro.build.extra_variables %}
+    {{var}}
+    {% endfor %}
+    {% endif %}
+  needs: ['{{distro.name}}:{{distro.version}}@container-prep']
 
 
-fedora:31@default-build:
-  stage: distro
-  extends:
-    - .build@template
-  image: $FEDORA_CONTAINER_IMAGE
-  variables:
-    FEDORA_VERSION: '31'
-  needs: ['fedora:31@container-prep']
-
-
-ubuntu:19.10@default-build:
-  stage: distro
-  extends:
-    - .build@template
-  image: $UBUNTU_CONTAINER_IMAGE
-  variables:
-    UBUNTU_VERSION: '19.10'
-  needs: ['ubuntu:19.10@container-prep']
-
-
-ubuntu:19.04@default-build:
-  stage: distro
-  extends:
-    - .build@template
-  image: $UBUNTU_CONTAINER_IMAGE
-  variables:
-    UBUNTU_VERSION: '19.04'
-  needs: ['ubuntu:19.04@container-prep']
-
-
-arch:rolling@default-build:
-  stage: distro
-  extends:
-    - .build@template
-  image: $ARCH_CONTAINER_IMAGE
-  variables:
-    ARCH_VERSION: 'rolling'
-  needs: ['arch:rolling@container-prep']
-
-
-alpine:latest@default-build:
-  stage: distro
-  extends:
-    - .build@template
-  image: $ALPINE_CONTAINER_IMAGE
-  variables:
-    ALPINE_VERSION: 'latest'
-    MESON_ARGS: '-Ddocumentation=false' # alpine does not have python-recommonmark
-    MESON_TEST_ARGS: '' # litest-selftest fails on musl
-  needs: ['alpine:latest@container-prep']
-
-
+{% endfor %}
 
 #
 # FreeBSD
@@ -910,3 +664,4 @@ wayland-web:
   variables:
     DOT: "%2E"
     SLASH: "%2F"
+
