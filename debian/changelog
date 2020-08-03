@@ -1,6 +1,7 @@
 libinput (1.16.0-1) UNRELEASED; urgency=medium
 
   * New upstream release.
+  * control: Bump policy to 4.5.0.
 
  -- Timo Aaltonen <tjaalton@debian.org>  Mon, 03 Aug 2020 10:21:47 +0300
 
