@@ -1810,8 +1810,9 @@ evdev_configure_device(struct evdev_device *device)
 		evdev_disable_accelerometer_axes(device);
 	}
 
-	if (udev_tags & EVDEV_UDEV_TAG_JOYSTICK) {
-		evdev_log_info(device, "device is a joystick, ignoring\n");
+	if (udev_tags == (EVDEV_UDEV_TAG_INPUT|EVDEV_UDEV_TAG_JOYSTICK)) {
+		evdev_log_info(device,
+			       "device is a joystick, ignoring\n");
 		return NULL;
 	}
 
