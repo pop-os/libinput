@@ -2,9 +2,7 @@
 
 override_dh_auto_configure:
 	dh_auto_configure -- \
-		-Ddebug-gui=false \
 		-Ddocumentation=false \
-		-Dtests=false \
 		-Dudev-dir=/lib/udev
 
 override_dh_install:
