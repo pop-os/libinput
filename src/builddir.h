@@ -35,7 +35,7 @@
 static inline char *
 builddir_lookup(void)
 {
-	char execdir[PATH_MAX] = {0};
+	char execdir[PATH_MAX];
 	char *pathsep;
 	ssize_t nread;
 
@@ -50,7 +50,7 @@ builddir_lookup(void)
 
 	/* readlink doesn't terminate the string and readlink says
 	   anything past sz is undefined */
-	execdir[++nread] = '\0';
+	execdir[nread] = '\0';
 
 	pathsep = strrchr(execdir, '/');
 	if (!pathsep)
