@@ -1,10 +1,10 @@
-libinput (1.16.4-1) UNRELEASED; urgency=medium
+libinput (1.16.4-1) unstable; urgency=medium
 
   * control, rules: Enable building debug-gui and tests, add check and
     libgtk-3-dev to build-depends. (Closes: #975528)
   * New upstream release.
 
- -- Timo Aaltonen <tjaalton@debian.org>  Mon, 23 Nov 2020 13:26:30 +0200
+ -- Timo Aaltonen <tjaalton@debian.org>  Fri, 27 Nov 2020 15:16:54 +0200
 
 libinput (1.16.3-1) unstable; urgency=medium
 
