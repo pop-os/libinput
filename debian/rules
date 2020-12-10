@@ -1,9 +1,22 @@
 #!/usr/bin/make -f
 
 override_dh_auto_configure:
-	dh_auto_configure -- \
+	dh_auto_configure -B build-deb -- \
 		-Ddocumentation=false \
 		-Dudev-dir=/lib/udev
+
+	dh_auto_configure -B build-udeb -- \
+		-Ddocumentation=false \
+		-Dudev-dir=/lib/udev \
+		-Dlibwacom=false
+
+override_dh_auto_build:
+	dh_auto_build -B build-deb
+	dh_auto_build -B build-udeb
+
+override_dh_auto_install:
+	dh_auto_install -B build-deb
+	dh_auto_install -B build-udeb
 
 override_dh_install:
 	find debian/tmp -name '*.la' -delete
