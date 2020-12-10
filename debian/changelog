@@ -1,8 +1,8 @@
-libinput (1.16.4-3) UNRELEASED; urgency=medium
+libinput (1.16.4-3) unstable; urgency=medium
 
   * rules: Fix dh_auto_install to use separate destdir for main/udeb builds.
 
- -- Timo Aaltonen <tjaalton@debian.org>  Thu, 10 Dec 2020 18:03:26 +0200
+ -- Timo Aaltonen <tjaalton@debian.org>  Thu, 10 Dec 2020 18:20:15 +0200
 
 libinput (1.16.4-2) unstable; urgency=medium
 
