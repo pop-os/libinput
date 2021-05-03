@@ -2,6 +2,8 @@ libinput (1.17.2-1) UNRELEASED; urgency=medium
 
   * New upstream release.
   * Allow to build without the udeb package.
+  * Update control build-dep libevdev-dev (>= 1.10.0) for
+    libevdev_disable_property API.
 
  -- Timo Aaltonen <tjaalton@debian.org>  Mon, 03 May 2021 10:58:55 +0300
 
