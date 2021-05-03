@@ -57,6 +57,7 @@ Description: input device management and event handling library - udev quirks
 
 Package: libinput10-udeb
 Package-Type: udeb
+Build-Profiles: <!noudeb>
 Section: debian-installer
 Architecture: any
 Depends:
