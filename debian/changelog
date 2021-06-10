@@ -1,8 +1,8 @@
-libinput (1.18.0-1) UNRELEASED; urgency=medium
+libinput (1.18.0-1) experimental; urgency=medium
 
   * New upstream release.
 
- -- Timo Aaltonen <tjaalton@debian.org>  Thu, 10 Jun 2021 11:47:09 +0300
+ -- Timo Aaltonen <tjaalton@debian.org>  Thu, 10 Jun 2021 12:12:04 +0300
 
 libinput (1.17.2-1) experimental; urgency=medium
 
