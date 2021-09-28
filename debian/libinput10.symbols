@@ -9,6 +9,7 @@ libinput.so.10 libinput10 #MINVER#
  LIBINPUT_1.11@LIBINPUT_1.11 1.11.1
  LIBINPUT_1.14@LIBINPUT_1.14 1.14.0
  LIBINPUT_1.15@LIBINPUT_1.15 1.15.1
+ LIBINPUT_1.19@LIBINPUT_1.19 1.19.1
  LIBINPUT_1.1@LIBINPUT_1.1 1.1.0
  LIBINPUT_1.2@LIBINPUT_1.2 1.2.0
  LIBINPUT_1.3@LIBINPUT_1.3 1.3.0
@@ -156,6 +157,8 @@ libinput.so.10 libinput10 #MINVER#
  libinput_event_pointer_get_dx_unaccelerated@LIBINPUT_0.12.0 0.15.0
  libinput_event_pointer_get_dy@LIBINPUT_0.12.0 0.15.0
  libinput_event_pointer_get_dy_unaccelerated@LIBINPUT_0.12.0 0.15.0
+ libinput_event_pointer_get_scroll_value@LIBINPUT_1.19 1.19.1
+ libinput_event_pointer_get_scroll_value_v120@LIBINPUT_1.19 1.19.1
  libinput_event_pointer_get_seat_button_count@LIBINPUT_0.12.0 0.15.0
  libinput_event_pointer_get_time@LIBINPUT_0.12.0 0.15.0
  libinput_event_pointer_get_time_usec@LIBINPUT_0.21.0 0.21.0
