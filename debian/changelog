@@ -1,6 +1,8 @@
 libinput (1.20.0-1) UNRELEASED; urgency=medium
 
   * New upstream release.
+  * watch: Updated to use gitlab tags, though signing checks had to be
+    disabled.
 
  -- Timo Aaltonen <tjaalton@debian.org>  Mon, 21 Feb 2022 10:38:05 +0200
 
