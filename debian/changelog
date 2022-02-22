@@ -1,10 +1,10 @@
-libinput (1.20.0-1) UNRELEASED; urgency=medium
+libinput (1.20.0-1) unstable; urgency=medium
 
   * New upstream release.
   * watch: Updated to use gitlab tags, though signing checks had to be
     disabled.
 
- -- Timo Aaltonen <tjaalton@debian.org>  Mon, 21 Feb 2022 10:38:05 +0200
+ -- Timo Aaltonen <tjaalton@debian.org>  Tue, 22 Feb 2022 15:24:35 +0200
 
 libinput (1.19.3-2) unstable; urgency=medium
 
