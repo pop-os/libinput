@@ -1,5 +1,5 @@
 project('libinput', 'c',
-	version : '1.20.0',
+	version : '1.20.1',
 	license : 'MIT/Expat',
 	default_options : [ 'c_std=gnu99', 'warning_level=2' ],
 	meson_version : '>= 0.49.0')
@@ -733,6 +733,7 @@ if get_option('tests')
 		'test/litest-device-dell-canvas-totem-touch.c',
 		'test/litest-device-elantech-touchpad.c',
 		'test/litest-device-elan-tablet.c',
+		'test/litest-device-format-string.c',
 		'test/litest-device-generic-pressurepad.c',
 		'test/litest-device-generic-singletouch.c',
 		'test/litest-device-gpio-keys.c',
