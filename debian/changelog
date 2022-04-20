@@ -1,9 +1,9 @@
-libinput (1.20.1-1) UNRELEASED; urgency=medium
+libinput (1.20.1-1) unstable; urgency=medium
 
   * New upstream release.
     - CVE-2020-1215
 
- -- Timo Aaltonen <tjaalton@debian.org>  Wed, 20 Apr 2022 10:00:47 +0300
+ -- Timo Aaltonen <tjaalton@debian.org>  Wed, 20 Apr 2022 10:02:34 +0300
 
 libinput (1.20.0-1) unstable; urgency=medium
 
