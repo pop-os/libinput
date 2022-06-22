@@ -43,6 +43,7 @@ override_dh_makeshlibs:
 
 override_dh_clean:
 	rm -f doc/doxygen_sqlite3.db
+	rm -rf build-deb build-udeb
 	dh_clean
 
 %:
