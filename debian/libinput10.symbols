@@ -11,6 +11,7 @@ libinput.so.10 libinput10 #MINVER#
  LIBINPUT_1.15@LIBINPUT_1.15 1.15.1
  LIBINPUT_1.19@LIBINPUT_1.19 1.19.1
  LIBINPUT_1.1@LIBINPUT_1.1 1.1.0
+ LIBINPUT_1.21@LIBINPUT_1.21 1.21.0
  LIBINPUT_1.2@LIBINPUT_1.2 1.2.0
  LIBINPUT_1.3@LIBINPUT_1.3 1.3.0
  LIBINPUT_1.4@LIBINPUT_1.4 1.4.0
@@ -38,6 +39,10 @@ libinput.so.10 libinput10 #MINVER#
  libinput_device_config_dwt_get_enabled@LIBINPUT_0.21.0 0.21.0
  libinput_device_config_dwt_is_available@LIBINPUT_0.21.0 0.21.0
  libinput_device_config_dwt_set_enabled@LIBINPUT_0.21.0 0.21.0
+ libinput_device_config_dwtp_get_default_enabled@LIBINPUT_1.21 1.21.0
+ libinput_device_config_dwtp_get_enabled@LIBINPUT_1.21 1.21.0
+ libinput_device_config_dwtp_is_available@LIBINPUT_1.21 1.21.0
+ libinput_device_config_dwtp_set_enabled@LIBINPUT_1.21 1.21.0
  libinput_device_config_left_handed_get@LIBINPUT_0.12.0 0.15.0
  libinput_device_config_left_handed_get_default@LIBINPUT_0.12.0 0.15.0
  libinput_device_config_left_handed_is_available@LIBINPUT_0.12.0 0.15.0
