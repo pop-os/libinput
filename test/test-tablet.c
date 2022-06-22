@@ -3588,8 +3588,9 @@ START_TEST(tablet_pressure_distance_exclusive)
 	litest_tablet_proximity_in(dev, 5, 50, axes);
 	litest_drain_events(li);
 
-	/* We have pressure but we're still below the tip threshold */
-	litest_axis_set_value(axes, ABS_PRESSURE, 1);
+	/* We have 0.1% pressure above minimum threshold but we're still below
+	 * the tip threshold */
+	litest_axis_set_value(axes, ABS_PRESSURE, 1.1);
 	litest_tablet_motion(dev, 70, 70, axes);
 	libinput_dispatch(li);
 
@@ -3599,11 +3600,11 @@ START_TEST(tablet_pressure_distance_exclusive)
 	pressure = libinput_event_tablet_tool_get_pressure(tev);
 	distance = libinput_event_tablet_tool_get_distance(tev);
 
-	ck_assert_double_eq(pressure, 0.0);
+	ck_assert_double_eq(pressure, 0.001);
 	ck_assert_double_eq(distance, 0.0);
 	libinput_event_destroy(event);
 
-	/* We have pressure and we're above the threshold now */
+	/* We have pressure and we're above the tip threshold now */
 	litest_axis_set_value(axes, ABS_PRESSURE, 5.5);
 	litest_tablet_motion(dev, 70, 70, axes);
 	libinput_dispatch(li);
@@ -3807,7 +3808,7 @@ START_TEST(tablet_calibration_set_matrix)
 }
 END_TEST
 
-START_TEST(tablet_pressure_offset)
+START_TEST(tablet_pressure_offset_set)
 {
 	struct litest_device *dev = litest_current_device();
 	struct libinput *li = dev->libinput;
@@ -3820,18 +3821,23 @@ START_TEST(tablet_pressure_offset)
 	};
 	double pressure;
 
-	/* This activates the pressure thresholds */
+	/* This activates the pressure offset */
 	litest_tablet_proximity_in(dev, 5, 100, axes);
 	litest_drain_events(li);
 
 	/* Put the pen down, with a pressure high enough to meet the
-	 * threshold */
+	 * new offset */
 	litest_axis_set_value(axes, ABS_DISTANCE, 0);
-	litest_axis_set_value(axes, ABS_PRESSURE, 25);
+	litest_axis_set_value(axes, ABS_PRESSURE, 26);
 
-	litest_tablet_tip_down(dev, 70, 70, axes);
+	/* Tablet motion above threshold should trigger axis + tip down. Use
+	 * the litest motion helper here to avoid false positives caused by
+	 * BTN_TOUCH */
+	litest_tablet_motion(dev, 70, 70, axes);
 	libinput_dispatch(li);
-	litest_drain_events(li);
+	event = libinput_get_event(li);
+	litest_is_tablet_event(event, LIBINPUT_EVENT_TABLET_TOOL_TIP);
+	libinput_event_destroy(event);
 
 	/* Reduce pressure to just a tick over the offset, otherwise we get
 	 * the tip up event again */
@@ -3877,6 +3883,16 @@ START_TEST(tablet_pressure_offset)
 	pressure = libinput_event_tablet_tool_get_pressure(tev);
 
 	ck_assert_double_ge(pressure, 1.0);
+	libinput_event_destroy(event);
+
+	/* Tablet motion at offset should trigger tip up. Use
+	 * the litest motion helper here to avoid false positives caused by
+	 * BTN_TOUCH */
+	litest_axis_set_value(axes, ABS_PRESSURE, 20);
+	litest_tablet_motion(dev, 71, 71, axes);
+	libinput_dispatch(li);
+	event = libinput_get_event(li);
+	litest_is_tablet_event(event, LIBINPUT_EVENT_TABLET_TOOL_TIP);
 	libinput_event_destroy(event);
 
 }
@@ -3929,8 +3945,10 @@ START_TEST(tablet_pressure_offset_decrease)
 
 	pressure = libinput_event_tablet_tool_get_pressure(tev);
 
-	/* offset is 10, value is 15, so that's a around 5% of the
-	 * remaining range */
+	/* offset 10 + lower threshold of ~1% of original range,
+	 * value 15 is 5% over original range but with the above taken into
+	 * account it's closer to 5% into the remaining effective 89% range
+	 */
 	ck_assert_double_eq_tol(pressure, 0.05, 0.01);
 	libinput_event_destroy(event);
 }
@@ -3973,7 +3991,11 @@ START_TEST(tablet_pressure_offset_increase)
 	tev = litest_is_tablet_event(event,
 				     LIBINPUT_EVENT_TABLET_TOOL_AXIS);
 	pressure = libinput_event_tablet_tool_get_pressure(tev);
-	/* offset 20, value 30 leaves us with 12% of the remaining 90 range */
+
+	/* offset 20 + lower threshold of 1% of original range,
+	 * value 30 is 5% over original range but with the above taken into
+	 * account it's closer to 12% into the remaining effective 79% range
+	 */
 	ck_assert_double_eq_tol(pressure, 0.12, 0.01);
 	libinput_event_destroy(event);
 
@@ -4015,7 +4037,8 @@ START_TEST(tablet_pressure_min_max)
 	libinput_dispatch(li);
 
 	litest_axis_set_value(axes, ABS_DISTANCE, 0);
-	litest_axis_set_value(axes, ABS_PRESSURE, 1);
+	/* Default pressure threshold is 1% of range */
+	litest_axis_set_value(axes, ABS_PRESSURE, 1.1);
 	litest_tablet_motion(dev, 5, 50, axes);
 	libinput_dispatch(li);
 	event = libinput_get_event(li);
@@ -5392,13 +5415,7 @@ verify_left_handed_touch_motion(struct litest_device *finger,
 	litest_touch_move_to(finger, 0, x + 1, y - 1, x + 20, y - 20, 10);
 	libinput_dispatch(li);
 
-	/* Allow for optional hold gesture to end */
 	event = libinput_get_event(li);
-	if (libinput_event_get_type(event) == LIBINPUT_EVENT_GESTURE_HOLD_END) {
-		libinput_event_destroy(event);
-		event = libinput_get_event(li);
-	}
-
 	ck_assert_notnull(event);
 
 	while (event) {
@@ -5466,6 +5483,7 @@ START_TEST(tablet_rotation_left_handed)
 	enabled_from = tablet_from || touch_from;
 	enabled_to   = tablet_to   || touch_to;
 
+	litest_disable_hold_gestures(finger->libinput_device);
 	libinput_device_config_left_handed_set(tablet->libinput_device,
 					       tablet_from);
 	libinput_device_config_left_handed_set(finger->libinput_device,
@@ -5571,6 +5589,7 @@ START_TEST(tablet_rotation_left_handed_while_in_prox)
 	enabled_from = tablet_from || touch_from;
 	enabled_to   = tablet_to   || touch_to;
 
+	litest_disable_hold_gestures(finger->libinput_device);
 	libinput_device_config_left_handed_set(finger->libinput_device,
 					       touch_from);
 	libinput_device_config_left_handed_set(tablet->libinput_device,
@@ -5664,6 +5683,7 @@ START_TEST(tablet_rotation_left_handed_while_touch_down)
 	enabled_from = tablet_from || touch_from;
 	enabled_to   = tablet_to   || touch_to;
 
+	litest_disable_hold_gestures(finger->libinput_device);
 	libinput_device_config_left_handed_set(finger->libinput_device,
 					       touch_from);
 	libinput_device_config_left_handed_set(tablet->libinput_device,
@@ -6160,7 +6180,7 @@ TEST_COLLECTION(tablet)
 
 	litest_add(tablet_pressure_min_max, LITEST_TABLET, LITEST_ANY);
 	litest_add_for_device(tablet_pressure_range, LITEST_WACOM_INTUOS);
-	litest_add_for_device(tablet_pressure_offset, LITEST_WACOM_INTUOS);
+	litest_add_for_device(tablet_pressure_offset_set, LITEST_WACOM_INTUOS);
 	litest_add_for_device(tablet_pressure_offset_decrease, LITEST_WACOM_INTUOS);
 	litest_add_for_device(tablet_pressure_offset_increase, LITEST_WACOM_INTUOS);
 	litest_add_for_device(tablet_pressure_offset_exceed_threshold, LITEST_WACOM_INTUOS);

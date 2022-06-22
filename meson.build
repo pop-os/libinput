@@ -1,5 +1,5 @@
 project('libinput', 'c',
-	version : '1.20.1',
+	version : '1.21.0',
 	license : 'MIT/Expat',
 	default_options : [ 'c_std=gnu99', 'warning_level=2' ],
 	meson_version : '>= 0.49.0')
@@ -16,6 +16,7 @@ dir_system_udev = get_option('prefix') / 'lib' / 'udev'
 dir_src_quirks  = meson.current_source_dir() / 'quirks'
 dir_src_test    = meson.current_source_dir() / 'test'
 dir_src         = meson.current_source_dir() / 'src'
+dir_gitlab_ci	= meson.current_source_dir() / '.gitlab-ci'
 
 dir_udev = get_option('udev-dir')
 if dir_udev == ''
@@ -137,6 +138,8 @@ if not cc.has_header_symbol('sys/ptrace.h', 'PTRACE_ATTACH', prefix : prefix)
 	config_h.set('PTRACE_CONT', 'PT_CONTINUE')
 	config_h.set('PTRACE_DETACH', 'PT_DETACH')
 endif
+
+config_h.set10('HAVE_INSTALLED_TESTS', get_option('install-tests'))
 
 # Dependencies
 pkgconfig = import('pkgconfig')
@@ -558,34 +561,42 @@ if get_option('debug-gui')
 		config_h.set10('HAVE_GTK3', dep_gtk.found())
 	endif
 
+	gtk_targets = dep_gtk.get_pkgconfig_variable('targets')
+	have_gtk_wayland = gtk_targets.contains('wayland')
+	have_gtk_x11 = gtk_targets.contains('x11')
+
 	dep_cairo = dependency('cairo')
 	dep_glib = dependency('glib-2.0')
-	dep_wayland_client = dependency('wayland-client', required : false)
-	dep_wayland_protocols = dependency('wayland-protocols', required : false)
 	dep_x11 = dependency('x11', required : false)
+	config_h.set10('HAVE_GTK_X11', have_gtk_x11 and dep_x11.found())
 
 	debug_gui_sources = [ 'tools/libinput-debug-gui.c' ]
 
-	if dep_wayland_client.found() and dep_wayland_protocols.found()
-		wayland_scanner = find_program('wayland-scanner')
-		wlproto_dir = dep_wayland_protocols.get_pkgconfig_variable('pkgdatadir')
+	if have_gtk_wayland
+		dep_wayland_client = dependency('wayland-client', required : false)
+		dep_wayland_protocols = dependency('wayland-protocols', required : false)
+		if dep_wayland_client.found() and dep_wayland_protocols.found()
+			wayland_scanner = find_program('wayland-scanner')
+			wlproto_dir = dep_wayland_protocols.get_pkgconfig_variable('pkgdatadir')
 
-		proto_name = 'pointer-constraints-unstable-v1'
-		input = files(wlproto_dir / 'unstable' / 'pointer-constraints' / '@0@.xml'.format(proto_name))
+			proto_name = 'pointer-constraints-unstable-v1'
+			input = files(wlproto_dir / 'unstable' / 'pointer-constraints' / '@0@.xml'.format(proto_name))
 
-		wayland_headers = custom_target('@0@ client header'.format(proto_name),
-			input: input,
-			output: '@0@-client-protocol.h'.format(proto_name),
-			command: [wayland_scanner, 'client-header', '@INPUT@', '@OUTPUT@'],
-		)
+			wayland_headers = custom_target('@0@ client header'.format(proto_name),
+				input: input,
+				output: '@0@-client-protocol.h'.format(proto_name),
+				command: [wayland_scanner, 'client-header', '@INPUT@', '@OUTPUT@'],
+			)
 
-		wayland_sources = custom_target('@0@ source'.format(proto_name),
-			input: input,
-			output: '@0@-protocol.c'.format(proto_name),
-			command: [wayland_scanner, 'private-code', '@INPUT@', '@OUTPUT@'],
-		)
+			wayland_sources = custom_target('@0@ source'.format(proto_name),
+				input: input,
+				output: '@0@-protocol.c'.format(proto_name),
+				command: [wayland_scanner, 'private-code', '@INPUT@', '@OUTPUT@'],
+			)
 
-		debug_gui_sources += [ wayland_headers, wayland_sources ]
+			debug_gui_sources += [ wayland_headers, wayland_sources ]
+			config_h.set10('HAVE_GTK_WAYLAND', true)
+		endif
 	endif
 
 	deps_debug_gui = [
@@ -696,6 +707,15 @@ if add_languages('cpp', required: false)
 		   install : false)
 endif
 
+libinput_test_sources = [ 'tools/libinput-test.c' ]
+executable('libinput-test',
+	   libinput_test_sources,
+	   dependencies : deps_tools,
+	   include_directories : [includes_src, includes_include],
+	   install_dir : libinput_tool_path,
+	   install : true,
+	   )
+
 # This is the test suite runner, we allow disabling that one because of
 # dependencies
 if get_option('tests')
@@ -746,6 +766,7 @@ if get_option('tests')
 		'test/litest-device-keyboard-razer-blackwidow.c',
 		'test/litest-device-keyboard-razer-blade-stealth.c',
 		'test/litest-device-keyboard-razer-blade-stealth-videoswitch.c',
+		'test/litest-device-lenovo-scrollpoint.c',
 		'test/litest-device-lid-switch.c',
 		'test/litest-device-lid-switch-surface3.c',
 		'test/litest-device-logitech-media-keyboard-elite.c',
@@ -868,11 +889,12 @@ if get_option('tests')
 		'src/libinput-util.h',
 		'test/test-utils.c',
 	]
-	test_utils = executable('test-utils',
+	test_utils = executable('libinput-test-utils',
 				test_utils_sources,
 				include_directories : [includes_src, includes_include],
 				dependencies : deps_litest,
-				install: false)
+				install_dir : libinput_tool_path,
+				install : get_option('install-tests'))
 	test('test-utils',
 	     test_utils,
 	     suite : ['all'])
@@ -953,6 +975,11 @@ endif
 man_config = configuration_data()
 man_config.set('LIBINPUT_VERSION', meson.project_version())
 man_config.set('LIBINPUT_DATA_DIR', dir_data)
+if get_option('install-tests')
+	man_config.set('HAVE_INSTALLED_TESTS', '.\"')
+else
+	man_config.set('HAVE_INSTALLED_TESTS', '')
+endif
 src_man += files(
 	'tools/libinput.man',
 	'tools/libinput-analyze.man',
@@ -971,6 +998,7 @@ src_man += files(
 	'tools/libinput-quirks.man',
 	'tools/libinput-record.man',
 	'tools/libinput-replay.man',
+	'tools/libinput-test.man',
 )
 
 foreach m : src_man

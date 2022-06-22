@@ -248,8 +248,8 @@ quirk_get_name(enum quirk q)
 	case QUIRK_MODEL_BOUNCING_KEYS:			return "ModelBouncingKeys";
 	case QUIRK_MODEL_CHROMEBOOK:			return "ModelChromebook";
 	case QUIRK_MODEL_CLEVO_W740SU:			return "ModelClevoW740SU";
+	case QUIRK_MODEL_DELL_CANVAS_TOTEM:		return "ModelDellCanvasTotem";
 	case QUIRK_MODEL_HP_PAVILION_DM4_TOUCHPAD:	return "ModelHPPavilionDM4Touchpad";
-	case QUIRK_MODEL_HP_STREAM11_TOUCHPAD:		return "ModelHPStream11Touchpad";
 	case QUIRK_MODEL_HP_ZBOOK_STUDIO_G3:		return "ModelHPZBookStudioG3";
 	case QUIRK_MODEL_INVERT_HORIZONTAL_SCROLLING:	return "ModelInvertHorizontalScrolling";
 	case QUIRK_MODEL_LENOVO_SCROLLPOINT:		return "ModelLenovoScrollPoint";
@@ -265,7 +265,6 @@ quirk_get_name(enum quirk q)
 	case QUIRK_MODEL_TOUCHPAD_VISIBLE_MARKER:	return "ModelTouchpadVisibleMarker";
 	case QUIRK_MODEL_TRACKBALL:			return "ModelTrackball";
 	case QUIRK_MODEL_WACOM_TOUCHPAD:		return "ModelWacomTouchpad";
-	case QUIRK_MODEL_DELL_CANVAS_TOTEM:		return "ModelDellCanvasTotem";
 
 	case QUIRK_ATTR_SIZE_HINT:			return "AttrSizeHint";
 	case QUIRK_ATTR_TOUCH_SIZE_RANGE:		return "AttrTouchSizeRange";
@@ -728,7 +727,8 @@ parse_attr(struct quirks_context *ctx,
 	} else if (streq(key, quirk_get_name(QUIRK_ATTR_LID_SWITCH_RELIABILITY))) {
 		p->id = QUIRK_ATTR_LID_SWITCH_RELIABILITY;
 		if (!streq(value, "reliable") &&
-		    !streq(value, "write_open"))
+		    !streq(value, "write_open") &&
+		    !streq(value, "unreliable"))
 			goto out;
 		p->type = PT_STRING;
 		p->value.s = safe_strdup(value);
@@ -1338,7 +1338,6 @@ match_fill_udev_type(struct match *m,
 		{ "ID_INPUT_KEYBOARD", UDEV_KEYBOARD },
 		{ "ID_INPUT_KEY", UDEV_KEYBOARD },
 	};
-	struct ut_map *map;
 
 	ARRAY_FOR_EACH(mappings, map) {
 		if (udev_prop(device, map->prop))

@@ -209,12 +209,14 @@ parse_switch_reliability_property(const char *prop,
 				  enum switch_reliability *reliability)
 {
 	if (!prop) {
-		*reliability = RELIABILITY_UNKNOWN;
+		*reliability = RELIABILITY_RELIABLE;
 		return true;
 	}
 
 	if (streq(prop, "reliable"))
 		*reliability = RELIABILITY_RELIABLE;
+	else if (streq(prop, "unreliable"))
+		*reliability = RELIABILITY_UNRELIABLE;
 	else if (streq(prop, "write_open"))
 		*reliability = RELIABILITY_WRITE_OPEN;
 	else
@@ -321,7 +323,6 @@ parse_evcode_string(const char *s, int *type_out, int *code_out)
 			{ "REL_", EV_REL },
 			{ "SW_", EV_SW },
 		};
-		struct map *m;
 		bool found = false;
 
 		ARRAY_FOR_EACH(map, m) {

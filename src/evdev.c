@@ -88,6 +88,19 @@ static const struct evdev_udev_tag_match evdev_udev_tag_matches[] = {
 	{"ID_INPUT_SWITCH",		EVDEV_UDEV_TAG_SWITCH},
 };
 
+static const unsigned int well_known_keyboard_keys[] = {
+	KEY_LEFTCTRL,
+	KEY_CAPSLOCK,
+	KEY_NUMLOCK,
+	KEY_INSERT,
+	KEY_MUTE,
+	KEY_CALC,
+	KEY_FILE,
+	KEY_MAIL,
+	KEY_PLAYPAUSE,
+	KEY_BRIGHTNESSDOWN,
+};
+
 static inline bool
 parse_udev_flag(struct evdev_device *device,
 		struct udev_device *udev_device,
@@ -994,13 +1007,13 @@ evdev_read_switch_reliability_prop(struct evdev_device *device)
 	quirks = evdev_libinput_context(device)->quirks;
 	q = quirks_fetch_for_device(quirks, device->udev_device);
 	if (!q || !quirks_get_string(q, QUIRK_ATTR_LID_SWITCH_RELIABILITY, &prop)) {
-		r = RELIABILITY_UNKNOWN;
+		r = RELIABILITY_RELIABLE;
 	} else if (!parse_switch_reliability_property(prop, &r)) {
 		evdev_log_error(device,
 				"%s: switch reliability set to unknown value '%s'\n",
 				device->devname,
 				prop);
-		r = RELIABILITY_UNKNOWN;
+		r = RELIABILITY_RELIABLE;
 	} else if (r == RELIABILITY_WRITE_OPEN) {
 		evdev_log_info(device, "will write switch open events\n");
 	}
@@ -1857,7 +1870,7 @@ evdev_device_is_joystick_or_gamepad(struct evdev_device *device)
 	enum evdev_device_udev_tags udev_tags;
 	bool has_joystick_tags;
 	struct libevdev *evdev = device->evdev;
-	unsigned int code, num_joystick_btns = 0, num_keys = 0;
+	unsigned int code;
 
 	/* The EVDEV_UDEV_TAG_JOYSTICK is set when a joystick or gamepad button
 	 * is found. However, it can not be used to identify joysticks or
@@ -1868,8 +1881,9 @@ evdev_device_is_joystick_or_gamepad(struct evdev_device *device)
 	 * differentiate them from keyboards, apply the following rules:
 	 *
 	 *  1. The device is tagged as joystick but not as tablet
-	 *  2. It has at least 2 joystick buttons
-	 *  3. It doesn't have 10 keyboard keys */
+	 *  2. The device doesn't have 4 well-known keyboard keys
+	 *  3. It has at least 2 joystick buttons
+	 *  4. It doesn't have 10 keyboard keys */
 
 	udev_tags = evdev_device_get_udev_tags(device, device->udev_device);
 	has_joystick_tags = (udev_tags & EVDEV_UDEV_TAG_JOYSTICK) &&
@@ -1879,6 +1893,19 @@ evdev_device_is_joystick_or_gamepad(struct evdev_device *device)
 	if (!has_joystick_tags)
 		return false;
 
+
+	unsigned int num_well_known_keys = 0;
+
+	for (size_t i = 0; i < ARRAY_LENGTH(well_known_keyboard_keys); i++) {
+		code = well_known_keyboard_keys[i];
+		if (libevdev_has_event_code(evdev, EV_KEY, code))
+			num_well_known_keys++;
+	}
+
+	if (num_well_known_keys >= 4) /* should not have 4 well-known keys */
+		return false;
+
+	unsigned int num_joystick_btns = 0;
 
 	for (code = BTN_JOYSTICK; code < BTN_DIGI; code++) {
 		if (libevdev_has_event_code(evdev, EV_KEY, code))
@@ -1893,6 +1920,7 @@ evdev_device_is_joystick_or_gamepad(struct evdev_device *device)
 	if (num_joystick_btns < 2) /* require at least 2 joystick buttons */
 		return false;
 
+	unsigned int num_keys = 0;
 
 	for (code = KEY_ESC; code <= KEY_MICMUTE; code++) {
 		if (libevdev_has_event_code(evdev, EV_KEY, code) )

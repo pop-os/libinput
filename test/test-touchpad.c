@@ -3346,7 +3346,6 @@ START_TEST(touchpad_trackpoint_buttons)
 		{ BTN_1, BTN_RIGHT },
 		{ BTN_2, BTN_MIDDLE },
 	};
-	const struct buttons *b;
 
 	trackpoint = litest_add_device(li,
 				       LITEST_TRACKPOINT);
@@ -4197,7 +4196,6 @@ START_TEST(touchpad_dwt_modifier_no_dwt)
 		KEY_RIGHTMETA,
 		KEY_LEFTMETA,
 	};
-	unsigned int *key;
 
 	if (!has_disable_while_typing(touchpad))
 		return;
@@ -4243,7 +4241,6 @@ START_TEST(touchpad_dwt_modifier_combo_no_dwt)
 		KEY_RIGHTMETA,
 		KEY_LEFTMETA,
 	};
-	unsigned int *key;
 
 	if (!has_disable_while_typing(touchpad))
 		return;
@@ -4293,7 +4290,6 @@ START_TEST(touchpad_dwt_modifier_combo_dwt_after)
 		KEY_RIGHTMETA,
 		KEY_LEFTMETA,
 	};
-	unsigned int *key;
 
 	if (!has_disable_while_typing(touchpad))
 		return;
@@ -4347,7 +4343,6 @@ START_TEST(touchpad_dwt_modifier_combo_dwt_remains)
 		KEY_RIGHTMETA,
 		KEY_LEFTMETA,
 	};
-	unsigned int *key;
 
 	if (!has_disable_while_typing(touchpad))
 		return;
@@ -4650,6 +4645,36 @@ START_TEST(touchpad_dwt_config_default_on)
 }
 END_TEST
 
+START_TEST(touchpad_dwtp_config_default_on)
+{
+	struct litest_device *dev = litest_current_device();
+	struct libinput_device *device = dev->libinput_device;
+	enum libinput_config_status status;
+	enum libinput_config_dwtp_state state;
+
+	if (litest_touchpad_is_external(dev)) {
+		ck_assert(!libinput_device_config_dwtp_is_available(device));
+		return;
+	}
+
+	ck_assert(libinput_device_config_dwtp_is_available(device));
+	state = libinput_device_config_dwtp_get_enabled(device);
+	ck_assert_int_eq(state, LIBINPUT_CONFIG_DWTP_ENABLED);
+	state = libinput_device_config_dwtp_get_default_enabled(device);
+	ck_assert_int_eq(state, LIBINPUT_CONFIG_DWTP_ENABLED);
+
+	status = libinput_device_config_dwtp_set_enabled(device,
+					LIBINPUT_CONFIG_DWTP_ENABLED);
+	ck_assert_int_eq(status, LIBINPUT_CONFIG_STATUS_SUCCESS);
+	status = libinput_device_config_dwtp_set_enabled(device,
+					LIBINPUT_CONFIG_DWTP_DISABLED);
+	ck_assert_int_eq(status, LIBINPUT_CONFIG_STATUS_SUCCESS);
+
+	status = libinput_device_config_dwtp_set_enabled(device, 3);
+	ck_assert_int_eq(status, LIBINPUT_CONFIG_STATUS_INVALID);
+}
+END_TEST
+
 START_TEST(touchpad_dwt_config_default_off)
 {
 	struct litest_device *dev = litest_current_device();
@@ -4671,6 +4696,31 @@ START_TEST(touchpad_dwt_config_default_off)
 	ck_assert_int_eq(status, LIBINPUT_CONFIG_STATUS_SUCCESS);
 
 	status = libinput_device_config_dwt_set_enabled(device, 3);
+	ck_assert_int_eq(status, LIBINPUT_CONFIG_STATUS_INVALID);
+}
+END_TEST
+
+START_TEST(touchpad_dwtp_config_default_off)
+{
+	struct litest_device *dev = litest_current_device();
+	struct libinput_device *device = dev->libinput_device;
+	enum libinput_config_status status;
+	enum libinput_config_dwtp_state state;
+
+	ck_assert(!libinput_device_config_dwtp_is_available(device));
+	state = libinput_device_config_dwtp_get_enabled(device);
+	ck_assert_int_eq(state, LIBINPUT_CONFIG_DWTP_DISABLED);
+	state = libinput_device_config_dwtp_get_default_enabled(device);
+	ck_assert_int_eq(state, LIBINPUT_CONFIG_DWTP_DISABLED);
+
+	status = libinput_device_config_dwtp_set_enabled(device,
+					LIBINPUT_CONFIG_DWTP_ENABLED);
+	ck_assert_int_eq(status, LIBINPUT_CONFIG_STATUS_UNSUPPORTED);
+	status = libinput_device_config_dwtp_set_enabled(device,
+					LIBINPUT_CONFIG_DWTP_DISABLED);
+	ck_assert_int_eq(status, LIBINPUT_CONFIG_STATUS_SUCCESS);
+
+	status = libinput_device_config_dwtp_set_enabled(device, 3);
 	ck_assert_int_eq(status, LIBINPUT_CONFIG_STATUS_INVALID);
 }
 END_TEST
@@ -7304,6 +7354,8 @@ TEST_COLLECTION(touchpad)
 	litest_add(touchpad_dwt_enable_before_touch, LITEST_TOUCHPAD, LITEST_ANY);
 	litest_add(touchpad_dwt_enable_during_tap, LITEST_TOUCHPAD, LITEST_ANY);
 	litest_add(touchpad_dwt_remove_kbd_while_active, LITEST_TOUCHPAD, LITEST_ANY);
+	litest_add(touchpad_dwtp_config_default_on, LITEST_TOUCHPAD, LITEST_ANY);
+	litest_add(touchpad_dwtp_config_default_off, LITEST_ANY, LITEST_TOUCHPAD);
 	litest_add_for_device(touchpad_dwt_apple, LITEST_BCM5974);
 	litest_add_for_device(touchpad_dwt_acer_hawaii, LITEST_ACER_HAWAII_TOUCHPAD);
 	litest_add_for_device(touchpad_dwt_multiple_keyboards, LITEST_SYNAPTICS_I2C);
