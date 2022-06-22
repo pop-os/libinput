@@ -1,3 +1,11 @@
+libinput (1.21.0-1) unstable; urgency=medium
+
+  * New upstream release.
+  * debian/libinput10.symbols: update
+  * debian/rules: improve clean target
+
+ -- Héctor Orón Martínez <zumbi@debian.org>  Thu, 23 Jun 2022 01:07:16 +0200
+
 libinput (1.20.1-1) unstable; urgency=medium
 
   * New upstream release.
