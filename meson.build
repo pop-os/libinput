@@ -1,5 +1,5 @@
 project('libinput', 'c',
-	version : '1.21.0',
+	version : '1.22.0',
 	license : 'MIT/Expat',
 	default_options : [ 'c_std=gnu99', 'warning_level=2' ],
 	meson_version : '>= 0.49.0')
@@ -272,25 +272,16 @@ foreach h: util_headers
 			          output : 'test-util-includes-@0@.c'.format(h),
 				  configuration : c)
 	executable('test-build-@0@'.format(h),
-		   testfile, dir_src / h,
+		   testfile,
 		   include_directories : [includes_src, includes_include],
 		   install : false)
 endforeach
 
 src_libinput_util = [
-	'src/util-bits.h',
 	'src/util-list.c',
-	'src/util-list.h',
-	'src/util-macros.h',
-	'src/util-matrix.h',
 	'src/util-ratelimit.c',
-	'src/util-ratelimit.h',
-	'src/util-strings.h',
 	'src/util-strings.c',
-	'src/util-time.h',
-	'src/util-prop-parsers.h',
 	'src/util-prop-parsers.c',
-	'src/libinput-util.h',
 ]
 libinput_util = static_library('libinput-util',
 			       src_libinput_util,
@@ -309,8 +300,7 @@ src_libfilter = [
 		'src/filter-touchpad-x230.c',
 		'src/filter-tablet.c',
 		'src/filter-trackpoint.c',
-		'src/filter.h',
-		'src/filter-private.h'
+		'src/filter-trackpoint-flat.c',
 ]
 libfilter = static_library('filter', src_libfilter,
 			   dependencies : [dep_udev, dep_libwacom],
@@ -331,8 +321,6 @@ install_subdir('quirks',
 
 src_libquirks = [
 	'src/quirks.c',
-	'src/quirks.h',
-	'src/builddir.h',
 ]
 
 deps_libquirks = [dep_udev, dep_libwacom, dep_libinput_util]
@@ -342,42 +330,35 @@ libquirks = static_library('quirks', src_libquirks,
 dep_libquirks = declare_dependency(link_with : libquirks)
 
 # Create /etc/libinput
-install_subdir('libinput', install_dir : dir_etc)
+if meson.version().version_compare('>= 0.60')
+	install_emptydir(dir_etc / 'libinput')
+else
+	install_subdir('libinput', install_dir : dir_etc)
+endif
 
 ############ libinput.so ############
 install_headers('src/libinput.h')
 src_libinput = src_libfilter + [
 	'src/libinput.c',
-	'src/libinput.h',
 	'src/libinput-private-config.c',
-	'src/libinput-private-config.h',
-	'src/libinput-private.h',
 	'src/evdev.c',
-	'src/evdev.h',
 	'src/evdev-debounce.c',
 	'src/evdev-fallback.c',
-	'src/evdev-fallback.h',
 	'src/evdev-totem.c',
 	'src/evdev-middle-button.c',
 	'src/evdev-mt-touchpad.c',
-	'src/evdev-mt-touchpad.h',
 	'src/evdev-mt-touchpad-tap.c',
 	'src/evdev-mt-touchpad-thumb.c',
 	'src/evdev-mt-touchpad-buttons.c',
 	'src/evdev-mt-touchpad-edge-scroll.c',
 	'src/evdev-mt-touchpad-gestures.c',
 	'src/evdev-tablet.c',
-	'src/evdev-tablet.h',
 	'src/evdev-tablet-pad.c',
-	'src/evdev-tablet-pad.h',
 	'src/evdev-tablet-pad-leds.c',
 	'src/evdev-wheel.c',
 	'src/path-seat.c',
 	'src/udev-seat.c',
-	'src/udev-seat.h',
 	'src/timer.c',
-	'src/timer.h',
-	'include/linux/input.h'
 ]
 
 deps_libinput = [
@@ -447,9 +428,7 @@ subdir('completion/zsh')
 ############ tools ############
 libinput_tool_path = dir_libexec
 config_h.set_quoted('LIBINPUT_TOOL_PATH', libinput_tool_path)
-tools_shared_sources = [ 'tools/shared.c',
-			 'tools/shared.h',
-			 'src/builddir.h' ]
+tools_shared_sources = [ 'tools/shared.c' ]
 deps_tools_shared = [ dep_libinput, dep_libevdev ]
 lib_tools_shared = static_library('tools_shared',
 				  tools_shared_sources,
@@ -553,6 +532,7 @@ executable('libinput-record',
 	   install : true,
 	   )
 
+config_h.set10('HAVE_DEBUG_GUI', get_option('debug-gui'))
 if get_option('debug-gui')
 	dep_gtk = dependency('gtk4', version : '>= 4.0', required : false)
 	config_h.set10('HAVE_GTK4', dep_gtk.found())
@@ -568,35 +548,35 @@ if get_option('debug-gui')
 	dep_cairo = dependency('cairo')
 	dep_glib = dependency('glib-2.0')
 	dep_x11 = dependency('x11', required : false)
+	dep_wayland_client = dependency('wayland-client', required : false)
+	dep_wayland_protocols = dependency('wayland-protocols', required : false)
+
 	config_h.set10('HAVE_GTK_X11', have_gtk_x11 and dep_x11.found())
+	config_h.set10('HAVE_GTK_WAYLAND', false)
 
 	debug_gui_sources = [ 'tools/libinput-debug-gui.c' ]
 
-	if have_gtk_wayland
-		dep_wayland_client = dependency('wayland-client', required : false)
-		dep_wayland_protocols = dependency('wayland-protocols', required : false)
-		if dep_wayland_client.found() and dep_wayland_protocols.found()
-			wayland_scanner = find_program('wayland-scanner')
-			wlproto_dir = dep_wayland_protocols.get_pkgconfig_variable('pkgdatadir')
+	if have_gtk_wayland and dep_wayland_client.found() and dep_wayland_protocols.found()
+		wayland_scanner = find_program('wayland-scanner')
+		wlproto_dir = dep_wayland_protocols.get_pkgconfig_variable('pkgdatadir')
 
-			proto_name = 'pointer-constraints-unstable-v1'
-			input = files(wlproto_dir / 'unstable' / 'pointer-constraints' / '@0@.xml'.format(proto_name))
+		proto_name = 'pointer-constraints-unstable-v1'
+		input = files(wlproto_dir / 'unstable' / 'pointer-constraints' / '@0@.xml'.format(proto_name))
 
-			wayland_headers = custom_target('@0@ client header'.format(proto_name),
-				input: input,
-				output: '@0@-client-protocol.h'.format(proto_name),
-				command: [wayland_scanner, 'client-header', '@INPUT@', '@OUTPUT@'],
-			)
+		wayland_headers = custom_target('@0@ client header'.format(proto_name),
+			input: input,
+			output: '@0@-client-protocol.h'.format(proto_name),
+			command: [wayland_scanner, 'client-header', '@INPUT@', '@OUTPUT@'],
+		)
 
-			wayland_sources = custom_target('@0@ source'.format(proto_name),
-				input: input,
-				output: '@0@-protocol.c'.format(proto_name),
-				command: [wayland_scanner, 'private-code', '@INPUT@', '@OUTPUT@'],
-			)
+		wayland_sources = custom_target('@0@ source'.format(proto_name),
+			input: input,
+			output: '@0@-protocol.c'.format(proto_name),
+			command: [wayland_scanner, 'private-code', '@INPUT@', '@OUTPUT@'],
+		)
 
-			debug_gui_sources += [ wayland_headers, wayland_sources ]
-			config_h.set10('HAVE_GTK_WAYLAND', true)
-		endif
+		debug_gui_sources += [ wayland_headers, wayland_sources ]
+		config_h.set10('HAVE_GTK_WAYLAND', true)
 	endif
 
 	deps_debug_gui = [
@@ -730,9 +710,6 @@ if get_option('tests')
 
 	litest_sources = [
 		'src/libinput-private-config.c',
-		'src/libinput-private-config.h',
-		'test/litest.h',
-		'test/litest-int.h',
 		'test/litest-device-absinfo-override.c',
 		'test/litest-device-acer-hawaii-keyboard.c',
 		'test/litest-device-acer-hawaii-touchpad.c',
@@ -830,7 +807,6 @@ if get_option('tests')
 		'test/litest-device-vmware-virtual-usb-mouse.c',
 		'test/litest-device-yubikey.c',
 		'test/litest.c',
-		'include/valgrind/valgrind.h'
 	]
 
 	dep_dl = cc.find_library('dl')
@@ -863,7 +839,6 @@ if get_option('tests')
 	test_litest_selftest_sources = [
 		'test/litest-selftest.c',
 		'test/litest.c',
-		'test/litest.h'
 	]
 	test_litest_selftest = executable('test-litest-selftest',
 					  test_litest_selftest_sources,
@@ -886,7 +861,6 @@ if get_option('tests')
 	     suite : ['all'])
 
 	test_utils_sources = [
-		'src/libinput-util.h',
 		'test/test-utils.c',
 	]
 	test_utils = executable('libinput-test-utils',
@@ -921,9 +895,7 @@ if get_option('tests')
 		'test/test-switch.c',
 		'test/test-quirks.c',
 	]
-	libinput_test_runner_sources = litest_sources + tests_sources + [
-		'src/libinput-util.h',
-	]
+	libinput_test_runner_sources = litest_sources + tests_sources
 	libinput_test_runner = executable('libinput-test-suite',
 					  libinput_test_runner_sources,
 					  include_directories : [includes_src, includes_include],

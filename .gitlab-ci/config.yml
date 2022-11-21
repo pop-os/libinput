@@ -3,15 +3,14 @@
 #
 
 # We're happy to rebuild all containers when one changes.
-.default_tag: &default_tag '2022-06-10.0'
+.default_tag: &default_tag '2022-11-16.2'
 
 distributions:
   - name: fedora
     tag: *default_tag
     versions:
       - '35'
-      - '36' # last is picked for qemu
-    want_qemu: true
+      - '36'
     use_for_custom_build_tests: true
     use_for_qemu_tests: true
     packages:
@@ -36,7 +35,19 @@ distributions:
       - mtdev-devel
       - diffutils
       - wayland-protocols-devel
+      - black           # for the Python black job, optional
+      - clang-analyzer  # for the scan-build job, optional
+      - jq              # for the test suite check job, optional
+      - rpmdevtools     # for the rpm build job, optional
       - valgrind        # for the valgrind run, optional
+      # below packages are for the qemu runs, so optional
+      - systemd-udev    # for the qemu run
+      - qemu-img
+      - qemu-system-x86-core
+      - qemu-system-aarch64-core
+      - jq
+      - python3-click
+      - python3-rich
   - name: debian
     tag: *default_tag
     versions:
@@ -65,7 +76,6 @@ distributions:
   - name: ubuntu
     tag: *default_tag
     versions:
-      - '21.10'
       - '22.04'
     packages:
       - git
@@ -136,10 +146,9 @@ distributions:
         - "MESON_TEST_ARGS: '' # litest-selftest fails on musl"
   - name: freebsd
     tag: *default_tag
-    want_qemu: true
-    skip_container: true
+    qemu_based: true
     versions:
-      - '13.0'
+      - '13.1'
     packages:
       - git
       - pkgconf
@@ -197,3 +206,7 @@ test_suites:
   - name: pointer
     suites:
       - pointer
+
+b2c:
+  version: v0.9.8
+  kernel: https://gitlab.freedesktop.org/api/v4/projects/libevdev%2Fhid-tools/packages/generic/kernel-x86_64/v5.19/bzImage

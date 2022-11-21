@@ -160,9 +160,9 @@ trackers_by_offset(struct pointer_trackers *trackers, unsigned int offset)
 }
 
 static double
-calculate_trackers_velocity(struct pointer_tracker *tracker,
-			   uint64_t time,
-			   struct pointer_delta_smoothener *smoothener)
+calculate_trackers_velocity(const struct pointer_tracker *tracker,
+			    uint64_t time,
+			    struct pointer_delta_smoothener *smoothener)
 {
 	uint64_t tdelta = time - tracker->time + 1;
 
@@ -174,8 +174,8 @@ calculate_trackers_velocity(struct pointer_tracker *tracker,
 }
 
 static double
-trackers_velocity_after_timeout(struct pointer_tracker *tracker,
-				 struct pointer_delta_smoothener *smoothener)
+trackers_velocity_after_timeout(const struct pointer_tracker *tracker,
+				struct pointer_delta_smoothener *smoothener)
 {
 	/* First movement after timeout needs special handling.
 	 *
@@ -189,8 +189,8 @@ trackers_velocity_after_timeout(struct pointer_tracker *tracker,
 	 * movement in normal use-cases (pause, move, pause, move)
 	 */
 	return calculate_trackers_velocity(tracker,
-					  tracker->time + MOTION_TIMEOUT,
-					  smoothener);
+					   tracker->time + MOTION_TIMEOUT,
+					   smoothener);
 }
 
 /**
@@ -204,19 +204,15 @@ double
 trackers_velocity(struct pointer_trackers *trackers, uint64_t time)
 {
 	const double MAX_VELOCITY_DIFF = v_ms2us(1); /* units/us */
-	struct pointer_tracker *tracker;
-	double velocity;
 	double result = 0.0;
 	double initial_velocity = 0.0;
-	double velocity_diff;
-	unsigned int offset;
 
 	unsigned int dir = trackers_by_offset(trackers, 0)->dir;
 
 	/* Find least recent vector within a timelimit, maximum velocity diff
 	 * and direction threshold. */
-	for (offset = 1; offset < trackers->ntrackers; offset++) {
-		tracker = trackers_by_offset(trackers, offset);
+	for (unsigned int offset = 1; offset < trackers->ntrackers; offset++) {
+		const struct pointer_tracker *tracker = trackers_by_offset(trackers, offset);
 
 		/* Bug: time running backwards */
 		if (tracker->time > time)
@@ -231,9 +227,9 @@ trackers_velocity(struct pointer_trackers *trackers, uint64_t time)
 			break;
 		}
 
-		velocity = calculate_trackers_velocity(tracker,
-						      time,
-						      trackers->smoothener);
+		double velocity = calculate_trackers_velocity(tracker,
+							      time,
+							      trackers->smoothener);
 
 		/* Stop if direction changed */
 		dir &= tracker->dir;
@@ -252,7 +248,7 @@ trackers_velocity(struct pointer_trackers *trackers, uint64_t time)
 			result = initial_velocity = velocity;
 		} else {
 			/* Stop if velocity differs too much from initial */
-			velocity_diff = fabs(initial_velocity - velocity);
+			double velocity_diff = fabs(initial_velocity - velocity);
 			if (velocity_diff > MAX_VELOCITY_DIFF)
 				break;
 
@@ -269,7 +265,8 @@ trackers_velocity(struct pointer_trackers *trackers, uint64_t time)
  *
  * @param accel The acceleration filter
  * @param data Caller-specific data
- * @param velocity Velocity in device-units per µs
+ * @param velocity Velocity - depending on the caller this may be in
+ *		   device-units per µs or normalized per µs
  * @param last_velocity Previous velocity in device-units per µs
  * @param time Current time in µs
  *

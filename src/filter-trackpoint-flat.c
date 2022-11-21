@@ -34,36 +34,34 @@
 #include "libinput-util.h"
 #include "filter-private.h"
 
-struct pointer_accelerator_flat {
+struct trackpoint_flat_accelerator {
 	struct motion_filter base;
 
-	double factor;
-	int dpi;
+	double speed_factor;
+	double multiplier;
 };
 
 static struct normalized_coords
-accelerator_filter_flat(struct motion_filter *filter,
-			const struct device_float_coords *unaccelerated,
-			void *data, uint64_t time)
+trackpoint_flat_filter(struct motion_filter *filter,
+		       const struct device_float_coords *unaccelerated,
+		       void *data, uint64_t time)
 {
-	struct pointer_accelerator_flat *accel_filter =
-		(struct pointer_accelerator_flat *)filter;
-	double factor; /* unitless factor */
+	struct trackpoint_flat_accelerator *accel_filter =
+		(struct trackpoint_flat_accelerator *) filter;
 	struct normalized_coords accelerated;
 
-	/* You want flat acceleration, you get flat acceleration for the
-	 * device */
-	factor = accel_filter->factor;
-	accelerated.x = factor * unaccelerated->x;
-	accelerated.y = factor * unaccelerated->y;
+	double factor = accel_filter->speed_factor;
+	double multiplier = accel_filter->multiplier;
+	accelerated.x = factor * multiplier * unaccelerated->x;
+	accelerated.y = factor * multiplier * unaccelerated->y;
 
 	return accelerated;
 }
 
 static struct normalized_coords
-accelerator_filter_noop_flat(struct motion_filter *filter,
-			     const struct device_float_coords *unaccelerated,
-			     void *data, uint64_t time)
+trackpoint_flat_filter_noop(struct motion_filter *filter,
+			    const struct device_float_coords *unaccelerated,
+			    void *data, uint64_t time)
 {
 	/* We map the unaccelerated flat filter to have the same behavior as
 	 * the "accelerated" flat filter.
@@ -76,55 +74,75 @@ accelerator_filter_noop_flat(struct motion_filter *filter,
 	 * things like button scrolling end up having the same movement as
 	 * pointer motion.
 	 */
-	return accelerator_filter_flat(filter, unaccelerated, data, time);
+	return trackpoint_flat_filter(filter, unaccelerated, data, time);
+}
+
+/* Maps the [-1, 1] speed setting into a constant acceleration
+ * range. This isn't a linear scale, we keep 0 as the 'optimized'
+ * mid-point and scale down to 0 for setting -1 and up to 5 for
+ * setting 1. On the premise that if you want a faster cursor, it
+ * doesn't matter as much whether you have 0.56789 or 0.56790,
+ * but for lower settings it does because you may lose movements.
+ * *shrug*.
+ *
+ * Magic numbers calculated by MyCurveFit.com, data points were
+ *  0.0 0.0
+ *  0.1 0.1 (because we need 4 points)
+ *  1   1
+ *  2   5
+ *
+ *  This curve fits nicely into the range necessary.
+ */
+static inline double
+speed_factor(double s)
+{
+	s += 1; /* map to [0, 2] */
+	return 435837.2 + (0.04762636 - 435837.2)/(1 + pow(s/240.4549,
+							   2.377168));
 }
 
 static bool
-accelerator_set_speed_flat(struct motion_filter *filter,
-			   double speed_adjustment)
+trackpoint_flat_set_speed(struct motion_filter *filter,
+			  double speed_adjustment)
 {
-	struct pointer_accelerator_flat *accel_filter =
-		(struct pointer_accelerator_flat *)filter;
+	struct trackpoint_flat_accelerator *accel_filter =
+		(struct trackpoint_flat_accelerator *) filter;
 
 	assert(speed_adjustment >= -1.0 && speed_adjustment <= 1.0);
 
-	/* Speed range is 0-200% of the nominal speed, with 0 mapping to the
-	 * nominal speed. Anything above 200 is pointless, we're already
-	 * skipping over ever second pixel at 200% speed.
-	 */
-
-	accel_filter->factor = max(0.005, 1 + speed_adjustment);
 	filter->speed_adjustment = speed_adjustment;
+	accel_filter->speed_factor = speed_factor(speed_adjustment);
+
 
 	return true;
 }
 
 static void
-accelerator_destroy_flat(struct motion_filter *filter)
+trackpoint_flat_destroy(struct motion_filter *filter)
 {
-	struct pointer_accelerator_flat *accel =
-		(struct pointer_accelerator_flat *) filter;
+	struct trackpoint_flat_accelerator *accel_filter =
+		(struct trackpoint_flat_accelerator *) filter;
 
-	free(accel);
+	free(accel_filter);
 }
 
-static const struct motion_filter_interface accelerator_interface_flat = {
+static struct motion_filter_interface accelerator_interface_flat = {
 	.type = LIBINPUT_CONFIG_ACCEL_PROFILE_FLAT,
-	.filter = accelerator_filter_flat,
-	.filter_constant = accelerator_filter_noop_flat,
+	.filter = trackpoint_flat_filter,
+	.filter_constant = trackpoint_flat_filter_noop,
 	.restart = NULL,
-	.destroy = accelerator_destroy_flat,
-	.set_speed = accelerator_set_speed_flat,
+	.destroy = trackpoint_flat_destroy,
+	.set_speed = trackpoint_flat_set_speed,
 };
 
 struct motion_filter *
-create_pointer_accelerator_filter_flat(int dpi)
+create_pointer_accelerator_filter_trackpoint_flat(double multiplier)
 {
-	struct pointer_accelerator_flat *filter;
+	struct trackpoint_flat_accelerator *filter;
 
 	filter = zalloc(sizeof *filter);
 	filter->base.interface = &accelerator_interface_flat;
-	filter->dpi = dpi;
+	filter->multiplier = multiplier;
 
 	return &filter->base;
 }

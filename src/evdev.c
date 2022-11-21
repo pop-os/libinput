@@ -53,18 +53,18 @@
 #define DEFAULT_BUTTON_SCROLL_TIMEOUT ms2us(200)
 
 enum evdev_device_udev_tags {
-        EVDEV_UDEV_TAG_INPUT		= bit(0),
-        EVDEV_UDEV_TAG_KEYBOARD		= bit(1),
-        EVDEV_UDEV_TAG_MOUSE		= bit(2),
-        EVDEV_UDEV_TAG_TOUCHPAD		= bit(3),
-        EVDEV_UDEV_TAG_TOUCHSCREEN	= bit(4),
-        EVDEV_UDEV_TAG_TABLET		= bit(5),
-        EVDEV_UDEV_TAG_JOYSTICK		= bit(6),
-        EVDEV_UDEV_TAG_ACCELEROMETER	= bit(7),
-        EVDEV_UDEV_TAG_TABLET_PAD	= bit(8),
-        EVDEV_UDEV_TAG_POINTINGSTICK	= bit(9),
-        EVDEV_UDEV_TAG_TRACKBALL	= bit(10),
-        EVDEV_UDEV_TAG_SWITCH		= bit(11),
+	EVDEV_UDEV_TAG_INPUT		= bit(0),
+	EVDEV_UDEV_TAG_KEYBOARD		= bit(1),
+	EVDEV_UDEV_TAG_MOUSE		= bit(2),
+	EVDEV_UDEV_TAG_TOUCHPAD		= bit(3),
+	EVDEV_UDEV_TAG_TOUCHSCREEN	= bit(4),
+	EVDEV_UDEV_TAG_TABLET		= bit(5),
+	EVDEV_UDEV_TAG_JOYSTICK		= bit(6),
+	EVDEV_UDEV_TAG_ACCELEROMETER	= bit(7),
+	EVDEV_UDEV_TAG_TABLET_PAD	= bit(8),
+	EVDEV_UDEV_TAG_POINTINGSTICK	= bit(9),
+	EVDEV_UDEV_TAG_TRACKBALL	= bit(10),
+	EVDEV_UDEV_TAG_SWITCH		= bit(11),
 };
 
 struct evdev_udev_tag_match {
@@ -1186,17 +1186,23 @@ static inline bool
 evdev_init_accel(struct evdev_device *device,
 		 enum libinput_config_accel_profile which)
 {
-	struct motion_filter *filter;
+	struct motion_filter *filter = NULL;
 
-	if (which == LIBINPUT_CONFIG_ACCEL_PROFILE_FLAT)
-		filter = create_pointer_accelerator_filter_flat(device->dpi);
-	else if (device->tags & EVDEV_TAG_TRACKPOINT)
-		filter = create_pointer_accelerator_filter_trackpoint(device->trackpoint_multiplier,
-								      device->use_velocity_averaging);
-	else if (device->dpi < DEFAULT_MOUSE_DPI)
-		filter = create_pointer_accelerator_filter_linear_low_dpi(device->dpi,
-									  device->use_velocity_averaging);
-	else
+	if (device->tags & EVDEV_TAG_TRACKPOINT) {
+		if (which == LIBINPUT_CONFIG_ACCEL_PROFILE_FLAT)
+			filter = create_pointer_accelerator_filter_trackpoint_flat(device->trackpoint_multiplier);
+		else
+			filter = create_pointer_accelerator_filter_trackpoint(device->trackpoint_multiplier,
+									      device->use_velocity_averaging);
+	} else {
+		if (which == LIBINPUT_CONFIG_ACCEL_PROFILE_FLAT)
+			filter = create_pointer_accelerator_filter_flat(device->dpi);
+		else if (device->dpi < DEFAULT_MOUSE_DPI)
+			filter = create_pointer_accelerator_filter_linear_low_dpi(device->dpi,
+										  device->use_velocity_averaging);
+	}
+
+	if (!filter)
 		filter = create_pointer_accelerator_filter_linear(device->dpi,
 								  device->use_velocity_averaging);
 
@@ -2094,7 +2100,6 @@ evdev_configure_device(struct evdev_device *device)
 		if (libevdev_has_event_code(evdev, EV_SW, SW_LID)) {
 			device->seat_caps |= EVDEV_DEVICE_SWITCH;
 			device->tags |= EVDEV_TAG_LID_SWITCH;
-			evdev_log_info(device, "device is a switch device\n");
 		}
 
 		if (libevdev_has_event_code(evdev, EV_SW, SW_TABLET_MODE)) {

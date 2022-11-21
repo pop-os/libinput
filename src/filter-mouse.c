@@ -72,82 +72,53 @@ struct pointer_accelerator {
  */
 static inline double
 calculate_acceleration_factor(struct pointer_accelerator *accel,
-			      const struct device_float_coords *unaccelerated,
+			      const struct normalized_coords *unaccelerated,
 			      void *data,
 			      uint64_t time)
 {
-	double velocity; /* units/us in device-native dpi*/
+	double velocity; /* units/us in normalized 1000dpi units*/
 	double accel_factor;
 
-	trackers_feed(&accel->trackers, unaccelerated, time);
+	/* The trackers API need device_float_coords, but note that we have
+	 * normalized coordinates */
+	const struct device_float_coords unaccel = {
+		.x = unaccelerated->x,
+		.y = unaccelerated->y,
+	};
+	trackers_feed(&accel->trackers, &unaccel, time);
 	velocity = trackers_velocity(&accel->trackers, time);
+	/* This will call into our pointer_accel_profile_linear() profile func */
 	accel_factor = calculate_acceleration_simpsons(&accel->base,
 						       accel->profile,
 						       data,
-						       velocity,
-						       accel->last_velocity,
+						       velocity, /* normalized coords */
+						       accel->last_velocity, /* normalized coords */
 						       time);
 	accel->last_velocity = velocity;
 
 	return accel_factor;
 }
 
-/**
- * Generic filter that calculates the acceleration factor and applies it to
- * the coordinates.
- *
- * @param filter The acceleration filter
- * @param unaccelerated The raw delta in the device's dpi
- * @param data Caller-specific data
- * @param time Current time in µs
- *
- * @return An accelerated tuple of coordinates representing accelerated
- * motion, still in device units.
- */
-static struct device_float_coords
-accelerator_filter_generic(struct motion_filter *filter,
-			   const struct device_float_coords *unaccelerated,
-			   void *data, uint64_t time)
-{
-	struct pointer_accelerator *accel =
-		(struct pointer_accelerator *) filter;
-	double accel_value; /* unitless factor */
-	struct device_float_coords accelerated;
-
-	accel_value = calculate_acceleration_factor(accel,
-						    unaccelerated,
-						    data,
-						    time);
-
-	accelerated.x = accel_value * unaccelerated->x;
-	accelerated.y = accel_value * unaccelerated->y;
-
-	return accelerated;
-}
-
 static struct normalized_coords
-accelerator_filter_pre_normalized(struct motion_filter *filter,
-				  const struct device_float_coords *unaccelerated,
-				  void *data, uint64_t time)
+accelerator_filter_linear(struct motion_filter *filter,
+			  const struct device_float_coords *unaccelerated,
+			  void *data, uint64_t time)
 {
 	struct pointer_accelerator *accel =
 		(struct pointer_accelerator *) filter;
-	struct normalized_coords normalized;
-	struct device_float_coords converted, accelerated;
 
-	/* Accelerate for normalized units and return normalized units.
-	   API requires device_floats, so we just copy the bits around */
-	normalized = normalize_for_dpi(unaccelerated, accel->dpi);
-	converted.x = normalized.x;
-	converted.y = normalized.y;
-
-	accelerated = accelerator_filter_generic(filter,
-						 &converted,
-						 data,
-						 time);
-	normalized.x = accelerated.x;
-	normalized.y = accelerated.y;
-	return normalized;
+	/* Accelerate for normalized units and return normalized units */
+	const struct normalized_coords normalized = normalize_for_dpi(unaccelerated,
+								      accel->dpi);
+	double accel_factor = calculate_acceleration_factor(accel,
+							    &normalized,
+							    data,
+							    time);
+	struct normalized_coords accelerated = {
+		.x = normalized.x * accel_factor,
+		.y = normalized.y * accel_factor,
+	};
+	return accelerated;
 }
 
 /**
@@ -225,7 +196,7 @@ accelerator_set_speed(struct motion_filter *filter,
 double
 pointer_accel_profile_linear(struct motion_filter *filter,
 			     void *data,
-			     double speed_in, /* in device units (units/µs) */
+			     double speed_in, /* in normalized units */
 			     uint64_t time)
 {
 	struct pointer_accelerator *accel_filter =
@@ -234,9 +205,6 @@ pointer_accel_profile_linear(struct motion_filter *filter,
 	const double threshold = accel_filter->threshold; /* 1000dpi units/us */
 	const double incline = accel_filter->incline;
 	double factor; /* unitless */
-
-	/* Normalize to 1000dpi, because the rest below relies on that */
-	speed_in = speed_in * DEFAULT_MOUSE_DPI/accel_filter->dpi;
 
 	/*
 	   Our acceleration function calculates a factor to accelerate input
@@ -298,9 +266,9 @@ pointer_accel_profile_linear(struct motion_filter *filter,
 	return factor;
 }
 
-struct motion_filter_interface accelerator_interface = {
+static const struct motion_filter_interface accelerator_interface = {
 	.type = LIBINPUT_CONFIG_ACCEL_PROFILE_ADAPTIVE,
-	.filter = accelerator_filter_pre_normalized,
+	.filter = accelerator_filter_linear,
 	.filter_constant = accelerator_filter_noop,
 	.restart = accelerator_restart,
 	.destroy = accelerator_destroy,

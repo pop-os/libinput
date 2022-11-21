@@ -46,8 +46,8 @@ struct touchpad_accelerator_flat {
 
 static struct normalized_coords
 accelerator_filter_touchpad_flat(struct motion_filter *filter,
-			const struct device_float_coords *unaccelerated,
-			void *data, uint64_t time)
+				 const struct device_float_coords *unaccelerated,
+				 void *data, uint64_t time)
 {
 	struct touchpad_accelerator_flat *accel =
 		(struct touchpad_accelerator_flat *)filter;
@@ -66,23 +66,26 @@ accelerator_filter_touchpad_flat(struct motion_filter *filter,
 
 static struct normalized_coords
 accelerator_filter_noop_touchpad_flat(struct motion_filter *filter,
-			     const struct device_float_coords *unaccelerated,
-			     void *data, uint64_t time)
+				      const struct device_float_coords *unaccelerated,
+				      void *data, uint64_t time)
 {
-	struct touchpad_accelerator_flat *accel =
-		(struct touchpad_accelerator_flat *) filter;
-	struct normalized_coords normalized;
-
-	normalized = normalize_for_dpi(unaccelerated, accel->dpi);
-	normalized.x = TP_MAGIC_SLOWDOWN_FLAT * normalized.x;
-	normalized.y = TP_MAGIC_SLOWDOWN_FLAT * normalized.y;
-
-	return normalized;
+	/* We map the unaccelerated flat filter to have the same behavior as
+	 * the "accelerated" flat filter.
+	 * The filter by definition is flat, i.e. it does not actually
+	 * apply any acceleration (merely a constant factor) and we can assume
+	 * that a user wants all mouse movement to have the same speed, mapped
+	 * 1:1 to the input speed.
+	 *
+	 * Thus we apply the same factor to our non-accelerated motion - this way
+	 * things like gestures end up having the same movement as
+	 * pointer motion.
+	 */
+	return accelerator_filter_touchpad_flat(filter, unaccelerated, data, time);
 }
 
 static bool
 accelerator_set_speed_touchpad_flat(struct motion_filter *filter,
-			   double speed_adjustment)
+				    double speed_adjustment)
 {
 	struct touchpad_accelerator_flat *accel_filter =
 		(struct touchpad_accelerator_flat *)filter;
@@ -104,7 +107,7 @@ accelerator_destroy_touchpad_flat(struct motion_filter *filter)
 	free(accel);
 }
 
-struct motion_filter_interface accelerator_interface_touchpad_flat = {
+static const struct motion_filter_interface accelerator_interface_touchpad_flat = {
 	.type = LIBINPUT_CONFIG_ACCEL_PROFILE_FLAT,
 	.filter = accelerator_filter_touchpad_flat,
 	.filter_constant = accelerator_filter_noop_touchpad_flat,

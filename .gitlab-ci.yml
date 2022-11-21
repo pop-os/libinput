@@ -34,36 +34,25 @@
 # <distribution>:<version>@activity:
 #  e.g. fedora:31@build-default
 
-.templates_sha: &template_sha 0c312d9c7255f46e741d43bcd1930f09cd12efe7
+.templates_sha: &template_sha 25459a8d343961918a7398e4b3c147e450926569
 
 include:
-  # Alpine container builder template
   - project: 'freedesktop/ci-templates'
     ref: *template_sha
-    file: '/templates/alpine.yml'
-  # Arch container builder template
-  - project: 'freedesktop/ci-templates'
-    ref: *template_sha
-    file: '/templates/arch.yml'
-  # Debian container builder template
-  - project: 'freedesktop/ci-templates'
-    ref: *template_sha
-    file: '/templates/debian.yml'
-  # Fedora container builder template
-  - project: 'freedesktop/ci-templates'
-    ref: *template_sha
-    file: '/templates/fedora.yml'
-  # Freebsd container builder template
-  - project: 'freedesktop/ci-templates'
-    ref: *template_sha
-    file: '/templates/freebsd.yml'
-  # Ubuntu container builder template
-  - project: 'freedesktop/ci-templates'
-    ref: *template_sha
-    file: '/templates/ubuntu.yml'
-  - project: 'freedesktop/ci-templates'
-    ref: *template_sha
-    file: '/templates/ci-fairy.yml'
+    file:
+      - '/templates/ci-fairy.yml'
+      # Alpine container builder template
+      - '/templates/alpine.yml'
+      # Arch container builder template
+      - '/templates/arch.yml'
+      # Debian container builder template
+      - '/templates/debian.yml'
+      # Fedora container builder template
+      - '/templates/fedora.yml'
+      # Freebsd container builder template
+      - '/templates/freebsd.yml'
+      # Ubuntu container builder template
+      - '/templates/ubuntu.yml'
 
 stages:
   - sanity check     # CI/commit checks
@@ -87,7 +76,7 @@ variables:
   # See the documentation here:                                                 #
   # https://wayland.freedesktop.org/libinput/doc/latest/building_libinput.html  #
   ###############################################################################
-  FEDORA_PACKAGES:  'git-core gcc gcc-c++ pkgconf-pkg-config meson check-devel libudev-devel libevdev-devel doxygen graphviz python3-sphinx python3-recommonmark python3-sphinx_rtd_theme python3-pytest-xdist libwacom-devel cairo-devel gtk4-devel glib2-devel mtdev-devel diffutils wayland-protocols-devel valgrind'
+  FEDORA_PACKAGES:  'git-core gcc gcc-c++ pkgconf-pkg-config meson check-devel libudev-devel libevdev-devel doxygen graphviz python3-sphinx python3-recommonmark python3-sphinx_rtd_theme python3-pytest-xdist libwacom-devel cairo-devel gtk4-devel glib2-devel mtdev-devel diffutils wayland-protocols-devel black clang-analyzer jq rpmdevtools valgrind systemd-udev qemu-img qemu-system-x86-core qemu-system-aarch64-core jq python3-click python3-rich'
   DEBIAN_PACKAGES:  'git gcc g++ pkg-config meson check libudev-dev libevdev-dev doxygen graphviz python3-sphinx python3-recommonmark python3-sphinx-rtd-theme python3-pytest-xdist libwacom-dev libcairo2-dev libgtk-3-dev libglib2.0-dev libmtdev-dev curl'
   UBUNTU_PACKAGES:  'git gcc g++ pkg-config meson check libudev-dev libevdev-dev doxygen graphviz python3-sphinx python3-recommonmark python3-sphinx-rtd-theme python3-pytest-xdist libwacom-dev libcairo2-dev libgtk-3-dev libglib2.0-dev libmtdev-dev'
   ARCH_PACKAGES:    'git gcc pkgconfig meson check libsystemd libevdev doxygen graphviz python-sphinx python-recommonmark python-sphinx_rtd_theme python-pytest-xdist libwacom gtk4 mtdev diffutils wayland-protocols'
@@ -99,14 +88,12 @@ variables:
   # changing these will force rebuilding the associated image
   # Note: these tags have no meaning and are not tied to a particular
   # libinput version
-  FEDORA_TAG:  '2022-06-10.0'
-  DEBIAN_TAG:  '2022-06-10.0'
-  UBUNTU_TAG:  '2022-06-10.0'
-  ARCH_TAG:    '2022-06-10.0'
-  ALPINE_TAG:  '2022-06-10.0'
-  FREEBSD_TAG: '2022-06-10.0'
-  FEDORA_QEMU_TAG:     'fedora-qemu-vm-2022-06-10.0'
-  FREEBSD_QEMU_TAG:    'freebsd-qemu-vm-2022-06-10.0'
+  FEDORA_TAG:  '2022-11-16.2'
+  DEBIAN_TAG:  '2022-11-16.2'
+  UBUNTU_TAG:  '2022-11-16.2'
+  ARCH_TAG:    '2022-11-16.2'
+  ALPINE_TAG:  '2022-11-16.2'
+  FREEBSD_TAG: '2022-11-16.2'
 
   FDO_UPSTREAM_REPO: libinput/libinput
 
@@ -137,7 +124,7 @@ variables:
     paths:
       - $MESON_BUILDDIR/meson-logs
     reports:
-      junit: $MESON_BUILDDIR/junit-*.xml
+      junit: $MESON_BUILDDIR/*junit*.xml
 
 
 #################################################################
@@ -209,33 +196,6 @@ check-commit:
 # Note: images are rebuilt weekly with a scheduled pipeline with FDO_FORCE_REBUILD set
 #
 #
-fedora:36@qemu-prep:
-  extends:
-    - .fdo.qemu-build@fedora
-    - .policy
-  stage: prep
-  tags:
-    - kvm
-  variables:
-    GIT_STRATEGY: none
-    FDO_DISTRIBUTION_VERSION: "36"
-    FDO_DISTRIBUTION_TAG: $FEDORA_QEMU_TAG
-    FDO_DISTRIBUTION_PACKAGES: $FEDORA_PACKAGES
-
-freebsd:13.0@qemu-prep:
-  extends:
-    - .fdo.qemu-build@freebsd
-    - .policy
-  stage: prep
-  tags:
-    - kvm
-  variables:
-    GIT_STRATEGY: none
-    FDO_DISTRIBUTION_VERSION: "13.0"
-    FDO_DISTRIBUTION_TAG: $FREEBSD_QEMU_TAG
-    FDO_DISTRIBUTION_PACKAGES: $FREEBSD_PACKAGES
-
-
 fedora:35@container-prep:
   extends:
     - .fdo.container-build@fedora
@@ -269,17 +229,6 @@ debian:stable@container-prep:
     FDO_DISTRIBUTION_PACKAGES: $DEBIAN_PACKAGES
     FDO_DISTRIBUTION_TAG: $DEBIAN_TAG
 
-ubuntu:21.10@container-prep:
-  extends:
-    - .fdo.container-build@ubuntu
-    - .policy
-  stage: prep
-  variables:
-    GIT_STRATEGY: none
-    FDO_DISTRIBUTION_VERSION: '21.10'
-    FDO_DISTRIBUTION_PACKAGES: $UBUNTU_PACKAGES
-    FDO_DISTRIBUTION_TAG: $UBUNTU_TAG
-
 ubuntu:22.04@container-prep:
   extends:
     - .fdo.container-build@ubuntu
@@ -312,6 +261,19 @@ alpine:latest@container-prep:
     FDO_DISTRIBUTION_VERSION: 'latest'
     FDO_DISTRIBUTION_PACKAGES: $ALPINE_PACKAGES
     FDO_DISTRIBUTION_TAG: $ALPINE_TAG
+
+freebsd:13.1@container-prep:
+  extends:
+    - .fdo.qemu-build@freebsd
+    - .policy
+  tags:
+    - kvm
+  stage: prep
+  variables:
+    GIT_STRATEGY: none
+    FDO_DISTRIBUTION_VERSION: '13.1'
+    FDO_DISTRIBUTION_PACKAGES: $FREEBSD_PACKAGES
+    FDO_DISTRIBUTION_TAG: $FREEBSD_TAG
 
 
 
@@ -375,16 +337,6 @@ debian:stable@container-clean:
     FDO_DISTRIBUTION_VERSION: 'stable'
     FDO_DISTRIBUTION_TAG: $DEBIAN_TAG
 
-ubuntu:21.10@container-clean:
-  extends:
-    - .policy
-    - .container-clean
-  variables:
-    GIT_STRATEGY: none
-    CURRENT_CONTAINER_IMAGE: $CI_REGISTRY_IMAGE/ubuntu/$FDO_DISTRIBUTION_VERSION:$FDO_DISTRIBUTION_TAG
-    FDO_DISTRIBUTION_VERSION: '21.10'
-    FDO_DISTRIBUTION_TAG: $UBUNTU_TAG
-
 ubuntu:22.04@container-clean:
   extends:
     - .policy
@@ -415,6 +367,16 @@ alpine:latest@container-clean:
     FDO_DISTRIBUTION_VERSION: 'latest'
     FDO_DISTRIBUTION_TAG: $ALPINE_TAG
 
+freebsd:13.1@container-clean:
+  extends:
+    - .policy
+    - .container-clean
+  variables:
+    GIT_STRATEGY: none
+    CURRENT_CONTAINER_IMAGE: $CI_REGISTRY_IMAGE/freebsd/$FDO_DISTRIBUTION_VERSION:$FDO_DISTRIBUTION_TAG
+    FDO_DISTRIBUTION_VERSION: '13.1'
+    FDO_DISTRIBUTION_TAG: $FREEBSD_TAG
+
 
 #################################################################
 #                                                               #
@@ -429,6 +391,31 @@ alpine:latest@container-clean:
   stage: build
   script:
     - .gitlab-ci/meson-build.sh
+
+
+# Run meson and meson test in the container image through qemu
+.build-in-b2c@template:
+  extends:
+    - .policy
+    - .default_artifacts
+  tags:
+    - kvm
+  variables:
+    MESON_BUILDDIR: build_dir
+    B2C_KERNEL: https://gitlab.freedesktop.org/api/v4/projects/libevdev%2Fhid-tools/packages/generic/kernel-x86_64/v5.19/bzImage
+    B2C_VERSION: v0.9.8
+    B2C_IMAGE: $FDO_DISTRIBUTION_IMAGE
+    B2C_COMMAND: .gitlab-ci/start-in-systemd.sh
+  script:
+    # first build in the host container
+    - .gitlab-ci/meson-build.sh --skip-test
+
+    # pull b2c
+    - curl -L -o /app/boot2container https://gitlab.freedesktop.org/mupuf/boot2container/-/raw/v0.9.8/vm2c.py
+    - chmod +x /app/boot2container
+
+    # runs the test suite only
+    - /app/boot2container
 
 #
 # Fedora
@@ -485,7 +472,7 @@ alpine:latest@container-clean:
       - $MESON_BUILDDIR/meson-logs
       - console.out
     reports:
-      junit: $MESON_BUILDDIR/junit-*.xml
+      junit: $MESON_BUILDDIR/*junit*.xml
 
 
 # Run in a test suite. Special variables:
@@ -494,7 +481,7 @@ alpine:latest@container-clean:
 # Set one or the other, not both.
 .test-suite-vm:
   extends:
-    - .build-in-qemu@template
+    - .build-in-b2c@template
   stage: test-suite
   variables:
     # remove the global --no-suite=hardware
@@ -503,19 +490,18 @@ alpine:latest@container-clean:
     - if ! [[ -z $SUITE_NAMES ]]; then SUITES=$(echo $SUITE_NAMES | sed 's/\([^ ]*\)/libinput-test-suite-\1/g'); fi
     - echo "Testing $SUITES"
     - export MESON_TEST_ARGS="$MESON_TEST_ARGS $SUITES"
-  retry:
-    max: 2
-    when: script_failure
+    - export LITEST_JOBS="2"
 
 
 .fedora:36@test-suite-vm:
   extends:
+    - .fdo.distribution-image@fedora
     - .test-suite-vm
   variables:
     FDO_DISTRIBUTION_VERSION: 36
-    FDO_DISTRIBUTION_TAG: $FEDORA_QEMU_TAG
+    FDO_DISTRIBUTION_TAG: $FEDORA_TAG
   needs:
-    - "fedora:36@qemu-prep"
+    - "fedora:36@container-prep"
 
 
 vm-touchpad:
@@ -642,6 +628,7 @@ vm-valgrind-touchpad:
     - vm-touchpad
   variables:
     MESON_TEST_ARGS: '--setup=valgrind'
+    LITEST_JOBS: 4
 
 vm-valgrind-tap:
   stage: valgrind
@@ -649,6 +636,7 @@ vm-valgrind-tap:
     - vm-tap
   variables:
     MESON_TEST_ARGS: '--setup=valgrind'
+    LITEST_JOBS: 4
 
 vm-valgrind-touchpad-buttons:
   stage: valgrind
@@ -656,6 +644,7 @@ vm-valgrind-touchpad-buttons:
     - vm-touchpad-buttons
   variables:
     MESON_TEST_ARGS: '--setup=valgrind'
+    LITEST_JOBS: 4
 
 vm-valgrind-tablet:
   stage: valgrind
@@ -663,6 +652,7 @@ vm-valgrind-tablet:
     - vm-tablet
   variables:
     MESON_TEST_ARGS: '--setup=valgrind'
+    LITEST_JOBS: 4
 
 vm-valgrind-gestures-device:
   stage: valgrind
@@ -670,6 +660,7 @@ vm-valgrind-gestures-device:
     - vm-gestures-device
   variables:
     MESON_TEST_ARGS: '--setup=valgrind'
+    LITEST_JOBS: 4
 
 vm-valgrind-backends:
   stage: valgrind
@@ -677,6 +668,7 @@ vm-valgrind-backends:
     - vm-backends
   variables:
     MESON_TEST_ARGS: '--setup=valgrind'
+    LITEST_JOBS: 4
 
 vm-valgrind-misc:
   stage: valgrind
@@ -684,6 +676,7 @@ vm-valgrind-misc:
     - vm-misc
   variables:
     MESON_TEST_ARGS: '--setup=valgrind'
+    LITEST_JOBS: 4
 
 vm-valgrind-other devices:
   stage: valgrind
@@ -691,6 +684,7 @@ vm-valgrind-other devices:
     - vm-other devices
   variables:
     MESON_TEST_ARGS: '--setup=valgrind'
+    LITEST_JOBS: 4
 
 vm-valgrind-pointer:
   stage: valgrind
@@ -698,6 +692,7 @@ vm-valgrind-pointer:
     - vm-pointer
   variables:
     MESON_TEST_ARGS: '--setup=valgrind'
+    LITEST_JOBS: 4
 
 
 .fedora-build@template:
@@ -724,8 +719,6 @@ scan-build@fedora:36:
   variables:
     NINJA_ARGS: ''
     MESON_TEST_ARGS: ''
-  before_script:
-    - dnf install -y clang-analyzer
   script:
     - .gitlab-ci/meson-build.sh
     - export SCANBUILD="$PWD/.gitlab-ci/scanbuild-wrapper.sh"
@@ -777,7 +770,7 @@ build-no-debuggui-nodeps@fedora:36:
   variables:
     MESON_ARGS: "-Ddebug-gui=false"
   before_script:
-    - dnf remove -y gtk3-devel
+    - dnf remove -y gtk3-devel gtk4-devel
 
 build-no-tests@fedora:36:
   extends:
@@ -798,8 +791,6 @@ valgrind@fedora:36:
     - .fedora-build@template
   variables:
     MESON_TEST_ARGS: '--suite=valgrind --no-suite=hardware --setup=valgrind'
-  before_script:
-    - dnf install -y valgrind
 
 # Python checks, only run on Fedora
 
@@ -816,8 +807,6 @@ usr-bin-env-python@fedora:36:
 python-format@fedora:36:
   extends:
     - .fedora-build@template
-  before_script:
-    - dnf install -y black
   script:
     - black $(git grep -l '^#!/usr/bin/env python3')
     - git diff --exit-code || (echo "Please run Black against all Python files" && false)
@@ -826,8 +815,6 @@ python-format@fedora:36:
 check-test-suites:
   extends:
     - .fedora-build@template
-  before_script:
-    - dnf install -y jq
   script:
     - meson builddir
     - meson introspect builddir --test | jq -r '.[].name' | grep 'libinput-test-suite' | sort > meson-testsuites
@@ -951,18 +938,6 @@ debian:stable@default-build:
     - "debian:stable@container-prep"
 
 
-ubuntu:21.10@default-build:
-  stage: distro
-  extends:
-    - .build@template
-    - .fdo.distribution-image@ubuntu
-  variables:
-    FDO_DISTRIBUTION_VERSION: '21.10'
-    FDO_DISTRIBUTION_TAG: $UBUNTU_TAG
-  needs:
-    - "ubuntu:21.10@container-prep"
-
-
 ubuntu:22.04@default-build:
   stage: distro
   extends:
@@ -1001,18 +976,18 @@ alpine:latest@default-build:
     - "alpine:latest@container-prep"
 
 
-freebsd:13.0@default-build:
+freebsd:13.1@default-build:
   stage: distro
   extends:
     - .build-in-qemu@template
     - .fdo.distribution-image@freebsd
   variables:
-    FDO_DISTRIBUTION_VERSION: '13.0'
-    FDO_DISTRIBUTION_TAG: $FREEBSD_QEMU_TAG
+    FDO_DISTRIBUTION_VERSION: '13.1'
+    FDO_DISTRIBUTION_TAG: $FREEBSD_TAG
     MESON_ARGS: '-Dtests=false -Ddocumentation=false' # doxygen drags down too many deps
     MESON_TEST_ARGS: '' # test suite doesn't work on BSD yet
   needs:
-    - "freebsd:13.0@qemu-prep"
+    - "freebsd:13.1@container-prep"
 
 
 #################################################################
@@ -1049,7 +1024,6 @@ build rpm:
   needs:
     - "fedora:36@container-prep"
   script:
-    - dnf install -y rpmdevtools jq
     - meson "$MESON_BUILDDIR"
     - VERSION=$(meson introspect "$MESON_BUILDDIR" --projectinfo | jq -r .version)
     - sed -e "s/@PIPELINEID@/${CI_PIPELINE_ID}/"

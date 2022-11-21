@@ -90,19 +90,10 @@ fallback_interface_get_switch_state(struct evdev_dispatch *evdev_dispatch,
 			LIBINPUT_SWITCH_STATE_OFF;
 }
 
-void
-fallback_normalize_delta(struct evdev_device *device,
-			 const struct device_coords *delta,
-			 struct normalized_coords *normalized)
-{
-	normalized->x = delta->x * DEFAULT_MOUSE_DPI / (double)device->dpi;
-	normalized->y = delta->y * DEFAULT_MOUSE_DPI / (double)device->dpi;
-}
-
 static inline bool
-post_trackpoint_scroll(struct evdev_device *device,
-		       struct normalized_coords unaccel,
-		       uint64_t time)
+post_button_scroll(struct evdev_device *device,
+		   struct device_float_coords raw,
+		   uint64_t time)
 {
 	if (device->scroll.method != LIBINPUT_CONFIG_SCROLL_ON_BUTTON_DOWN)
 		return false;
@@ -120,9 +111,16 @@ post_trackpoint_scroll(struct evdev_device *device,
 		device->scroll.button_scroll_state = BUTTONSCROLL_SCROLLING;
 		_fallthrough_;
 	case BUTTONSCROLL_SCROLLING:
+		{
+		const struct normalized_coords normalized =
+				filter_dispatch_constant(device->pointer.filter,
+						         &raw,
+							 device,
+							 time);
 		evdev_post_scroll(device, time,
 				  LIBINPUT_POINTER_AXIS_SOURCE_CONTINUOUS,
-				  &unaccel);
+				  &normalized);
+		}
 		return true;
 	}
 
@@ -175,7 +173,7 @@ fallback_flush_relative_motion(struct fallback_dispatch *dispatch,
 			       uint64_t time)
 {
 	struct libinput_device *base = &device->base;
-	struct normalized_coords accel, unaccel;
+	struct normalized_coords accel;
 	struct device_float_coords raw;
 
 	if (!(device->seat_caps & EVDEV_DEVICE_POINTER))
@@ -183,14 +181,13 @@ fallback_flush_relative_motion(struct fallback_dispatch *dispatch,
 
 	fallback_rotate_relative(dispatch, device);
 
-	fallback_normalize_delta(device, &dispatch->rel, &unaccel);
 	raw.x = dispatch->rel.x;
 	raw.y = dispatch->rel.y;
 	dispatch->rel.x = 0;
 	dispatch->rel.y = 0;
 
 	/* Use unaccelerated deltas for pointing stick scroll */
-	if (post_trackpoint_scroll(device, unaccel, time))
+	if (post_button_scroll(device, raw, time))
 		return;
 
 	if (device->pointer.filter) {
@@ -202,10 +199,10 @@ fallback_flush_relative_motion(struct fallback_dispatch *dispatch,
 	} else {
 		evdev_log_bug_libinput(device,
 				       "accel filter missing\n");
-		accel = unaccel;
+		accel.x = accel.y = 0;
 	}
 
-	if (normalized_is_zero(accel) && normalized_is_zero(unaccel))
+	if (normalized_is_zero(accel))
 		return;
 
 	pointer_notify_motion(base, time, &accel, &raw);
