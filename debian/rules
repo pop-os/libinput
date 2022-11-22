@@ -35,9 +35,6 @@ ifeq ($(with_udeb),yes)
 endif
 	dh_install --remaining-packages --sourcedir=debian/tmp/main
 
-override_dh_missing:
-	dh_missing --fail-missing
-
 override_dh_makeshlibs:
 	dh_makeshlibs -plibinput10 -V --add-udeb="libinput10-udeb" -- -c4
 
