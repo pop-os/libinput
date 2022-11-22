@@ -9,7 +9,7 @@ else
     CROSS_COMPILE=
 fi
 
-cd "${AUTOPKGTEST_TMP:-"${ADTTMP}"}"
+cd "${AUTOPKGTEST_TMP:-"${AUTOPKGTEST_TMP}"}"
 
 echo "1..2"
 
