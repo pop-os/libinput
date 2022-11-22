@@ -13,7 +13,7 @@ Build-Depends:
  libudev-dev,
  libevdev-dev (>= 1.10.0),
  libwacom-dev (>= 0.20),
-Standards-Version: 4.5.0
+Standards-Version: 4.6.1
 Vcs-Git: https://salsa.debian.org/xorg-team/lib/libinput.git
 Vcs-Browser: https://salsa.debian.org/xorg-team/lib/libinput
 Homepage: https://www.freedesktop.org/wiki/Software/libinput/
