@@ -16,7 +16,7 @@ Build-Depends:
 Standards-Version: 4.5.0
 Vcs-Git: https://salsa.debian.org/xorg-team/lib/libinput.git
 Vcs-Browser: https://salsa.debian.org/xorg-team/lib/libinput
-Homepage: http://www.freedesktop.org/wiki/Software/libinput/
+Homepage: https://www.freedesktop.org/wiki/Software/libinput/
 
 Package: libinput10
 Architecture: any
