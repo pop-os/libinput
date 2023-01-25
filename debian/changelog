@@ -1,4 +1,4 @@
-libinput (1.22.1-1) UNRELEASED; urgency=medium
+libinput (1.22.1-1) unstable; urgency=medium
 
   [ Debian Janitor ]
   * debian/copyright: use spaces rather than tabs to start continuation lines.
@@ -13,7 +13,7 @@ libinput (1.22.1-1) UNRELEASED; urgency=medium
   [ Marius Gripsgard ]
   * New upstream release v1.22.1
 
- -- Marius Gripsgard <marius@ubports.com>  Wed, 25 Jan 2023 15:43:06 +0100
+ -- Marius Gripsgard <marius@ubports.com>  Wed, 25 Jan 2023 15:46:49 +0100
 
 libinput (1.22.0-1) unstable; urgency=medium
 
