@@ -1,5 +1,6 @@
-libinput (1.22.0-2) UNRELEASED; urgency=medium
+libinput (1.22.1-1) UNRELEASED; urgency=medium
 
+  [ Debian Janitor ]
   * debian/copyright: use spaces rather than tabs to start continuation lines.
   * Use secure URI in Homepage field.
   * Bump debhelper from old 12 to 13.
@@ -9,7 +10,10 @@ libinput (1.22.0-2) UNRELEASED; urgency=medium
   * Update standards version to 4.6.1, no changes needed.
   * Replace use of deprecated $ADTTMP with $AUTOPKGTEST_TMP.
 
- -- Debian Janitor <janitor@jelmer.uk>  Tue, 22 Nov 2022 12:39:22 -0000
+  [ Marius Gripsgard ]
+  * New upstream release v1.22.1
+
+ -- Marius Gripsgard <marius@ubports.com>  Wed, 25 Jan 2023 15:43:06 +0100
 
 libinput (1.22.0-1) unstable; urgency=medium
 
