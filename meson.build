@@ -1,5 +1,5 @@
 project('libinput', 'c',
-	version : '1.22.0',
+	version : '1.22.1',
 	license : 'MIT/Expat',
 	default_options : [ 'c_std=gnu99', 'warning_level=2' ],
 	meson_version : '>= 0.49.0')
@@ -400,6 +400,10 @@ lib_libinput = shared_library('input',
 dep_libinput = declare_dependency(
 		link_with : lib_libinput,
 		dependencies : deps_libinput)
+
+if meson.version().version_compare('>= 0.54.0')
+	meson.override_dependency('libinput', dep_libinput)
+endif
 
 pkgconfig.generate(
 	filebase : 'libinput',
