@@ -1,0 +1,4 @@
+#git=https://gitlab.freedesktop.org/libinput/libinput.git
+version=4
+opts=dversionmangle=s/\+dfsg\d*$// \
+https://gitlab.freedesktop.org/libinput/libinput/tags?sort=updated_desc archive/@ANY_VERSION@/libinput-\d\S*.gz

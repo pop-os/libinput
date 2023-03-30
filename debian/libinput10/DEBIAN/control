@@ -1,0 +1,21 @@
+Package: libinput10
+Source: libinput
+Version: 1.23.0-1pop1
+Architecture: amd64
+Maintainer: System76 <info@system76.com>
+Installed-Size: 374
+Depends: libc6 (>= 2.35), libevdev2 (>= 1.10.0), libmtdev1 (>= 1.1.0), libudev1 (>= 183), libwacom9 (>= 2.0.0), libinput-bin (>= 1.23.0-1pop1)
+Section: libs
+Priority: optional
+Multi-Arch: same
+Homepage: https://www.freedesktop.org/wiki/Software/libinput/
+Description: input device management and event handling library - shared library
+ libinput is a library that handles input devices for display servers and
+ other applications that need to directly deal with input devices.
+ .
+ It provides device detection, device handling, input device event
+ processing and abstraction to minimize the amount of custom input
+ code the user of libinput needs to provide the common set of
+ functionality that users expect.
+ .
+ This package includes the shared library.

@@ -1,0 +1,13 @@
+Package: libinput-bin-dbgsym
+Package-Type: ddeb
+Source: libinput
+Version: 1.23.0-1pop1
+Auto-Built-Package: debug-symbols
+Architecture: amd64
+Maintainer: System76 <info@system76.com>
+Installed-Size: 56
+Depends: libinput-bin (= 1.23.0-1pop1)
+Section: debug
+Priority: optional
+Description: debug symbols for libinput-bin
+Build-Ids: 0158bd4ece2220437dfa3f7ea432d66fb3096045 375a4ebb764ff7c933b9d3fc5348a4fa2a2113ce 687c9c4b9be42d19ce358d6842ab65e8d7e9f51a

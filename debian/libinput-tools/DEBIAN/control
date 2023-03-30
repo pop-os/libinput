@@ -1,0 +1,21 @@
+Package: libinput-tools
+Source: libinput
+Version: 1.23.0-1pop1
+Architecture: amd64
+Maintainer: System76 <info@system76.com>
+Installed-Size: 537
+Depends: libinput10 (= 1.23.0-1pop1), libc6 (>= 2.34), libcairo2 (>= 1.2.4), libevdev2 (>= 1.10.0), libglib2.0-0 (>= 2.30.0), libgtk-3-0 (>= 3.19.12), libudev1 (>= 183), libwayland-client0 (>= 1.20.0), libx11-6, python3, python3-libevdev, python3-pyudev
+Section: libdevel
+Priority: optional
+Multi-Arch: allowed
+Homepage: https://www.freedesktop.org/wiki/Software/libinput/
+Description: input device management and event handling library - command line tools
+ libinput is a library that handles input devices for display servers and
+ other applications that need to directly deal with input devices.
+ .
+ It provides device detection, device handling, input device event
+ processing and abstraction to minimize the amount of custom input
+ code the user of libinput needs to provide the common set of
+ functionality that users expect.
+ .
+ This package includes the command line tools.

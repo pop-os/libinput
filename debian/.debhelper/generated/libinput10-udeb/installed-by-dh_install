@@ -1,0 +1,4 @@
+debian/tmp/main/lib/udev
+debian/tmp/main/usr/lib/x86_64-linux-gnu/libinput.so.10
+debian/tmp/main/usr/lib/x86_64-linux-gnu/libinput.so.10.13.0
+debian/tmp/main/usr/share/libinput

@@ -1,0 +1,3 @@
+debian/tmp/main/usr/include
+debian/tmp/main/usr/lib/x86_64-linux-gnu/libinput.so
+debian/tmp/main/usr/lib/x86_64-linux-gnu/pkgconfig
